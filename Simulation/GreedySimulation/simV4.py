@@ -207,7 +207,7 @@ def plotSimForGif(carDict, eventDict, currentTime, maxX, maxY):
 
 
 def createCarPositionLog(car, currentTime):
-    return {'position': car['position'], 'time': currentTime, 'target': car['target'], 'targetId': car['targetId']}
+    return {'position': copy.deepcopy(car['position']), 'time': currentTime, 'target': copy.deepcopy(car['target']), 'targetId': copy.deepcopy(car['targetId'])}
 
 
 def createCarUseLog(carDict, currentTime):
@@ -242,8 +242,8 @@ def main():
     carEntityTemp = {'id': 0, 'velocity': 0, 'position': [0, 0], 'target': None, 'targetId': None, 'finished': 0}
     eventTemp = {'waitTime': 0 ,'position': [], 'timeStart': 0, 'timeEnd': 0, 'closed': False, 'statusLog': [], 'id': 0, 'prob': 1}
     # params
-    numEvents = 12
-    lengthSim = 12  # minutes
+    numEvents = 20
+    lengthSim = 20  # minutes
     numCars = 2
     gridWidth = 5
     gridHeight = 5
@@ -252,8 +252,8 @@ def main():
     eventTimes = []
     eventLog = {'count': [], 'closed': [], 'canceled': [], 'current': [], 'time': []}
     if flagLoadParam == 1:
-        pickleName = 'log_Cost_WaitTime_CarMovement_5grid_2cars_12simLengh_50StochasticLength_3Prediction_2aStarWeight'
-        lg=pickle.load(open('/home/chana/Documents/Thesis/FunctionEstimation/AnticipatorySimulation/Results/' + pickleName + '.p', 'rb'))
+        pickleName = 'log_Cost_WaitTime_CarMovement_5grid_2cars_20simLengh_30StochasticLength_3Prediction_1aStarWeight'
+        lg=pickle.load(open('/home/chanaby/Documents/Thesis/Thesis/Simulation/Anticipitory/Results/' + pickleName + '.p', 'rb'))
         # init event dict
         eventDict = {}
         # take event times from file -
