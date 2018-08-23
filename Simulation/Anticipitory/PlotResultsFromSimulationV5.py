@@ -9,8 +9,27 @@ import imageio
 sns.set()
 #  load logs
 pickleNames = []
-pickleNames.append('log_Cost_WaitTime_CarMovement_5grid_2cars_12simLengh_50StochasticLength_3Prediction_2aStarWeight')
-pickleNames.append('HungarianMethod_log_Cost_WaitTime_CarMovement_5grid_2cars_12simLengh')
+
+"""
+Results are good, ran for 7 sec, and cost of anticipatory is higher than not (this is before in took the cost of events into account)
+"""
+# pickleNames.append('log_Cost_WaitTime_CarMovement_5grid_2cars_12simLengh_50StochasticLength_3Prediction_2aStarWeight')
+# pickleNames.append('HungarianMethod_log_Cost_WaitTime_CarMovement_5grid_2cars_12simLengh')
+
+
+
+"""
+Results are pretty good, only ran for 6 sec, and cost of anticipatory is higher than not (this is before in took the cost of events into account)
+"""
+pickleNames.append('log_Cost_WaitTime_CarMovement_5grid_2cars_20simLengh_30StochasticLength_3Prediction_1aStarWeight')
+pickleNames.append('HungarianMethod_log_Cost_WaitTime_CarMovement_5grid_2cars_20simLengh')
+
+
+"""
+Results are not good, only ran for 4 sec, and cost of anticipatory is higher than not (this is before in took the cost of events into account)
+"""
+# pickleNames.append('log_Cost_WaitTime_CarMovement_6grid_2cars_20simLengh_50StochasticLength_3Prediction_2aStarWeight')
+# pickleNames.append('HungarianMethod_log_Cost_WaitTime_CarMovement_6grid_2cars_20simLengh')
 
 
 # pickleNames.append('log_Cost_WaitTime_CarMovement_3grid_1cars_30simLengh_50StochasticLength_3Prediction')
@@ -214,11 +233,11 @@ def calcTotalCost(lg,simTime):
 
 def main():
     imageList = []
-    gridSize = 5
+    gridSize = 6
     FlagCreateGif = 0
-    simTime = 12
+    simTime = 20
     for pickleName in pickleNames:
-        lg = pickle.load(open('/home/chana/Documents/Thesis/FunctionEstimation/AnticipatorySimulation/Results/' + pickleName + '.p', 'rb'))
+        lg=pickle.load(open('/home/chanaby/Documents/Thesis/Thesis/Simulation/Anticipitory/Results/' + pickleName + '.p', 'rb'))
         events = lg['events']
         simTime = np.min([np.max([c['time'] for c in lg['cars'][0]]),simTime])
         if 'Hungarian' not in pickleName and FlagCreateGif:
@@ -230,8 +249,8 @@ def main():
             plt.close()
         plotBasicStatisticsOfEvents(gridSize, lg, pickleName,simTime)
         plotCarsHeatmap(gridSize,lg,simTime)
-        plt.figure(888)
-        plotNumWastedSteps(gridSize,lg,pickleName,simTime)
+        # plt.figure(888)
+        # plotNumWastedSteps(gridSize,lg,pickleName,simTime)
         plt.figure(999)
         plotTimeOfEachEvent(gridSize,lg,pickleName,simTime)
         numEventsClosed = len([e for e in events.values() if e['closed'] and e['timeStart']+e['waitTime']<=simTime])
