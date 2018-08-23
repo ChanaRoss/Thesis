@@ -7,7 +7,7 @@ import imageio
 from scipy.stats import truncnorm
 import itertools as rt
 import sys
-sys.path.insert(0, '/home/chanaby/Documents/Thesis/SearchAlgorithm')
+sys.path.insert(0, '/home/chana/Documents/Thesis/SearchAlgorithm/DeterministicAlgorithm')
 from SolveDeterminsticAnticipatorySimulation_AStarV4 import *
 sns.set()
 
@@ -122,7 +122,6 @@ def createCostMatrix(carDict, eventDict, currentTime):
 
 def unifromRandomEvents(startTime,endSimTime, n):
     """
-
     :param startTime: time to start the random list
     :param endSimTime: time to end the random list
     :param n: number of events
@@ -132,7 +131,6 @@ def unifromRandomEvents(startTime,endSimTime, n):
 
 def createCarPositionLog(car, currentTime):
     """
-
     :param car: dictionary with spesific car parameters at time Current time
     :param currentTime: the time wanted to be logged
     :return: dictionary to add to car logger
@@ -141,7 +139,6 @@ def createCarPositionLog(car, currentTime):
 
 def createCarUseLog(carDict, currentTime):
     """
-
     :param carDict: dictionary of cars
     :param currentTime: time wanted to be logged
     :return: number of cars in use and not in use at time Current time
@@ -152,7 +149,6 @@ def createCarUseLog(carDict, currentTime):
 
 def createEventLog(eventLog, eventDict, currentTime):
     """
-
     :param eventLog: event log of number of events closed,created and canceled
     :param eventDict: dictionary of events
     :param currentTime: time wanted to be logged
@@ -172,7 +168,6 @@ def createEventLog(eventLog, eventDict, currentTime):
 
 def filterEvents(eventDict, currentTime):
     """
-
     :param eventDict: event dictionary at time Current time
     :param currentTime: the time wanted to be taken care of
     :return: dictionary of filtered events that are opened at time Current time
@@ -181,7 +176,6 @@ def filterEvents(eventDict, currentTime):
 
 def CalculateCostForKnownEventList(carDict,eventDict,timeLine,gridWidth,gridHeight,weight):
     """
-
     :param carDict: car dictionary with all information for inner simulation
     :param eventDict:  event dictionary with all information for inner simulation
     :param timeLine: time line for inner simulation
@@ -215,7 +209,6 @@ def CalculateCostForKnownEventList(carDict,eventDict,timeLine,gridWidth,gridHeig
 
 def buildEventList(startTime,endSimTime,lastEventDelta,numEventsForList,gridWidth,gridHeight,eventTemp):
     """
-
     :param startTime: time to start event list
     :param endSimTime: time to end event list
     :param lastEventDelta: last time to give an event
@@ -229,9 +222,9 @@ def buildEventList(startTime,endSimTime,lastEventDelta,numEventsForList,gridWidt
     # init event dict
     eventDict = {}
     locX = gridWidth / 2
-    scaleX = gridWidth
+    scaleX = gridWidth/3
     locY = gridHeight / 2
-    scaleY = gridHeight
+    scaleY = gridHeight/3
     # randomize event times
     eventTimes = unifromRandomEvents(startTime,endSimTime - lastEventDelta, numEventsForList)
     eventPosX = truncnorm.rvs((0 - locX) / scaleX, (gridWidth - locX) / scaleX, loc=locX, scale=scaleX,
@@ -264,14 +257,14 @@ def main():
     # params
     epsilon = 0.1 # distance between locations to be considered same location
     numCars = 2
-    numEvents = 20
-    lengthSim = 20  # minutes
+    numEvents = 12
+    lengthSim = 12  # minutes
     gridWidth = 5
     gridHeight = 5
     eventDuration = lengthSim
     lastEventDelta = 1
-    numStochasticEvents = 30
-    astarWeight = 1
+    numStochasticEvents = 50
+    astarWeight = 2
     # templates
     carEntityTemp = {'id': 0, 'velocity': 0, 'position': [0, 0], 'target': None, 'targetId': None, 'finished': 0}
     eventTemp = {'position': [], 'timeStart': 0, 'timeEnd': 0, 'closed': False, 'id': 0, 'prob': 1, 'statusLog': [], 'waitTime': 0}
@@ -397,7 +390,7 @@ def main():
                 endTimeStoch = time.clock()
                 timeItter = round(endTimeStoch - startTimeStoch,3)
                 timeStoch.append(timeItter)
-                print('time iteration number:'+str(i)+' took: ' + str(timeItter))
+                # print('time iteration number:'+str(i)+' took: ' + str(timeItter))
             # each set of events can happend with the same probability therefore this is a simple sum divided by num sets
             expectedCost = np.sum(stochasticCost)/len(stochasticCost)
             print('action check number:' + str(j))
