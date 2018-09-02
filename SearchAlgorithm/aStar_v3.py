@@ -13,7 +13,7 @@ sns.set()
 __author__ = "Chana Ross, Yoel Ross"
 __copyright__ = "Copyright 2018"
 __credits__ = ["Yoel Ross", "Tamir Hazan", "Erez Karpas"]
-__version__ = "1.0.1"
+__version__ = "3.0"
 __maintainer__ = "Chana Ross"
 __email__ = "schanaby@campus.technion.ac.il"
 __status__ = "Thesis"
