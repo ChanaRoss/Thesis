@@ -207,7 +207,7 @@ def plotSimForGif(carDict, eventDict, currentTime, maxX, maxY):
 
 
 def createCarPositionLog(car, currentTime):
-    return {'position': copy.deepcopy(car['position']), 'time': currentTime, 'target': copy.deepcopy(car['target']), 'targetId': copy.deepcopy(car['targetId'])}
+    return {'position': car['position'], 'time': currentTime, 'target': car['target'], 'targetId': car['targetId']}
 
 
 def createCarUseLog(carDict, currentTime):
@@ -242,18 +242,18 @@ def main():
     carEntityTemp = {'id': 0, 'velocity': 0, 'position': [0, 0], 'target': None, 'targetId': None, 'finished': 0}
     eventTemp = {'waitTime': 0 ,'position': [], 'timeStart': 0, 'timeEnd': 0, 'closed': False, 'statusLog': [], 'id': 0, 'prob': 1}
     # params
-    numEvents = 20
-    lengthSim = 20  # minutes
+    numEvents = 40
+    lengthSim = 40  # minutes
     numCars = 2
-    gridWidth = 5
-    gridHeight = 5
+    gridWidth =7
+    gridHeight = 7
 
     eventLoc = []
     eventTimes = []
     eventLog = {'count': [], 'closed': [], 'canceled': [], 'current': [], 'time': []}
     if flagLoadParam == 1:
-        pickleName = 'log_Cost_WaitTime_CarMovement_5grid_2cars_20simLengh_30StochasticLength_3Prediction_1aStarWeight'
-        lg=pickle.load(open('/home/chanaby/Documents/Thesis/Thesis/Simulation/Anticipitory/Results/' + pickleName + '.p', 'rb'))
+        pickleName = 'log_Cost_WaitTime_CarMovement_7grid_2cars_40simLengh_100StochasticLength_3Prediction_3aStarWeight'
+        lg=pickle.load(open('/home/chana/Documents/Thesis/FunctionEstimation/Results/' + pickleName + '.p', 'rb'))
         # init event dict
         eventDict = {}
         # take event times from file -
@@ -264,7 +264,7 @@ def main():
             event['timeStart'] = eventDataTuple[i][0]
             event['timeEnd'] = lengthSim
             # event['timeEnd'] = et + int(np.random.randint(1, np.min([maxEventDuration, lengthSim-et]), 1))
-            event['position'] = eventDataTuple[i][1]
+            event['position'] = list(eventDataTuple[i][1])
             event['id'] = i
             eventDict[i] = event
         # logs
@@ -274,7 +274,8 @@ def main():
         carUseLog = {}
         # car dictionary
         carDict = {}
-        carPos = [c['position'] for c in lg['carDict'].values()]
+        carPos = [list(c['position']) for c in lg['carDict'].values()]
+        # carPos = [[1,0]]
         for i in range(numCars):
             car = copy.deepcopy(carEntityTemp)
             car['position'] = carPos[i]
@@ -389,7 +390,7 @@ def main():
             # incriment timeIndex
             timeIndex += 1
         # dump logs
-    with open('HungarianMethod_log_Cost_WaitTime_CarMovement_' + str(gridHeight) + 'grid_' + str(numCars) + 'cars_' + str( lengthSim) + 'simLengh.p', 'wb') as out:
+    with open('HungarianMethod_'+pickleName+'.p', 'wb') as out:
         pickle.dump({'cars': carPositionLog, 'events': eventDict, 'eventLog': eventLog, 'carDict': carDict}, out)
     kwargs_write = {'fps': 1.0, 'quantizer': 'nq'}
     imageio.mimsave('./gif_HungarianMethod_log_Cost_WaitTime_CarMovement_' + str(gridHeight) + 'grid_' + str(
