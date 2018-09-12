@@ -21,7 +21,7 @@ __status__ = "Thesis"
 
 # Class definitions
 class SearchState:
-    def __init__(self, carPos, eventPos, eventTimes, eventStatus, heuristicVal, costVal, parent):
+    def __init__(self, carPos, eventPos, eventTimes, eventStatus, heuristicVal, costVal, parent,hWeight):
         self.carPos = carPos
         self.eventPos = eventPos
         self.eventTimes = eventTimes
@@ -29,6 +29,7 @@ class SearchState:
         self.time = parent.time+1 if parent is not None else 0  # time is one step ahead of parent
         self.hval = heuristicVal
         self.gval = costVal
+        self.hWeight = hWeight
         self.parent = parent  # predecessor in graph
         self.root = parent is None  # true of state is the root, false otherwise
         return
@@ -88,7 +89,7 @@ class SearchState:
                 return p
 
     def getFval(self):
-        return self.hval + self.gval
+        return self.hval*self.hWeight + self.gval
 
 
 class Heap():
@@ -242,7 +243,7 @@ def aStar(initState, epsilon=0.001,shouldPrint=False):
                                         possibleNewEventStatus[i,:],
                                         nextHeuri[i],
                                         nextCosts[i],
-                                        current)
+                                        current,current.hWeight)
                 # check if is in closed
                 if (tempState in closed) and (tempState.gval<closed[tempState]):
                     closed.pop(tempState)  # remove from closed
@@ -261,24 +262,46 @@ def aStar(initState, epsilon=0.001,shouldPrint=False):
 def main():
     np.random.seed(1)
     nc = 2
-    ne = 20
-    gs = 8
-    maxTime = 20
+    ne = 40
+    gs = 7
+    maxTime = 40
+    hWeight = 1
+    fromPickle = 1
+
     print("num cars: {0}, num events: {1}, grid size: {2}:{3}".format(nc, ne, gs, gs))
-    carPos = np.reshape(np.random.randint(0, gs, 2*nc), (nc,2))
-    evePos = np.reshape(np.random.randint(0, gs, 2*ne), (ne,2))
-    eveTim = np.random.randint(0, maxTime, ne)
-    eveStt = np.ones_like(eveTim).astype(np.bool_)
-    initState = SearchState(carPos, evePos, eveTim, eveStt, float('inf'), 0, None)
+    if fromPickle:
+        pickleName = 'log_Cost_WaitTime_CarMovement_7grid_2cars_40simLengh_100StochasticLength_3Prediction_3aStarWeight'
+        lg = pickle.load(open('/home/chana/Documents/Thesis/FunctionEstimation/Results/' + pickleName + '.p', 'rb'))
+        eventDataTuple = [(e['timeStart'], e['position']) for e in lg['events'].values()]
+        carPos = np.vstack([np.array(c['position']) for c in lg['carDict'].values()])
+        eveTim = np.zeros(len(eventDataTuple))
+        evePos = np.zeros(shape=(len(eveTim),2))
+        eveStt = np.ones_like(eveTim).astype(np.bool_)
+        for i, et in enumerate(eventDataTuple):
+            eveTim[i] = eventDataTuple[i][0]
+            evePos[i,:] = np.array(eventDataTuple[i][1])
+
+    else:
+        carPos = np.reshape(np.random.randint(0, gs, 2*nc), (nc,2))
+        evePos = np.reshape(np.random.randint(0, gs, 2*ne), (ne,2))
+        eveTim = np.random.randint(0, maxTime, ne)
+        eveStt = np.ones_like(eveTim).astype(np.bool_)
+
+
+    initState = SearchState(carPos, evePos, eveTim, eveStt, float('inf'), 0, None,hWeight)
     stime = time.clock()
     p = aStar(initState)
     etime = time.clock()
     runTime = etime-stime
     print('cost is:'+str(p[-1].gval))
+    openEvents = [len([(i,e) for i,e in zip(a.eventTimes,a.eventStatus) if i<=0 and e]) for a in p]
+    allEvents = [len([e for e in a.eventTimes if e<=0]) for a in p]
+    timeVector = [a.time for a in p]
+    closedEvents = [len([(i,e) for i,e in zip(a.eventTimes,a.eventStatus) if i<=0 and not e]) for a in p]
+
     # dump logs
-    with open('MyAStarResult_' + str(len(carPos)) + 'numCars_' + str(
-            ne) + 'numEvents_' + str(gs) + 'gridSize.p', 'wb') as out:
-        pickle.dump({'runTime': runTime, 'aimaSolution': p}, out)
+    with open('MyAStarResult_' + str(hWeight)+'weight_'+str(len(carPos)) + 'numCars_' + str(ne) + 'numEvents_' + str(gs) + 'gridSize.p', 'wb') as out:
+        pickle.dump({'runTime': runTime,'time':timeVector,'closedEvents':closedEvents,'OpenedEvents':openEvents,'AllEvents':allEvents}, out)
     imageList = []
     for s in p:
         imageList.append(plotForGif(s,ne,gs))
