@@ -10,22 +10,17 @@ sns.set()
 #  load logs
 pickleNames = []
 
-"""
-Results are good, ran for 7 sec, and cost of anticipatory is higher than not (this is before in took the cost of events into account)
-"""
-# pickleNames.append('log_Cost_WaitTime_CarMovement_5grid_2cars_12simLengh_50StochasticLength_3Prediction_2aStarWeight')
-# pickleNames.append('HungarianMethod_log_Cost_WaitTime_CarMovement_5grid_2cars_12simLengh')
 
 """
-Results from V8, ran for 7 sec, and cost of anticipatory is higher than not (this is before in took the cost of events into account)
+Results from V10, aStar V5:
 """
-# pickleNames.append('log_Cost_WaitTime_CarMovement_7grid_2cars_15simLengh_150StochasticLength_3Prediction_1aStarWeight')
-# pickleNames.append('HungarianMethod_log_Cost_WaitTime_CarMovement_7grid_2cars_15simLengh_150StochasticLength_3Prediction_1aStarWeight')
+pickleNames.append('log_Cost_WaitTime_CarMovement_6grid_2cars_30simLengh_100StochasticLength_5Prediction_7aStarWeight')
+pickleNames.append('HungarianMethodlog_Cost_WaitTime_CarMovement_6grid_2cars_30simLengh_100StochasticLength_5Prediction_7aStarWeight')
 # pickleNames.append('MyAStarResult_1_weight2numCars_15numEvents_7gridSize')
 
 
-pickleNames.append('log_Cost_WaitTime_CarMovement_7grid_2cars_40simLengh_100StochasticLength_3Prediction_3aStarWeight')
-pickleNames.append('HungarianMethod_log_Cost_WaitTime_CarMovement_7grid_2cars_40simLengh_100StochasticLength_3Prediction_3aStarWeight')
+# pickleNames.append('log_Cost_WaitTime_CarMovement_7grid_2cars_40simLengh_50StochasticLength_3Prediction_2aStarWeight')
+# pickleNames.append('HungarianMethod_log_Cost_WaitTime_CarMovement_7grid_2cars_40simLengh_100StochasticLength_3Prediction_3aStarWeight')
 # pickleNames.append('MyAStarResult_1_weight2numCars_15numEvents_7gridSize')
 
 """
@@ -258,7 +253,7 @@ def main():
     FlagCreateGif = 0
     simTime = 45
     for pickleName in pickleNames:
-        lg=pickle.load(open('/home/chana/Documents/Thesis/FunctionEstimation/Results/' + pickleName + '.p', 'rb'))
+        lg=pickle.load(open('/home/chanaby/Documents/Thesis/Thesis/Simulation/Anticipitory/Results/' + pickleName + '.p', 'rb'))
         if 'Hungarian' not in pickleName and FlagCreateGif:
             time = np.linspace(0,simTime,simTime+1)
             for t in time:
