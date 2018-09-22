@@ -12,10 +12,11 @@ pickleNames = []
 
 
 """
-Results from V10, aStar V5:
+Results from closed events - V1:
 """
-pickleNames.append('logAnticipatory_10EventReward_8grid_2cars_35simLengh_20StochasticLength_3Prediction_1aStarWeight')
-# pickleNames.append('HungarianMethodlogAnticipatory_10EventReward_8grid_2cars_35simLengh_20StochasticLength_5Prediction_5aStarWeight')
+# pickleNames.append('logAnticipatory_10EventReward_8grid_2cars_35simLengh_150StochasticLength_3Prediction_1aStarWeight')
+pickleNames.append('logAnticipatory_10EventReward_8grid_2cars_35simLengh_200StochasticLength_3Prediction_1aStarWeight')
+pickleNames.append('HungarianMethodlogAnticipatory_10EventReward_8grid_2cars_35simLengh_50StochasticLength_3Prediction_1aStarWeight')
 # pickleNames.append('MyAStarResult_1weight_2numCars_40numEvents_8gridSize')
 
 
@@ -87,10 +88,14 @@ def plotCurrentTime(time,gridSize,lg):
         ax.scatter(ePos[0], ePos[1], c='b', alpha=0.5, label='events')
         ax.text(ePos[0], ePos[1] + 0.1, 'eid: {0}'.format(fev['id']))
     ax.set_title('current time: {0}'.format(time))
-    ax.grid(True)
+
     ax.legend()
     ax.set_ylim([-3, gridSize + 3])
     ax.set_xlim([-3, gridSize + 3])
+    majorTicks = np.arange(-3,gridSize+3,1)
+    ax.set_xticks(majorTicks)
+    ax.set_yticks(majorTicks)
+    ax.grid(True)
     # plt.show()
 
     # Used to return the plot as an image rray
@@ -114,18 +119,20 @@ def plotCarsHeatmap(gridSize,lg,simTime):
 def plotBasicStatisticsOfEvents(gridSize,lg,pickleName,simTime):
     if 'Hungarian' in pickleName:
         labelStr = 'Greey Algorithm'
+        lnStyle = '--'
     elif 'AStar' in pickleName:
         labelStr = 'A Star Algorithm'
+        lnStyle  = '*'
     else:
         labelStr = 'Anticipatory Algorithm'
-
+        lnStyle  = '-'
     if 'AStar' in pickleName:
         plotCount = lg['AllEvents']
         plotClosed = lg['closedEvents']
         plotingTimeline = lg['time']
         plt.figure(2)
         plt.scatter(plotingTimeline, plotCount, c='r', label='Num Created events')
-        plt.plot(plotingTimeline, plotClosed, label='Num Closed for :' + labelStr)
+        plt.plot(plotingTimeline, plotClosed,linestyle = lnStyle, label='Num Closed for :' + labelStr)
     else:
         eventLog = lg['eventLog']
         carLog = lg['cars']
@@ -134,11 +141,13 @@ def plotBasicStatisticsOfEvents(gridSize,lg,pickleName,simTime):
         lenEventLog = len([e for e in eventLog['time'] if e<=simTime])
         plotCount = eventLog['count'][:lenEventLog]
         plotClosed = eventLog['answered'][:lenEventLog]
+        plotCanceled = eventLog['canceled'][:lenEventLog]
         plotCurrent = eventLog['current'][:lenEventLog]
         plotingTimeline = timeLine
         plt.figure(2)
         plt.scatter(plotingTimeline, plotCount, c='r', label='Num Created events')
-        plt.plot(plotingTimeline, plotClosed, label='Num Closed for :'+labelStr)
+        plt.plot(plotingTimeline,plotCanceled,linestyle = lnStyle,c='y',label= 'Num Canceled for :'+labelStr)
+        plt.plot(plotingTimeline, plotClosed,linestyle = lnStyle, label='Num Closed for :'+labelStr)
         # plt.plot(plotingTimeline, eventLog['canceled'], c='y', label='canceled')
         plt.legend()
         plt.grid(True)
@@ -255,8 +264,8 @@ def calcTotalCost(lg,simTime,numEventsClosed):
 def main():
     imageList = []
     gridSize = 9
-    FlagCreateGif = 1
-    simTime = 8
+    FlagCreateGif = 0
+    simTime = 35
     for pickleName in pickleNames:
         lg=pickle.load(open('/home/chana/Documents/Thesis/FromGitFiles/Simulation/Anticipitory/Results/' + pickleName + '.p', 'rb'))
         if 'Hungarian' not in pickleName and FlagCreateGif:
@@ -265,7 +274,7 @@ def main():
                 imageList.append(plotCurrentTime(t,gridSize,lg))
             kwargs_write = {'fps': 1.0, 'quantizer': 'nq'}
             imageio.mimsave('./'+pickleName.replace('log','gif')+'.gif', imageList, fps=1)
-            plt.close()
+            plt.close('all')
         if 'AStar' in pickleName:
             plotBasicStatisticsOfEvents(gridSize, lg, pickleName,simTime)
         else:

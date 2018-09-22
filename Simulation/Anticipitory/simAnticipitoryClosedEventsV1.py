@@ -94,11 +94,11 @@ def createEventLog(eventLog, eventDict, currentTime):
     eventLog['current'].append(len(filterEvents(eventDict, currentTime)))
     eventLog['time'].append(currentTime)
     for event in eventDict.values():
-        if event['timeStart'] <= currentTime and event['timeEnd']>currentTime and not event['answered']:
+        if event['timeStart'] <= currentTime and event['timeEnd']>currentTime :
             eventDict[event['id']]['statusLog'].append([currentTime, True])
         else:
             eventDict[event['id']]['statusLog'].append([currentTime, False])
-        if event['timeEnd'] == currentTime:
+        if event['timeEnd'] == currentTime and not event['answered']:
             eventDict[event['id']]['canceled'] = True
     return eventLog
 
@@ -188,13 +188,13 @@ def main():
     # params
     epsilon              = 0.1 # distance between locations to be considered same location
     numCars              = 2
-    lam                  = 40/60 # number of events per hour/ 60
+    lam                  = 70/60 # number of events per hour/ 60
     lengthSim            = 35    # minutes
     gridWidth            = 8
     gridHeight           = 8
     timeWindow           = 3
     lastEventDelta       = 1
-    numStochasticEvents  = 50
+    numStochasticEvents  = 100
     eventReward          = 10
     canceledEventPenalty = 100
     openedEventPenalty   = 1
@@ -269,7 +269,7 @@ def main():
         # log events
         eventLog = createEventLog(eventLog, eventDict, continuesTimeLine[timeIndex])
         # find all events that have been canceled in this iteration and add their cost to total cost:
-        canceledEvents = len([e for e in eventDict.values() if e['timeEnd'] == continuesTimeLine[timeIndex]])
+        canceledEvents = len([e for e in eventDict.values() if e['timeEnd'] == continuesTimeLine[timeIndex] and not e['answered']])
         # penalty for all canceled events
         totalCost += canceledEvents * canceledEventPenalty
         for i in range(numStochasticEvents):
@@ -283,6 +283,7 @@ def main():
                       'timeWindow'      : timeWindow,
                       'eventTemp'       : eventTemp}
             stochasticTimeLine[i], stochasticEventDict[i] = buildEventList(**kwargs)
+        costActionsList = []
         for j,actions in enumerate(rt.product(actionOptions.values(), repeat=len(carDict))):
             numEventsClosed    = 0
             # all costs that are effected by actions:
@@ -322,8 +323,6 @@ def main():
                 if len(filteredEvents)>0:
                     eventDictForCalc.update(copy.deepcopy(filteredEvents))
                 tempCost = CalculateCostForKnownEventList(carDict= copy.deepcopy(carDictForCalc),eventDict=copy.deepcopy(eventDictForCalc),weight=astarWeight,eventPenalty=canceledEventPenalty,eventReward=eventReward)
-                if tempCost == 0:
-                    tempCost = 0.001
                 stochasticCost.append(tempCost)
                 endTimeStoch = time.clock()
                 timeItter = round(endTimeStoch - startTimeStoch,3)
@@ -337,17 +336,18 @@ def main():
             print('expected cost:' + str(expectedCost))
             print('action cost:' +str(actionCost))
             print('event cost:' + str(eventsOpenedCost+eventsAnsweredCost))
-            print('num events opened:'+str(len(filteredEvents)))
-            print('num events closed:' + str(numEventsClosed))
-            print('num stochastic events:'+str([len(e) for e in stochasticEventDict.values()]))
-            # print('excpected value is:'+str(expectedCost))
+            # print('num events opened:'+str(len(filteredEvents)))
+            # print('num events closed:' + str(numEventsClosed))
+            # print('num stochastic events:'+str([len(e) for e in stochasticEventDict.values()]))
             totalExpectedCost = expectedCost + actionCost+ eventsOpenedCost+eventsAnsweredCost
+            costActionsList.append(totalExpectedCost)
             totalActualCost   = actionCost+ eventsOpenedCost+eventsAnsweredCost
             if costOfAction > totalExpectedCost: # we want to minimize the expected cost of the plan since the cost is the movement of the cars and the time that each passanger waited
-                costOfAction = totalActualCost
+                costOfAction = totalExpectedCost
                 actualCostOfAction = totalActualCost
                 # print('excpected value chosen:'+str(expectedCost))
                 actionChosen = actions
+                indexActionChosen = j
         for i,car in enumerate(carDict.values()):
             # if i == 0:
                 # print('actions Chosen:'+str(actionChosen))
@@ -358,7 +358,9 @@ def main():
         timeEachIndexTook.append(iterEnd-iterStart)
         print('time index: {0}, calculation time: {1}'.format(timeIndex, iterEnd-iterStart))
         print('total cost for this action is: ' +str(costOfAction))
+        print(costActionsList)
         print('action chosen is:' + str(actionChosen))
+        print('index of chosen action is:'+str(indexActionChosen))
         # dump logs
         with open('logAnticipatory_'+str(eventReward)+'EventReward_'+str(gridHeight)+'grid_'+str(numCars)+'cars_'+str(lengthSim)+'simLengh_'+str(numStochasticEvents)+'StochasticLength_'+str(lengthPrediction)+'Prediction_'+str(astarWeight)+'aStarWeight.p', 'wb') as out:
             pickle.dump({'cars'              : carPositionLog,
