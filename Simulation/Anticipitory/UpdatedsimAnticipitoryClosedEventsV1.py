@@ -38,13 +38,13 @@ class Events():
         self.positions    = eventsPos
         self.timeWindows  = eventsTimeWindow
         self.numEvents    = eventsPos.shape[0]
-        self.answered     = np.zeros(shape=(self.numEvents)).astype(np.bool_)
-        self.canceled     = np.zeros(shape=(self.numEvents)).astype(np.bool_)
-        self.openedEvents = np.zeros(shape=(self.numEvents)).astype(np.bool_)
+        self.answered     = np.zeros(shape=(self.numEvents,1)).astype(np.bool_)
+        self.canceled     = np.zeros(shape=(self.numEvents,1)).astype(np.bool_)
+        self.openedEvents = np.zeros(shape=(self.numEvents,1)).astype(np.bool_)
         # events commited to , these events will be answered no matter what, even if time window is closed
-        self.committed      = np.zeros(shape=(self.numEvents)).astype(np.bool_)
-        self.timeAnswered   = np.zeros(shape=(self.numEvents))
-        self.index          = np.array(range(self.numEvents))
+        self.committed      = np.zeros(shape=(self.numEvents,1)).astype(np.bool_)
+        self.timeAnswered   = np.zeros(shape=(self.numEvents,1))
+        self.index          = np.array(range(self.numEvents)).reshape(self.numEvents,1)
 
     def UpdateOpenedEvents(self,t):
         """
@@ -79,9 +79,9 @@ class Cars():
     def __init__(self,initPos):
         self.poistions        = initPos
         self.numCars          = self.poistions.shape[0]
-        self.committed        = np.zeros(shape=(self.numCars)).astype(np.bool_)
-        self.commitEventIndex = np.zeros(shape=(self.numCars)).astype(np.bool_)
-        self.index            = np.array(range(self.numCars))
+        self.committed        = np.zeros(shape=(self.numCars,1)).astype(np.bool_)
+        self.commitEventIndex = np.zeros(shape=(self.numCars,1)).astype(np.bool_)
+        self.index            = np.array(range(self.numCars)).reshape(self.numCars,1)
         self.path             = [self.poistions]
     def UpdateCarsPosition(self,actionVector):
         self.poistions += actionVector
@@ -320,7 +320,7 @@ def main():
     gridHeight           = 8
     timeWindow           = 3
     addedComittedTime    = 5
-    numStochasticRuns    = 10
+    numStochasticRuns    = 2
     eventReward          = 10
     canceledEventPenalty = 100
     openedEventPenalty   = 1
@@ -367,8 +367,6 @@ def main():
                 commitMat          = createCommitMatrix(numRelevantCars,numOpenedEvents)
                 isEventCommited    = np.sum(commitMat, axis=1).astype(np.bool_)
                 numCommitedEvents  = np.sum(isEventCommited, axis=1)
-                optionalRelevantEventsIndex = np.tile(relevantEventIndex, commitMat.shape[0])
-                notCommitedEventIndex       = optionalRelevantEventsIndex[np.logical_not(isEventCommited)]
                 # these will be the indexs of chosed value in commit and move matrix
                 optionalMoveIndex        = np.empty(shape=(commitMat.shape[0], 1))
                 optionalMoveCost         = np.zeros_like(optionalMoveIndex)
@@ -380,51 +378,66 @@ def main():
 
                 isCarCommited            = np.sum(commitMat, axis=2).astype(np.bool_)
                 optionalCommitCost       = optionalCommitCost - numCommitedEvents * eventReward
-                optionalRelevatCarsIndex = np.tile(relevantCarsIndex, commitMat.shape[0])
-                notCommitedCarIndex      = optionalRelevatCarsIndex[np.logical_not(isCarCommited)]
                 numNotCommitedCars       = np.sum(np.logical_not(isCarCommited), axis=1)
+                numCommitedCars          = np.sum(isCarCommited,axis = 1)
                 for i in range(commitMat.shape[0]):
-                    # this loop only runs on the cars that are not already commited in solution and events that are opened (not answered or canceled)
-                    moveMat              = createMoveMatrix(numNotCommitedCars[i])
-                    notCommitedEvents    = GetFilteredEvents(events, notCommitedEventIndex[i, :])
-                    notCommitedCars      = GetFilteredCars(cars, notCommitedCarIndex[i, :])
-                    stochasticEventsList = createStochasticEvents(numStochasticRuns, notCommitedEvents, gridWidth,
-                                                                  gridHeight,
-                                                                  continuesTimeLine[timeIndex] + 1,
-                                                                  continuesTimeLine[timeIndex + 1] + lengthPrediction, lam,
-                                                                  timeWindow)
-                    optionalNewCarsPos = calcNewCarPos(copy.deepcopy(notCommitedCars.poistions), moveMat)
-                    optionalExpectedCost = np.zeros(shape=(moveMat.shape[0], 1))
-                    distanceMatrix       = calcDistanceMatrix(optionalNewCarsPos, notCommitedEvents.positions)
-                    optionalActionCost   = calculateCostOfAction(distanceMatrix, moveMat, eventReward, openedEventPenalty,
-                                                               epsilon=0.01)
-                    for j in range(moveMat.shape[0]):  # check each move and see if it was worth while
-                        newCarPos = optionalNewCarsPos[j, :, :]
-                        stochasticCost = np.zeros(shape=(numStochasticRuns, 1))
-                        # running stochastic runs in a* to find optimal solution for deterministic problem
-                        for numRun, stochasticEvent in enumerate(stochasticEventsList):
-                            eventsPos = copy.deepcopy(stochasticEvent.positions)
-                            eventsTime = copy.deepcopy(stochasticEvent.timeWindows[:, 0])
-                            eventsCloseTime = copy.deepcopy(stochasticEvent.timeWindows[:, 1])
-                            eventsCanceled = np.zeros_like(eventsTime).astype(np.bool_)
-                            eventsAnswered = np.zeros_like(eventsTime).astype(np.bool_)
-                            initState = SearchState(newCarPos, eventsPos, eventsTime, eventsCloseTime, eventReward,
-                                                    canceledEventPenalty,
-                                                    eventsCanceled, eventsAnswered, float('inf'), 0, None, astarWeight)
-                            p = aStar(initState)
-                            stochasticCost[numRun] = p[-1].gval
+                    if numNotCommitedCars[i]:
+                        # there are cars that are not commited and need to be treated using move car options
+                        moveMat              = createMoveMatrix(numNotCommitedCars[i])
+                        if np.sum(np.logical_not(isEventCommited)):
+                            # there are no opened events that are not commited
+                            notCommitedEvents = None
+                            optionalActionCost = calculateCostOfAction(None, moveMat, eventReward, openedEventPenalty, epsilon=0.01)
+                        else:
+                            notCommitedEventIndex = relevantEventIndex[np.logical_not(isEventCommited[i,:])]
+                            notCommitedEvents     = GetFilteredEvents(events, notCommitedEventIndex)
+                            optionalNewCarsPos = calcNewCarPos(copy.deepcopy(notCommitedCars.poistions), moveMat)
+
+                            distanceMatrix     = calcDistanceMatrix(optionalNewCarsPos, notCommitedEvents.positions)
+                            optionalActionCost = calculateCostOfAction(distanceMatrix, moveMat, eventReward,openedEventPenalty, epsilon=0.01)
+                        optionalExpectedCost = np.zeros(shape=(moveMat.shape[0], 1))
+                        notCommitedCarsIndex = relevantCarsIndex[np.logical_not(isCarCommited[i,:])]
+                        notCommitedCars      = GetFilteredCars(cars,notCommitedCarsIndex)
+                        stochasticEventsList = createStochasticEvents(numStochasticRuns, notCommitedEvents, gridWidth,
+                                                                      gridHeight,
+                                                                      continuesTimeLine[timeIndex] + 1,
+                                                                      continuesTimeLine[timeIndex + 1] + lengthPrediction, lam,
+                                                                      timeWindow)
+                        for j in range(moveMat.shape[0]):  # check each move and see if it was worth while
+                            newCarPos = optionalNewCarsPos[j, :, :]
+                            stochasticCost = np.zeros(shape=(numStochasticRuns, 1))
+                            # running stochastic runs in a* to find optimal solution for deterministic problem
+                            for numRun, stochasticEvent in enumerate(stochasticEventsList):
+                                eventsPos = copy.deepcopy(stochasticEvent.positions)
+                                eventsTime = copy.deepcopy(stochasticEvent.timeWindows[:, 0])
+                                eventsCloseTime = copy.deepcopy(stochasticEvent.timeWindows[:, 1])
+                                eventsCanceled = np.zeros_like(eventsTime).astype(np.bool_)
+                                eventsAnswered = np.zeros_like(eventsTime).astype(np.bool_)
+                                initState = SearchState(newCarPos, eventsPos, eventsTime, eventsCloseTime, eventReward,
+                                                        canceledEventPenalty,
+                                                        eventsCanceled, eventsAnswered, float('inf'), 0, None, astarWeight)
+                                p = aStar(initState)
+                                stochasticCost[numRun] = p[-1].gval
+                                if shouldPrint:
+                                    print('num stochastic run is: '+str(numRun) +'/'+str(len(stochasticEventsList)))
+                                    print('a star results is:'+str(stochasticCost[numRun]))
+                            optionalExpectedCost[j] = np.mean(stochasticCost)
                             if shouldPrint:
-                                print('num stochastic run is: '+str(numRun) +'/'+str(len(stochasticEventsList)))
-                                print('a star results is:'+str(stochasticCost[numRun]))
-                        optionalExpectedCost[j] = np.mean(stochasticCost)
-                        if shouldPrint:
-                            print('num Checked move is: '+str(j)+'/'+str(moveMat.shape[0]))
-                            print('expected cost is: '+str(optionalExpectedCost[j]))
-                    optionalTotalCost = optionalActionCost + optionalExpectedCost + totalCost
-                    optionalMoveIndex[i] = np.argmin(optionalTotalCost)
-                    optionalMoveCost[i] = np.min(optionalTotalCost)
-                    optionalRealCost[i] = optionalActionCost[optionalMoveIndex[i]]
-                    optionalCommitCost[i] = optionalCommitCost[i] + optionalMoveCost[i]
+                                print('num Checked move is: '+str(j)+'/'+str(moveMat.shape[0]))
+                                print('expected cost is: '+str(optionalExpectedCost[j]))
+                        optionalActionCost    = optionalActionCost.reshape(optionalExpectedCost.shape)
+                        optionalTotalCost     = optionalActionCost + optionalExpectedCost + totalCost
+                        optionalMoveIndex[i]  = np.argmin(optionalTotalCost).astype(int)
+                        optionalMoveCost[i]   = np.min(optionalTotalCost)
+                        optionalRealCost[i]   = optionalActionCost[optionalMoveIndex[i].astype(int)]
+                        optionalCommitCost[i] = optionalCommitCost[i] + optionalMoveCost[i]
+                    else:
+                        optionalActionCost    = np.sum(numCommitedCars)
+                        optionalTotalCost     = optionalActionCost + totalCost
+                        optionalMoveIndex[i]  = 0
+                        optionalMoveCost[i]   = np.min(optionalTotalCost)
+                        optionalRealCost[i]   = optionalActionCost[optionalMoveIndex[i]]
+                        optionalCommitCost[i] = optionalCommitCost[i] + optionalMoveCost[i]
 
                 chosenCommitIndex = np.argmin(optionalCommitCost)
                 chosenCost        = np.min(optionalCommitCost)
@@ -432,13 +445,13 @@ def main():
                 chosenMoveIndex   = optionalMoveIndex[chosenCommitIndex]
                 # make changes for chosen action from all options of commits and movements :
                 if np.sum(isEventCommited):
-                    chosenEventsCommitedIndex = relevantEventIndex(isEventCommited[chosenCommitIndex, :])
-                    chosenCarsCommitedIndex   = relevantCarsIndex(isCarCommited[chosenCommitIndex, :])
+                    chosenEventsCommitedIndex = relevantEventIndex[isEventCommited[chosenCommitIndex, :]]
+                    chosenCarsCommitedIndex   = relevantCarsIndex[isCarCommited[chosenCommitIndex, :]]
                     # update cars that are commited to True and events that are commited to True
                     cars.committed[chosenCarsCommitedIndex]     = True
                     chosenCommit = commitMat[chosenCommitIndex]
                     eventIndex = np.argmax(chosenCommit,axis = 1)
-                    cars.commitEventIndex[chosenCarsCommitedIndex] = eventIndex
+                    cars.commitEventIndex[chosenCarsCommitedIndex] = chosenEventsCommitedIndex
                     events.committed[chosenEventsCommitedIndex] = True
                     # add time to comitted events since now they are worth more
                     events.timeWindows[chosenEventsCommitedIndex, 1] += addedComittedTime
@@ -489,6 +502,7 @@ def main():
             cars.path.append(cars.poistions)
             totalCost += chosenRealCost
         events.answered,events.timeAnswered = updateEventsAnsweredStatus(cars, events,continuesTimeLine[timeIndex])
+        print('finished time:'+str(continuesTimeLine[timeIndex]))
         timeIndex += 1
         # dump logs
         with open('logAnticipatory_' + str(eventReward) + 'EventReward_' + str(gridHeight) + 'grid_' + str(
