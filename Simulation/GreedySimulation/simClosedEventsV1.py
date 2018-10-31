@@ -64,8 +64,7 @@ def moveCar(car, dt, totalCost):
     dx, dy = manhattenPath(car['position'], car['target'])
     possibleDistance = dt * car['velocity']
     # possible distance should not be greater than distance to target.
-    assert (
-                possibleDistance <= dist2Target or dist2Target == 0.)  # this would indicate an event missing from the timeLine
+    assert (possibleDistance <= dist2Target or dist2Target == 0.)  # this would indicate an event missing from the timeLine
     if possibleDistance == dist2Target:
         car['position'] = car['target']
         totalCost += abs(possibleDistance)
@@ -93,8 +92,7 @@ def timeLineUpdate(carDict, timeLine, currentTimeIndex):
     :return: updates timeline
     """
     currentDelta = timeLine[currentTimeIndex + 1] - timeLine[currentTimeIndex]
-    timeDeltas = [manhattenDist(c['position'], c['target']) / c['velocity'] for c in carDict.values() if
-                  c['target'] is not None]
+    timeDeltas = [manhattenDist(c['position'], c['target']) / c['velocity'] for c in carDict.values() if c['target'] is not None]
     timeDeltas = [t for t in timeDeltas if t != 0.0 if t != 0]
     minDelta = np.min(timeDeltas) if len(timeDeltas) > 0 else currentDelta + 1
     # add event
@@ -218,7 +216,7 @@ def createCarUseLog(carDict, currentTime):
     return {'occupied': inUse, 'idle': notInUse}
 
 
-def createEventLog(eventLog, eventDict, currentTime):
+def createEventLog(eventLog, eventDict, currentTime,totalCost,eventPenalty):
     eventLog['count'].append(len([e for e in eventDict.values() if e['timeStart'] <= currentTime]))
     eventLog['answered'].append(len([e for e in eventDict.values() if e['answered']]))
     eventLog['canceled'].append(len([e for e in eventDict.values() if e['canceled']]))
@@ -231,7 +229,8 @@ def createEventLog(eventLog, eventDict, currentTime):
             eventDict[event['id']]['statusLog'].append([currentTime, False])
         if event['timeEnd'] == currentTime:
             eventDict[event['id']]['canceled'] = True
-    return eventLog
+            totalCost += eventPenalty
+    return eventLog,totalCost
 
 
 def filterEvents(eventDict, currentTime):
@@ -251,13 +250,13 @@ def main():
     gridWidth = 9
     gridHeight = 9
     eventReward = 10
-
+    eventPenalty = 100
     eventLoc = []
     eventTimes = []
     totalCost = 0
     eventLog = {'count': [], 'answered': [], 'canceled': [], 'current': [], 'time': []}
     if flagLoadParam == 1:
-        pickleName = 'logAnticipatory_10EventReward_8grid_2cars_35simLengh_20StochasticLength_3Prediction_1aStarWeight'
+        pickleName = 'logAnticipatory_10EventReward_8grid_2cars_35simLengh_50StochasticLength_3Prediction_1aStarWeight'
         lg=pickle.load(open('/home/chana/Documents/Thesis/FromGitFiles/Simulation/Anticipitory/Results/' + pickleName + '.p', 'rb'))
         # init event dict
         eventDict = {}
@@ -279,7 +278,8 @@ def main():
         carUseLog = {}
         # car dictionary
         carDict = {}
-        carPos = [c['position'] for c in lg['carDict'].values()]
+        carPos = [c[0]['position'] for c in list(lg['cars'].values())]
+            # [c['position'] for c in lg['carDict'].values()]
         for i in range(numCars):
             car = copy.deepcopy(carEntityTemp)
             car['position'] = list(carPos[i])
@@ -354,7 +354,7 @@ def main():
             car['targetId'] = None
 
         # log events
-        eventLog = createEventLog(eventLog, eventDict, timeLine[timeIndex])
+        eventLog,totalCost = createEventLog(eventLog, eventDict, timeLine[timeIndex],totalCost,eventPenalty)
 
         # filter events
         filteredEvents = filterEvents(eventDict, timeLine[timeIndex])
@@ -406,7 +406,7 @@ def main():
                      'cost'     : totalCost}, out)
     print('total cost is:' + str(totalCost))
     kwargs_write = {'fps': 1.0, 'quantizer': 'nq'}
-    imageio.mimsave('./gif_HungarianMethod'+pickle+'.gif', imageList, fps=1)
+    imageio.mimsave('./gif_HungarianMethod'+pickleName+'.gif', imageList, fps=1)
     # simulation summary
     plt.close('all')
     plotingTimeline = timeLine[:-1]

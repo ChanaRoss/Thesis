@@ -14,9 +14,9 @@ pickleNames = []
 """
 Results from V10, aStar V5:
 """
-pickleNames.append('log_Cost_WaitTime_CarMovement_6grid_2cars_30simLengh_100StochasticLength_5Prediction_7aStarWeight')
-pickleNames.append('HungarianMethodlog_Cost_WaitTime_CarMovement_6grid_2cars_30simLengh_100StochasticLength_5Prediction_7aStarWeight')
-# pickleNames.append('MyAStarResult_1_weight2numCars_15numEvents_7gridSize')
+pickleNames.append('logAnticipatory_10EventReward_8grid_2cars_35simLengh_20StochasticLength_5Prediction_5aStarWeight')
+pickleNames.append('HungarianMethodlogAnticipatory_10EventReward_8grid_2cars_35simLengh_20StochasticLength_5Prediction_5aStarWeight')
+# pickleNames.append('MyAStarResult_1weight_2numCars_40numEvents_8gridSize')
 
 
 # pickleNames.append('log_Cost_WaitTime_CarMovement_7grid_2cars_40simLengh_50StochasticLength_3Prediction_2aStarWeight')
@@ -233,7 +233,7 @@ def plotNumWastedSteps(gridSize,lg,pickleName,simTime):
     plt.xticks(np.array(eventId) + width / 2)
     plt.legend((p1[0], p2[0]), ('Real time', 'Ideal time'))
 
-def calcTotalCost(lg,simTime):
+def calcTotalCost(lg,simTime,numEventsClosed):
     cost = 0
     for car in lg['cars'].values():
         positions = [c['position'] for c in car if c['time']<=simTime]
@@ -243,17 +243,18 @@ def calcTotalCost(lg,simTime):
     for event in lg['events'].values():
         waitTime = len([e[1] for e in event['statusLog'] if (e[0]<=simTime and e[1])])
         cost += waitTime
+    cost -= numEventsClosed*10
     return cost
 
 
 
 def main():
     imageList = []
-    gridSize = 7
+    gridSize = 8
     FlagCreateGif = 0
-    simTime = 45
+    simTime = 35
     for pickleName in pickleNames:
-        lg=pickle.load(open('/home/chanaby/Documents/Thesis/Thesis/Simulation/Anticipitory/Results/' + pickleName + '.p', 'rb'))
+        lg=pickle.load(open('/home/chana/Documents/Thesis/FromGitFiles/Simulation/Anticipitory/Results/' + pickleName + '.p', 'rb'))
         if 'Hungarian' not in pickleName and FlagCreateGif:
             time = np.linspace(0,simTime,simTime+1)
             for t in time:
@@ -276,8 +277,9 @@ def main():
             plotTimeOfEachEvent(gridSize,lg,pickleName,simTime)
             numEventsClosed = len([e for e in events.values() if e['closed'] and e['timeStart']+e['waitTime']<=simTime])
             print('number of closed events:'+str(numEventsClosed))
-            cost = calcTotalCost(lg,simTime)
+            cost = calcTotalCost(lg,simTime,numEventsClosed=numEventsClosed)
             print('total cost is : '+str(cost))
+            print('actual cost is :' +str(lg['cost']))
     plt.show()
 
 if __name__ == main():

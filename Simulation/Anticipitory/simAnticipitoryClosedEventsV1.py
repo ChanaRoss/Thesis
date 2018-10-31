@@ -188,7 +188,7 @@ def main():
     # params
     epsilon              = 0.1 # distance between locations to be considered same location
     numCars              = 2
-    lam                  = 70/60 # number of events per hour/ 60
+    lam                  = 40/60 # number of events per hour/ 60
     lengthSim            = 35    # minutes
     gridWidth            = 8
     gridHeight           = 8
@@ -200,7 +200,7 @@ def main():
     openedEventPenalty   = 1
     astarWeight          = 1
     # initilize stochastic event list for each set checked -
-    lengthPrediction     = 3
+    lengthPrediction     = 6
     # templates
     carEntityTemp = {'id': 0, 'velocity': 0, 'position': [0, 0], 'target': None, 'targetId': None, 'finished': 0}
     eventTemp = {'position': [], 'timeStart': 0, 'timeEnd': 0, 'answered': False,'canceled':False, 'id': 0, 'prob': 1, 'statusLog': [], 'waitTime': 0}

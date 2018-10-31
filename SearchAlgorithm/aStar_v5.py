@@ -268,15 +268,15 @@ def main():
     np.random.seed(1)
     nc = 2
     ne = 40
-    gs = 9
-    maxTime = 40
+    gs = 8
+    maxTime = 35
     hWeight = 1
-    fromPickle = 0
+    fromPickle = 1
 
     print("num cars: {0}, num events: {1}, grid size: {2}:{3}".format(nc, ne, gs, gs))
     if fromPickle:
-        pickleName = 'log_Cost_WaitTime_CarMovement_7grid_2cars_40simLengh_100StochasticLength_3Prediction_3aStarWeight'
-        lg = pickle.load(open('/home/chana/Documents/Thesis/FunctionEstimation/Results/' + pickleName + '.p', 'rb'))
+        pickleName = 'logAnticipatory_10EventReward_8grid_2cars_35simLengh_100StochasticLength_8Prediction_5aStarWeight'
+        lg = pickle.load(open('/home/chana/Documents/Thesis/FromGitFiles/Simulation/Anticipitory/Results/' + pickleName + '.p','rb'))
         eventDataTuple = [(e['timeStart'], e['position']) for e in lg['events'].values()]
         carPos = np.vstack([np.array(c['position']) for c in lg['carDict'].values()])
         eveTim = np.zeros(len(eventDataTuple))
@@ -308,7 +308,7 @@ def main():
             'MyAStarResult_' + str(hWeight) + 'weight_' + str(len(carPos)) + 'numCars_' + str(ne) + 'numEvents_' + str(
                     gs) + 'gridSize.p', 'wb') as out:
         pickle.dump({'runTime': runTime, 'time': timeVector, 'closedEvents': closedEvents, 'OpenedEvents': openEvents,
-                     'AllEvents': allEvents}, out)
+                     'AllEvents': allEvents,'cost':p[-1].gval}, out)
     imageList = []
     for s in p:
         imageList.append(plotForGif(s, ne, gs))

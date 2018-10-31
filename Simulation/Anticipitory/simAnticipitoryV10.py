@@ -7,7 +7,7 @@ import imageio
 from scipy.stats import truncnorm
 import itertools as rt
 import sys
-sys.path.insert(0, '/home/chanaby/Documents/Thesis/Thesis/SearchAlgorithm/')
+sys.path.insert(0, '/home/chana/Documents/Thesis/FromGitFiles/SearchAlgorithm/')
 from aStar_v5 import *
 sns.set()
 
@@ -90,7 +90,7 @@ def filterEvents(eventDict, currentTime):
     """
     return {e['id']: e for e in eventDict.values() if not e['closed'] if e['timeStart'] <= currentTime if e['timeEnd']>currentTime}
 
-def CalculateCostForKnownEventList(carDict,eventDict,weight):
+def CalculateCostForKnownEventList(carDict,eventDict,weight,eventReward):
     """
     :param carDict: car dictionary with all information for inner simulation
     :param eventDict:  event dictionary with all information for inner simulation
@@ -107,7 +107,7 @@ def CalculateCostForKnownEventList(carDict,eventDict,weight):
     startTime    = np.min(eventsTime)
     eventsTime   = eventsTime - startTime
     eventsStatus = np.ones_like(eventsTime).astype(np.bool_)
-    initState = SearchState(carsLoc, eventsLoc, eventsTime, eventsStatus, float('inf'), 0, None,weight)
+    initState = SearchState(carsLoc, eventsLoc, eventsTime, eventReward, eventsStatus, float('inf'), 0, None,weight)
     p = aStar(initState)
     TotalCost = p[-1].gval
     return TotalCost
@@ -163,16 +163,16 @@ def main():
     epsilon             = 0.1 # distance between locations to be considered same location
     numCars             = 2
     numEvents           = 40
-    lengthSim           = 40  # minutes
-    gridWidth           = 7
-    gridHeight          = 7
+    lengthSim           = 35  # minutes
+    gridWidth           = 8
+    gridHeight          = 8
     eventDuration       = lengthSim
     lastEventDelta      = 1
-    numStochasticEvents = 50
+    numStochasticEvents = 100
     eventReward         = 10
-    astarWeight         = 2
+    astarWeight         = 5
     # initilize stochastic event list for each set checked -
-    lengthPrediction    = 3
+    lengthPrediction    = 8
     # templates
     carEntityTemp = {'id': 0, 'velocity': 0, 'position': [0, 0], 'target': None, 'targetId': None, 'finished': 0}
     eventTemp = {'position': [], 'timeStart': 0, 'timeEnd': 0, 'closed': False, 'id': 0, 'prob': 1, 'statusLog': [], 'waitTime': 0}
@@ -292,7 +292,7 @@ def main():
                     eventDictForCalc.update(copy.deepcopy(filteredEvents))
                     timeLineForCalc.append(continuesTimeLine[timeIndex])
                 timeLineForCalc.sort()
-                tempCost = CalculateCostForKnownEventList(carDict= copy.deepcopy(carDictForCalc),eventDict=copy.deepcopy(eventDictForCalc),weight=astarWeight)
+                tempCost = CalculateCostForKnownEventList(carDict= copy.deepcopy(carDictForCalc),eventDict=copy.deepcopy(eventDictForCalc),weight=astarWeight,eventReward=eventReward)
                 if tempCost == 0:
                     tempCost = 0.001
                 stochasticCost.append(tempCost)
@@ -314,7 +314,7 @@ def main():
             # print('excpected value is:'+str(expectedCost))
             if costOfAction > expectedCost + actionCost+ eventTimeCost: # we want to minimize the expected cost of the plan since the cost is the movement of the cars and the time that each passanger waited
                 costOfAction = expectedCost + actionCost + eventTimeCost
-                actualCostOfAction = costOfAction
+                actualCostOfAction = actionCost + eventTimeCost
                 # print('excpected value chosen:'+str(expectedCost))
                 actionChosen = actions
         for i,car in enumerate(carDict.values()):

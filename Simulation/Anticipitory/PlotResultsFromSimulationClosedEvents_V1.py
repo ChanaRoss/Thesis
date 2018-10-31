@@ -15,7 +15,7 @@ pickleNames = []
 Results from closed events - V1:
 """
 # pickleNames.append('logAnticipatory_10EventReward_8grid_2cars_35simLengh_150StochasticLength_3Prediction_1aStarWeight')
-pickleNames.append('logAnticipatory_10EventReward_8grid_2cars_35simLengh_200StochasticLength_3Prediction_1aStarWeight')
+pickleNames.append('OldlogAnticipatory_10EventReward_8grid_2cars_35simLengh_50StochasticLength_3Prediction_1aStarWeight')
 pickleNames.append('HungarianMethodlogAnticipatory_10EventReward_8grid_2cars_35simLengh_50StochasticLength_3Prediction_1aStarWeight')
 # pickleNames.append('MyAStarResult_1weight_2numCars_40numEvents_8gridSize')
 
@@ -146,7 +146,7 @@ def plotBasicStatisticsOfEvents(gridSize,lg,pickleName,simTime):
         plotingTimeline = timeLine
         plt.figure(2)
         plt.scatter(plotingTimeline, plotCount, c='r', label='Num Created events')
-        plt.plot(plotingTimeline,plotCanceled,linestyle = lnStyle,c='y',label= 'Num Canceled for :'+labelStr)
+        # plt.plot(plotingTimeline,plotCanceled,linestyle = lnStyle,c='y',label= 'Num Canceled for :'+labelStr)
         plt.plot(plotingTimeline, plotClosed,linestyle = lnStyle, label='Num Closed for :'+labelStr)
         # plt.plot(plotingTimeline, eventLog['canceled'], c='y', label='canceled')
         plt.legend()

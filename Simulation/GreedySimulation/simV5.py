@@ -220,15 +220,17 @@ def createCarUseLog(carDict, currentTime):
 
 def createEventLog(eventLog, eventDict, currentTime):
     eventLog['count'].append(len([e for e in eventDict.values() if e['timeStart'] <= currentTime]))
-    eventLog['closed'].append(len([e for e in eventDict.values() if e['closed']]))
-    eventLog['canceled'].append(len([e for e in eventDict.values() if not e['closed'] and e['timeEnd'] < currentTime]))
+    eventLog['answered'].append(len([e for e in eventDict.values() if e['answered']]))
+    eventLog['canceled'].append(len([e for e in eventDict.values() if e['canceled']]))
     eventLog['current'].append(len(filterEvents(eventDict, currentTime)))
     eventLog['time'].append(currentTime)
     for event in eventDict.values():
-        if event['timeStart'] <= currentTime and event['closed'] == False:
+        if event['timeStart'] <= currentTime and event['timeEnd'] > currentTime and not event['answered']:
             eventDict[event['id']]['statusLog'].append([currentTime, True])
         else:
             eventDict[event['id']]['statusLog'].append([currentTime, False])
+        if event['timeEnd'] == currentTime:
+            eventDict[event['id']]['canceled'] = True
     return eventLog
 
 
@@ -242,31 +244,31 @@ def main():
     imageList = []
     # templates
     carEntityTemp = {'id': 0, 'velocity': 0, 'position': [0, 0], 'target': None, 'targetId': None, 'finished': 0}
-    eventTemp = {'waitTime': 0 ,'position': [], 'timeStart': 0, 'timeEnd': 0, 'closed': False, 'statusLog': [], 'id': 0, 'prob': 1}
+    eventTemp = {'waitTime': 0 ,'position': [], 'timeStart': 0, 'timeEnd': 0, 'answered': False,'canceled':False, 'statusLog': [], 'id': 0, 'prob': 1}
     # params
-    numEvents = 30
-    lengthSim = 30  # minutes
+    numEvents = 40
+    lengthSim = 35  # minutes
     numCars = 2
-    gridWidth = 6
-    gridHeight = 6
-    eventReward = 1
+    gridWidth = 9
+    gridHeight = 9
+    eventReward = 10
 
     eventLoc = []
     eventTimes = []
     totalCost = 0
-    eventLog = {'count': [], 'closed': [], 'canceled': [], 'current': [], 'time': []}
+    eventLog = {'count': [], 'answered': [], 'canceled': [], 'current': [], 'time': []}
     if flagLoadParam == 1:
-        pickleName = 'log_Cost_WaitTime_CarMovement_6grid_2cars_30simLengh_100StochasticLength_5Prediction_7aStarWeight'
-        lg=pickle.load(open('/home/chanaby/Documents/Thesis/Thesis/Simulation/Anticipitory/Results/' + pickleName + '.p', 'rb'))
+        pickleName = 'logAnticipatory_10EventReward_8grid_2cars_35simLengh_20StochasticLength_5Prediction_5aStarWeight'
+        lg=pickle.load(open('/home/chana/Documents/Thesis/FromGitFiles/Simulation/Anticipitory/Results/' + pickleName + '.p', 'rb'))
         # init event dict
         eventDict = {}
         # take event times from file -
-        eventDataTuple = [(e['timeStart'], e['position']) for e in lg['events'].values()]
+        eventDataTuple = [(e['timeStart'], e['position'],e['timeEnd']) for e in lg['events'].values()]
         # create event dict
         for i, et in enumerate(eventDataTuple):
             event = copy.deepcopy(eventTemp)
             event['timeStart'] = eventDataTuple[i][0]
-            event['timeEnd'] = lengthSim
+            event['timeEnd'] = eventDataTuple[i][2]
             # event['timeEnd'] = et + int(np.random.randint(1, np.min([maxEventDuration, lengthSim-et]), 1))
             event['position'] = list(eventDataTuple[i][1])
             event['id'] = i
@@ -344,7 +346,8 @@ def main():
             carPositionLog[car['id']].append(createCarPositionLog(car, timeLine[timeIndex]))
             # close target event if it is reached
             if (isinstance(car['target'], list)) and (car['position'] == car['target']):
-                eventDict[car['targetId']]['closed'] = True
+                eventDict[car['targetId']]['answered'] = True
+                eventDict[car['targetId']]['waitTime'] =  timeLine[timeIndex] - eventDict[car['targetId']]['timeStart']
                 car['finished'] += 1
                 totalCost -= eventReward
             # reset car target

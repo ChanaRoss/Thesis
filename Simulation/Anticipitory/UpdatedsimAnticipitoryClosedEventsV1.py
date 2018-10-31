@@ -264,7 +264,7 @@ def updateCommitedCarsPos(cars,events,commitedCarIndex,commitedEventIndex,epsilo
             cars.commitEventIndex[carIndex] = np.nan
             cars.committed[carIndex]        = False
         else:
-            dx, dy = manhattenPath(cars.poistions[carIndex].reshape(2,), events.positions[eventIndex].reshape(2,))
+            dx, dy = manhattenPath(cars.poistions[carIndex], events.positions[eventIndex])
             if np.random.binomial(1, 0.5):
                 ix = np.min([possibleDistance, abs(dx)]) * np.sign(dx)
                 iy = np.max([possibleDistance - abs(ix), 0]) * np.sign(dy)
@@ -272,7 +272,7 @@ def updateCommitedCarsPos(cars,events,commitedCarIndex,commitedEventIndex,epsilo
                 iy = np.min([possibleDistance, abs(dy)]) * np.sign(dy)
                 ix = np.max([possibleDistance - abs(iy), 0]) * np.sign(dx)
             # update car location towards event
-            cars.poistions[carIndex] += np.array([ix, iy]).reshape(2,)
+            cars.poistions[carIndex] += np.array([ix, iy])
 
 
 def createStochasticEvents(numStochasticRuns, notCommitedEvents,gridWidth,gridHeight,startTime,endTime,lam,eventsTimeWindow):
@@ -313,7 +313,7 @@ def main():
     shouldPrint          = True
     # params
     epsilon              = 0.1 # distance between locations to be considered same location
-    numCars              = 1
+    numCars              = 2
     lam                  = 10/30 # number of events per hour/ 60
     lengthSim            = 35    # minutes
     gridWidth            = 8
@@ -335,18 +335,10 @@ def main():
     timeEachIndexTook   = []
 
     # create initial distributions of car and event data:
-    # carsPositions       = np.zeros(shape=(numCars,2))
-    # for i in range(numCars):
-    #     carsPositions[i,:] = [int(np.random.randint(0, gridWidth, 1)), int(np.random.randint(0, gridHeight, 1))]
-    # eventsPos,eventsTimeWindow = createEventsDistribution(gridWidth, gridHeight, 0, lengthSim, lam, timeWindow)
-
-    # create simple test case
-    carsPositions       = np.array([0,0]).reshape(numCars,2)
-    eventsPos           = np.array([[5,5],[5,10]])
-    eventStartTime      = np.array([5,10])
-    eventEndTime        = eventStartTime + timeWindow
-    eventsTimeWindow    = np.column_stack([eventStartTime, eventEndTime])
-
+    carsPositions       = np.zeros(shape=(numCars,2))
+    for i in range(numCars):
+        carsPositions[i,:] = [int(np.random.randint(0, gridWidth, 1)), int(np.random.randint(0, gridHeight, 1))]
+    eventsPos,eventsTimeWindow = createEventsDistribution(gridWidth, gridHeight, 0, lengthSim, lam, timeWindow)
     # initialize cars and events classes with distributions found:
     cars            = Cars(carsPositions)
     events          = Events(eventsPos,eventsTimeWindow)
@@ -363,8 +355,6 @@ def main():
             # there are cars that are committed to events and need to move towards them one step (only moves if event is still opened)
             commitedCarIndex = cars.index[cars.committed]
             # find positions of events that the cars are committed to
-            # stuck in this row. something doesnt make sense..
-            # cars commit event index has (false, false) instead on Nan or number!!!
             commitedEventIndex = events.index[cars.commitEventIndex[np.logical_not(np.isnan(cars.commitEventIndex))]]
             updateCommitedCarsPos(cars, events,commitedCarIndex,commitedEventIndex)
         # find relevant cars that are not commited (the number of committed cars + number of available cars should be the number of cars
@@ -449,10 +439,10 @@ def main():
                         optionalRealCost[i]   = optionalActionCost[optionalMoveIndex[i]]
                         optionalCommitCost[i] = optionalCommitCost[i] + optionalMoveCost[i]
 
-                chosenCommitIndex = np.argmin(optionalCommitCost).astype(int)
+                chosenCommitIndex = np.argmin(optionalCommitCost)
                 chosenCost        = np.min(optionalCommitCost)
                 chosenRealCost    = optionalRealCost[chosenCommitIndex]
-                chosenMoveIndex   = optionalMoveIndex[chosenCommitIndex].astype(int)
+                chosenMoveIndex   = optionalMoveIndex[chosenCommitIndex]
                 # make changes for chosen action from all options of commits and movements :
                 if np.sum(isEventCommited):
                     chosenEventsCommitedIndex = relevantEventIndex[isEventCommited[chosenCommitIndex, :]]
