@@ -10,10 +10,11 @@ import math
 import itertools
 import numpy as np
 # my files
-sys.path.insert(0, '/home/chanaby/Documents/Thesis/Thesis/SearchAlgorithm/')
-from iterativeAstarV2 import aStar,Status,SearchState
-from iterativeAstarV2 import Car as SearchCar
-from iterativeAstarV2 import Event as SearchEvent
+
+sys.path.insert(0, '/home/chana/Documents/Thesis/FromGitFiles/SearchAlgorithm/')
+from iterativeAstarV3 import aStar,Status,SearchState
+from iterativeAstarV3 import Car as SearchCar
+from iterativeAstarV3 import Event as SearchEvent
 # for graphics
 import seaborn as sns
 from matplotlib import pyplot as plt
@@ -124,8 +125,10 @@ class Event:
         prev = self.status
         if self.status == Status.CLOSED or self.status == Status.CANCELED:
             pass
-        elif self.startTime<=currentTime and self.endTime>=currentTime:
-            self.status = Status.OPENED
+        elif self.startTime<=currentTime and self.endTime>=currentTime and self.commited:
+            self.status = Status.OPENED_COMMITED
+        elif self.startTime<=currentTime and self.endTime>=currentTime and not self.commited:
+            self.status = Status.OPENED_NOT_COMMITED
         elif self.endTime<currentTime:
             self.status = Status.CANCELED
         else:
@@ -197,17 +200,19 @@ class commitMonitor:
 
 
 class State:
-    def __init__(self,root , carMonitor, eventMonitor, cost, parent, time, cancelPenalty=50, closeReward=10, timeDelta=5, eps=0.001):
-        self.cars           = carMonitor
-        self.events         = eventMonitor
-        self.gval           = cost
-        self.cancelPenalty  = cancelPenalty
-        self.closeReward    = closeReward
-        self.parent         = parent
-        self.root           = root
-        self.td             = timeDelta
-        self.time           = time
-        self.eps            = eps
+    def __init__(self,root , carMonitor, eventMonitor, cost, parent, time,openedCommitedPenalty = 1,openedNotCommitedPenalty=5, cancelPenalty=50, closeReward=10, timeDelta=5, eps=0.001):
+        self.cars                     = carMonitor
+        self.events                   = eventMonitor
+        self.gval                     = cost
+        self.cancelPenalty            = cancelPenalty
+        self.closeReward              = closeReward
+        self.openedCommitedPenalty    = openedCommitedPenalty
+        self.openedNotCommitedPenalty = openedNotCommitedPenalty
+        self.parent                   = parent
+        self.root                     = root
+        self.td                       = timeDelta
+        self.time                     = time
+        self.eps                      = eps
         return
 
     def __lt__(self, other):
@@ -273,14 +278,14 @@ class State:
     def goalCheck(self):
         # check commited events
         for k in self.events.getCommitedKeys():
-            opened = self.events.getObject(k).status == Status.OPENED
-            pre = self.events.getObject(k).status == Status.PREOPENED
+            opened  = self.events.getObject(k).status == Status.OPENED_COMMITED
+            pre     = self.events.getObject(k).status == Status.PREOPENED
             if opened or pre:
                 return False
         # check uncommited events
         for k in self.events.getUnCommitedKeys():
-            opened = self.events.getObject(k).status == Status.OPENED
-            pre = self.events.getObject(k).status == Status.PREOPENED
+            opened  = self.events.getObject(k).status == Status.OPENED_NOT_COMMITED
+            pre     = self.events.getObject(k).status == Status.PREOPENED
             if opened or pre:
                 return False
         # all are either closed or canceled
@@ -307,7 +312,7 @@ class State:
             tempCar = self.cars.getObject(k)
             tempCar.path.append(tempCar.position)
             targetPosition = self.events.getObject(tempCar.targetId).position
-            delta = tempCar.position-targetPosition
+            delta = targetPosition - tempCar.position
             if delta[0]!=0:
                 tempCar.position[0] += np.sign(delta[0])
             else:
@@ -316,7 +321,7 @@ class State:
 
     def updateStatus(self, matrix):
         # update event status
-        counter = {Status.OPENED : 0, Status.CLOSED: 0, Status.CANCELED: 0}
+        counter = {Status.OPENED_COMMITED : 0,Status.OPENED_NOT_COMMITED : 0, Status.CLOSED: 0, Status.CANCELED: 0}
         for eventId in range(self.events.length()):
             tempEvent               = self.events.getObject(eventId)
             newStatus               = tempEvent.updateStatus(self.time)
@@ -327,7 +332,7 @@ class State:
         for carId in range(self.cars.length()):
             tempCar = self.cars.getObject(carId)
             if tempCar.commited:
-                if matrix[carId, tempCar.targetId]<=self.eps and self.events.getObject(tempCar.targetId).status==Status.OPENED:
+                if matrix[carId, tempCar.targetId]<=self.eps and self.events.getObject(tempCar.targetId).status==Status.OPENED_COMMITED:
                     self.events.getObject(tempCar.targetId).status = Status.CLOSED  # update event status
                     self.events.unCommitObject(tempCar.targetId)  # uncommit event
                     self.cars.unCommitObject(carId)  # uncommit car
@@ -337,7 +342,7 @@ class State:
                 closedEvents = np.where(matrix[carId, :]<=self.eps)
                 for e in closedEvents[0]:
                     tempEvent = self.events.getObject(e)
-                    if tempEvent.status==Status.OPENED and not tempEvent.commited:  # uncommited event reached
+                    if tempEvent.status==Status.OPENED_NOT_COMMITED:  # uncommited event reached
                         tempEvent.status = Status.CLOSED  # close event
                         counter[Status.CLOSED] += 1  # incriment counter
         return counter
@@ -354,34 +359,38 @@ class State:
         newEventsDict = {}
         newCarDict    = {}
         stochasticWantedStates = {}
-        # find all events that are not commited and opened and add to fake state:
-        for i,k in enumerate(self.events.getUnCommitedKeys()):
-            tempEvent = self.events.getObject(k).createCopy()
-            if tempEvent.status == Status.OPENED:
-                newEvent = Event(tempEvent.position,i,tempEvent.startTime,tempEvent.endTime)
-                newEventsDict[i] = newEvent
-        # find all cars that are not commited and add to fake state:
-        for i,k in enumerate(self.cars.getUnCommitedKeys()):
-            tempCar = self.cars.getObject(k).createCopy()
-            newCar  = SearchCar(tempCar.position,i)
-            newCarDict[i] = newCar
-        # create new monitor for state:
-        newCars = commitMonitor({}, newCarDict)
-        # add stochastic events to state and create number of states as number of stochastic runs
-        for i in range(len(stochasticEventsDict)):
-            # extract event position and time window from dictionary of stochastic events
-            eventsPos = stochasticEventsDict[i]['eventsPos']
-            eventsTimeWindow = stochasticEventsDict[i]['eventsTimeWindow']
-            eventsDict = {}
-            # create new uncommited event dict to add to already existed not commited event dict
-            for j in range(eventsPos.shape[0]):
-                eventsDict[j + len(newEventsDict)] = SearchEvent(eventsPos[j, :], len(newEventsDict) + j, eventsTimeWindow[j, 0],eventsTimeWindow[j, 1])
-            newEventsDict.update(eventsDict)
-            newEvents = commitMonitor({},newEventsDict)
-            wantedState.events = newEvents
-            wantedState.cars   = newCars
-            # add updated state to dictionary of states for actual simulation
-            stochasticWantedStates[i] = deepcopy(wantedState)
+        if len(self.cars.getUnCommitedKeys()):
+            # find all events that are not commited and opened and add to fake state:
+            index = 0
+            for k in self.events.getUnCommitedKeys():
+                tempEvent = self.events.getObject(k).createCopy()
+                if tempEvent.status == Status.OPENED_NOT_COMMITED:
+                    newEvent = SearchEvent(tempEvent.position,index,0,tempEvent.endTime-tempEvent.startTime)
+                    newEventsDict[index] = newEvent
+                    index += 1
+            # find all cars that are not commited and add to fake state:
+            for i,k in enumerate(self.cars.getUnCommitedKeys()):
+                tempCar = self.cars.getObject(k).createCopy()
+                newCar  = SearchCar(tempCar.position,i)
+                newCarDict[i] = newCar
+            # create new monitor for state:
+            newCars = commitMonitor({}, newCarDict)
+            # add stochastic events to state and create number of states as number of stochastic runs
+            for i in range(len(stochasticEventsDict)):
+                # extract event position and time window from dictionary of stochastic events
+                eventDictForNewState = deepcopy(newEventsDict)
+                eventsPos = stochasticEventsDict[i]['eventsPos']
+                eventsTimeWindow = stochasticEventsDict[i]['eventsTimeWindow']
+                eventsDict = {}
+                # create new uncommited event dict to add to already existed not commited event dict
+                for j in range(eventsPos.shape[0]):
+                    eventsDict[j + len(newEventsDict)] = SearchEvent(eventsPos[j, :], len(newEventsDict) + j, eventsTimeWindow[j, 0],eventsTimeWindow[j, 1])
+                eventDictForNewState.update(eventsDict)
+                newEvents = commitMonitor({},eventDictForNewState)
+                wantedState.events = newEvents
+                wantedState.cars   = newCars
+                # add updated state to dictionary of states for actual simulation
+                stochasticWantedStates[i] = deepcopy(wantedState)
         return stochasticWantedStates
 
 
@@ -396,7 +405,8 @@ class State:
         cost = 0
         cost += np.sum(move)
         cost += len(self.cars.commited)
-        cost += counter[Status.OPENED]
+        cost += counter[Status.OPENED_COMMITED]*self.openedCommitedPenalty
+        cost += counter[Status.OPENED_NOT_COMMITED]*self.openedNotCommitedPenalty
         cost += counter[Status.CANCELED]*self.cancelPenalty
         cost -= counter[Status.CLOSED]*self.closeReward
         self.gval += cost
@@ -497,7 +507,7 @@ def createStochasticEvents(numStochasticRuns ,gridSize,startTime,endTime,lam,eve
     return stochasticEventsDict
 
 
-def anticipatorySimulation(initState,nStochastic, gs, tPred, eTimeWindow, lam, shouldPrint=False):
+def anticipatorySimulation(initState,nStochastic, gs, tPred, eTimeWindow, lam, aStarWeight = 1,shouldPrint=False):
     """
     this function is the anticipatory simulation
     :param initState: initial state of the system (cars and events)
@@ -520,28 +530,47 @@ def anticipatorySimulation(initState,nStochastic, gs, tPred, eTimeWindow, lam, s
         for i,optionalState in enumerate(descendentGenerator(current)):
             optionalStatesList.append(optionalState)
             stochasticStatesDict = optionalState.getStateForStochasticRuns(stochasticEventsDict)
-            # run determistic algorithm on stochastic state and keep the cost of the run
-            stochasticCost = np.zeros(shape = (nStochastic,1))
-            for j in range(len(stochasticEventsDict)):
-                tempState    = stochasticStatesDict[j]
-                stateForCalc = SearchState(root=True, carMonitor=tempState.cars, eventMonitor=tempState.events, cost=0,
-                                        parent=None, time=0, weight=1, cancelPenalty=tempState.cancelPenalty,
-                                        closeReward=tempState.closeReward, timeDelta=tempState.td, eps=tempState.eps)
+            if len(stochasticStatesDict):
+                # dump logs
+                with open('tempOptionalState.p', 'wb') as out:
+                    pickle.dump({'optionalState': optionalState,'stochasticStatesDict': stochasticStatesDict,  'time': currentTime}, out)
+                # there are cars that are not commited and therefore we want to calculate the expected cost of future rides
+                # run determistic algorithm on stochastic state and keep the cost of the run
+                stochasticCost = np.zeros(shape = (nStochastic,1))
+                for j in range(len(stochasticEventsDict)):
+                    # make sure there are events that need to be closed otherwise the run costs 0
+                    if len(stochasticEventsDict[j]['eventsPos']):
+                        tempState    = stochasticStatesDict[j]
+                        stateForCalc = SearchState(root=True, carMonitor=tempState.cars, eventMonitor=tempState.events, cost=0,
+                                                parent=None, time=0, weight=aStarWeight, cancelPenalty=tempState.cancelPenalty,
+                                                openedCommitedPenalty=tempState.openedCommitedPenalty, openedNotCommitedPenalty=tempState.openedNotCommitedPenalty,
+                                                closeReward=tempState.closeReward, timeDelta=tempState.td, eps=tempState.eps)
 
-                stime       = time.clock()
-                p           = aStar(stateForCalc)
-                etime       = time.clock()
-                runTime     = etime - stime
+                        stime       = time.clock()
+                        try:
+                            p       = aStar(stateForCalc)
+                        except:
+                            print('time:' + str(currentTime)+'trying to run aStar on numEvents:'+str(len(stateForCalc.events.notCommited))+" case number "+str(j))
+                        etime       = time.clock()
+                        runTime     = etime - stime
+                        if shouldPrint:
+                            print('finished stochastic run '+str(j) +'/'+str(len(stochasticEventsDict)))
+                            print('run time for determistic is:'+str(round(runTime,3)))
+                            print('cost of determinstic is: ' + str(p[-1].gval))
+                        stochasticCost[j] = p[-1].gval
+                    else:
+                        stochasticCost[j] = 0
+                # calculate expected cost of all stochastic runs for this spesific optional State
+                expectedCost = np.mean(stochasticCost)
                 if shouldPrint:
-                    print('finished stochastic run '+str(j) +'/'+str(len(stochasticEventsDict)))
-                    print('run time for determistic is:'+str(round(runTime,3)))
-                    print('cost of determinstic is: ' + str(p[-1].gval))
-                stochasticCost[j] = p[-1].gval
-            # calculate expected cost of all stochastic runs for this spesific optional State
-            expectedCost = np.mean(stochasticCost)
-            if shouldPrint:
-                print('finished optional state # '+str(i))
-                print('state cost is: ' + str(optionalState.gval) + ', expected cost is: '+str(expectedCost))
+                    print('finished optional state # '+str(i))
+                    print('state cost is: ' + str(optionalState.gval) + ', expected cost is: '+str(expectedCost))
+            else:
+                expectedCost = 0
+                if shouldPrint:
+                    print('finished optional state # '+str(i))
+                    print('state cost is: ' + str(optionalState.gval) + ', expected cost is: '+str(expectedCost))
+
             optionalExpectedCost.append(expectedCost)
             optionalTotalCost.append(expectedCost+optionalState.gval)
         chosenTotalCost = np.min(np.array(optionalTotalCost))
@@ -554,7 +583,7 @@ def anticipatorySimulation(initState,nStochastic, gs, tPred, eTimeWindow, lam, s
         if current.goalCheck():
             isGoal = True
             print('finished run - total cost is:'+str(current.gval))
-    return current
+    return current.path()
 
 
 
@@ -565,18 +594,21 @@ def main():
     # params
     epsilon     = 0.001  # distance between locations to be considered same location
     lam         = 10 / 30  # number of events per hour/ 60
-    lengthSim   = 35  # minutes
-    numStochasticRuns   = 10
+    lengthSim   = 20  # minutes
+    numStochasticRuns   = 40
     # initilize stochastic event list for each set checked -
-    lengthPrediction    = 6
-    deltaTimeForCommit  = 5
-    closeReward         = 10
-    cancelPenalty       = 50
+    lengthPrediction    = 4
+    deltaTimeForCommit  = 10
+    closeReward         = 50
+    cancelPenalty       = 100
+    openedCommitedPenalty    = 1
+    openedNotCommitedPenalty = 5
 
     gridSize            = 4
     deltaOpenTime       = 5
     numCars             = 1
 
+    aStarWeight         = 10
     # carPos              = np.array([0, 0]).reshape(2, numCars)
     # eventPos            = np.array([[5, 5], [5, 10]])
     # eventStartTime      = np.array([5, 10])
@@ -605,10 +637,11 @@ def main():
     carMonitor = commitMonitor(commitedCarDict, uncommitedCarDict)
     eventMonitor = commitMonitor(commitedEventDict, uncommitedEventDict)
     initState = State(root=True, carMonitor=carMonitor, eventMonitor=eventMonitor, cost=0, parent=None, time=0,
+                      openedNotCommitedPenalty = openedNotCommitedPenalty, openedCommitedPenalty = openedCommitedPenalty,
                       cancelPenalty=cancelPenalty, closeReward=closeReward,
                       timeDelta=deltaTimeForCommit,eps=epsilon)
     stime = time.clock()
-    p = anticipatorySimulation(initState, numStochasticRuns, gridSize, lengthPrediction, deltaOpenTime, lam, shouldPrint=True)
+    p = anticipatorySimulation(initState, numStochasticRuns, gridSize, lengthPrediction, deltaOpenTime, lam,aStarWeight = aStarWeight, shouldPrint=True)
     etime = time.clock()
     runTime = etime - stime
     print('cost is:' + str(p[-1].gval))
@@ -625,13 +658,13 @@ def main():
         numUnCommited[i]    = len(list(st.events.getUnCommitedKeys()))
         numCommited[i]      = len(list(st.events.getCommitedKeys()))
         for iE in range(numEvents):
-            eventTemp       = st.events.getObject(iE)
+            eventTemp = st.events.getObject(iE)
             if eventTemp.status == Status.CANCELED:
                 canceledEvents[i] += 1
             elif eventTemp.status == Status.CLOSED:
-                closedEvents[i] += 1
-            elif eventTemp.status == Status.OPENED:
-                openedEvents[i] += 1
+                closedEvents[i]   += 1
+            elif eventTemp.status == Status.OPENED_COMMITED or eventTemp.status == Status.OPENED_NOT_COMMITED:
+                openedEvents[i]   += 1
         allEvents[i] = canceledEvents[i] + closedEvents[i] + openedEvents[i]
 
     # dump logs
@@ -651,7 +684,7 @@ def main():
     return
 
 
-def plotForGif(s, ne, nc, gs):
+def plotForGif(s, ne,nc, gs):
     """
         plot cars as red points, events as blue points,
         and lines connecting cars to their targets
@@ -670,9 +703,9 @@ def plotForGif(s, ne, nc, gs):
     ax.scatter([], [], c='g', label='Closed')
     for i in range(ne):
         eventTemp = s.events.getObject(i)
-        if eventTemp.status == Status.OPENED and eventTemp.commited:
+        if eventTemp.status == Status.OPENED_COMMITED:
             ax.scatter(eventTemp.position[0], eventTemp.position[1], c='b', alpha=0.7)
-        elif eventTemp.status == Status.OPENED and eventTemp.commited == False:
+        elif eventTemp.status == Status.OPENED_NOT_COMMITED:
             ax.scatter(eventTemp.position[0], eventTemp.position[1], c='b', marker='*', alpha=0.7)
         elif (eventTemp.status == Status.CLOSED):
             ax.scatter(eventTemp.position[0], eventTemp.position[1], c='g', alpha=0.2)

@@ -9,10 +9,11 @@ from matplotlib import pyplot as plt
 import imageio
 
 class Status(Enum):
-    PREOPENED = 0
-    OPENED = 1
-    CLOSED = 2
-    CANCELED = 3
+    PREOPENED           = 0
+    OPENED_COMMITED     = 1
+    OPENED_NOT_COMMITED = 2
+    CLOSED              = 3
+    CANCELED            = 4
 
 
 class Car:
@@ -79,11 +80,11 @@ class Event:
         :param end: integral end time
         """
         self.id = id
-        self.position = np.reshape(position, (2,))
-        self.commited = False
+        self.position  = np.reshape(position, (2,))
+        self.commited  = False
         self.startTime = start
-        self.endTime = end
-        self.status = Status.PREOPENED
+        self.endTime   = end
+        self.status    = Status.PREOPENED
         return
 
     def __lt__(self, other):
@@ -115,8 +116,11 @@ class Event:
         prev = self.status
         if self.status == Status.CLOSED or self.status == Status.CANCELED:
             pass
-        elif self.startTime<=0 and self.endTime>=0:
-            self.status = Status.OPENED
+        elif self.startTime<=0 and self.endTime>=0 and self.commited:
+            # event is opened and commited to
+            self.status = Status.OPENED_COMMITED
+        elif self.startTime<=0 and self.endTime>=0 and not self.commited:
+            self.status = Status.OPENED_NOT_COMMITED
         elif self.endTime<0:
             self.status = Status.CANCELED
         else:
@@ -173,19 +177,21 @@ class commitMonitor:
         return len(self.commited)+len(self.notCommited)
 
 class SearchState:
-    def __init__(self,root , carMonitor, eventMonitor, cost, parent, time, weight=1, cancelPenalty=50, closeReward=10, timeDelta=5, eps=0.001):
-        self.cars = carMonitor
-        self.events = eventMonitor
-        self.gval = cost
-        self.hval = float('Inf')
-        self.weight = weight
-        self.cancelPenalty = cancelPenalty
-        self.closeReward = closeReward
-        self.parent = parent
-        self.root   = root
-        self.td = timeDelta
-        self.time = time
-        self.eps = eps
+    def __init__(self,root , carMonitor, eventMonitor, cost, parent, time, weight=1, openedCommitedPenalty=1,openedNotCommitedPenalty = 5, cancelPenalty=100, closeReward=50, timeDelta=5, eps=0.001):
+        self.cars                       = carMonitor
+        self.events                     = eventMonitor
+        self.gval                       = cost
+        self.hval                       = float('Inf')
+        self.weight                     = weight
+        self.openedCommitedPenalty      = openedCommitedPenalty
+        self.openedNotCommitedPenalty   = openedNotCommitedPenalty
+        self.cancelPenalty              = cancelPenalty
+        self.closeReward                = closeReward
+        self.parent                     = parent
+        self.root                       = root
+        self.td                         = timeDelta
+        self.time                       = time
+        self.eps                        = eps
         return
 
     def __lt__(self, other):
@@ -251,14 +257,14 @@ class SearchState:
     def goalCheck(self):
         # check commited events
         for k in self.events.getCommitedKeys():
-            opened = self.events.getObject(k).status == Status.OPENED
-            pre = self.events.getObject(k).status == Status.PREOPENED
+            opened = self.events.getObject(k).status == Status.OPENED_COMMITED
+            pre    = self.events.getObject(k).status == Status.PREOPENED
             if opened or pre:
                 return False
         # check uncommited events
         for k in self.events.getUnCommitedKeys():
-            opened = self.events.getObject(k).status == Status.OPENED
-            pre = self.events.getObject(k).status == Status.PREOPENED
+            opened = self.events.getObject(k).status == Status.OPENED_NOT_COMMITED
+            pre    = self.events.getObject(k).status == Status.PREOPENED
             if opened or pre:
                 return False
         # all are either closed or canceled
@@ -285,7 +291,7 @@ class SearchState:
             tempCar = self.cars.getObject(k)
             tempCar.path.append(tempCar.position)
             targetPosition = self.events.getObject(tempCar.targetId).position
-            delta = tempCar.position-targetPosition
+            delta = targetPosition - tempCar.position
             if delta[0]!=0:
                 tempCar.position[0] += np.sign(delta[0])
             else:
@@ -294,7 +300,7 @@ class SearchState:
 
     def updateStatus(self, matrix):
         # update event status
-        counter = {Status.OPENED : 0, Status.CLOSED: 0, Status.CANCELED: 0}
+        counter = {Status.OPENED_COMMITED : 0 , Status.OPENED_NOT_COMMITED : 0, Status.CLOSED: 0, Status.CANCELED: 0}
         for eventId in range(self.events.length()):
             tempEvent = self.events.getObject(eventId)
             tempEvent.startTime -= 1
@@ -307,7 +313,7 @@ class SearchState:
         for carId in range(self.cars.length()):
             tempCar = self.cars.getObject(carId)
             if tempCar.commited:
-                if matrix[carId, tempCar.targetId]<=self.eps and self.events.getObject(tempCar.targetId).status==Status.OPENED:
+                if matrix[carId, tempCar.targetId]<=self.eps and self.events.getObject(tempCar.targetId).status==Status.OPENED_COMMITED:
                     self.events.getObject(tempCar.targetId).status = Status.CLOSED  # update event status
                     self.events.unCommitObject(tempCar.targetId)  # uncommit event
                     self.cars.unCommitObject(carId)  # uncommit car
@@ -317,7 +323,7 @@ class SearchState:
                 closedEvents = np.where(matrix[carId, :]<=self.eps)
                 for e in closedEvents[0]:
                     tempEvent = self.events.getObject(e)
-                    if tempEvent.status==Status.OPENED and not tempEvent.commited:  # uncommited event reached
+                    if tempEvent.status==Status.OPENED_NOT_COMMITED:  # uncommited event reached
                         tempEvent.status = Status.CLOSED  # close event
                         counter[Status.CLOSED] += 1  # incriment counter
         return counter
@@ -333,7 +339,8 @@ class SearchState:
         cost = 0
         cost += np.sum(move)
         cost += len(self.cars.commited)
-        cost += counter[Status.OPENED]
+        cost += counter[Status.OPENED_COMMITED]*self.openedCommitedPenalty
+        cost += counter[Status.OPENED_NOT_COMMITED]*self.openedNotCommitedPenalty
         cost += counter[Status.CANCELED]*self.cancelPenalty
         cost -= counter[Status.CLOSED]*self.closeReward
         self.gval += cost
@@ -469,14 +476,16 @@ def aStar(initState, shouldPrint=False):
 
 def main():
     np.random.seed(10)
-    deltaTimeForCommit = 5
-    closeReward        = 10
-    cancelPenalty      = 50
+    deltaTimeForCommit          = 5
+    closeReward                 = 50
+    cancelPenalty               = 100
+    openedCommitedPenalty       = 1
+    openedNotCommitedPenalty    = 10
 
-    gridSize      = 4
-    deltaOpenTime = 5
+    gridSize      = 5
+    deltaOpenTime = 4
     numCars       = 1
-    numEvents     = 4
+    numEvents     = 10
 
     maxTime       = 20
 
@@ -487,7 +496,7 @@ def main():
 
     # carPos              = np.array([0,0]).reshape(2,numCars)
     # eventPos            = np.array([[5,5],[5,10]])
-    # eventStartTime      = np.array([5,10])
+    # eventStartTime      = np.array([2,10])
     # eventEndTime        = eventStartTime + deltaOpenTime
     uncommitedCarDict   = {}
     commitedCarDict     = {}
@@ -502,7 +511,9 @@ def main():
 
     carMonitor   = commitMonitor(commitedCarDict,uncommitedCarDict)
     eventMonitor = commitMonitor(commitedEventDict,uncommitedEventDict)
-    initState    = SearchState(root = True,carMonitor= carMonitor,eventMonitor = eventMonitor,cost = 0,parent = None,time = 0,weight =1,cancelPenalty=cancelPenalty,closeReward=closeReward,timeDelta=deltaTimeForCommit,eps = 0.001)
+    initState    = SearchState(root = True,carMonitor= carMonitor,eventMonitor = eventMonitor,cost = 0,parent = None,time = 0,weight =1,
+                               cancelPenalty=cancelPenalty,closeReward=closeReward, openedCommitedPenalty=openedCommitedPenalty
+                               ,openedNotCommitedPenalty = openedNotCommitedPenalty,timeDelta=deltaTimeForCommit,eps = 0.001)
     stime   = time.clock()
     p       = aStar(initState)
     etime   = time.clock()
@@ -526,7 +537,7 @@ def main():
                 canceledEvents[i] += 1
             elif eventTemp.status == Status.CLOSED:
                 closedEvents[i]   += 1
-            elif eventTemp.status == Status.OPENED:
+            elif eventTemp.status == Status.OPENED_COMMITED or eventTemp.status == Status.OPENED_NOT_COMMITED:
                 openedEvents[i]   += 1
         allEvents[i] = canceledEvents[i]+closedEvents[i]+openedEvents[i]
 
@@ -564,9 +575,9 @@ def plotForGif(s, ne,nc, gs):
     ax.scatter([], [], c='g', label='Closed')
     for i in range(ne):
         eventTemp = s.events.getObject(i)
-        if eventTemp.status == Status.OPENED and eventTemp.commited:
+        if eventTemp.status == Status.OPENED_COMMITED:
             ax.scatter(eventTemp.position[0], eventTemp.position[1], c='b', alpha=0.7)
-        elif eventTemp.status == Status.OPENED and eventTemp.commited == False:
+        elif eventTemp.status == Status.OPENED_NOT_COMMITED:
             ax.scatter(eventTemp.position[0], eventTemp.position[1], c='b', marker='*', alpha=0.7)
         elif (eventTemp.status == Status.CLOSED):
             ax.scatter(eventTemp.position[0], eventTemp.position[1], c='g', alpha=0.2)
