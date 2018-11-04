@@ -485,9 +485,9 @@ def main():
     gridSize      = 5
     deltaOpenTime = 4
     numCars       = 1
-    numEvents     = 10
+    numEvents     = 5
 
-    maxTime       = 20
+    maxTime       = 10
 
     carPos         = np.reshape(np.random.randint(0, gridSize, 2 * numCars), (2,numCars))
     eventPos       = np.reshape(np.random.randint(0, gridSize, 2 * numEvents), ( 2,numEvents))
@@ -546,10 +546,11 @@ def main():
     with open( 'MyAStarResult_' + str(1) + 'weight_' + str(numCars) + 'numCars_' + str(numEvents) + 'numEvents_' + str(gridSize) + 'gridSize.p', 'wb') as out:
         pickle.dump({'runTime': runTime,
                      'time': timeVector,
+                     'solution':p[-1],
                      'OpenedEvents'  : openedEvents,
                      'closedEvents'  : closedEvents,
                      'canceledEvents': canceledEvents,
-                     'allEvents'     : allEvents, 'cost': p[-1].gval}, out)
+                     'allEvents'     : allEvents, 'cost': p[-1].gval}, out,pickle.HIGHEST_PROTOCOL)
     imageList = []
     for s in p:
         imageList.append(plotForGif(s, numEvents,numCars, gridSize))

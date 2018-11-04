@@ -213,6 +213,7 @@ class State:
         self.td                       = timeDelta
         self.time                     = time
         self.eps                      = eps
+        self.optionalGval             = 0
         return
 
     def __lt__(self, other):
@@ -300,6 +301,21 @@ class State:
             self.events.getObject(eventId).commit(self.td)
             self.events.commitObject(eventId)
         return
+
+    def updateOptionalCost(self,commit,matrix):
+        # calculate cost of commited events assuming the car reaches the commited event in the following steps
+        # commited events
+        h1 = 0
+        for carId,eventId in commit:
+            closeTime = self.events.getObject(eventId).endTime - self.time
+            dist = matrix[carId, eventId]
+            if dist <= closeTime:
+                h1 -= self.closeReward
+            else:
+                h1 += self.cancelPenalty
+        self.optionalGval = h1
+        return
+
 
     def moveCars(self, move):
         # uncommited
@@ -426,9 +442,14 @@ def commitGenerator(carIdList, eventIdList):
                 for eventChoice in itertools.combinations(eventIdList, i):
                     for eventChoicePermutations in itertools.permutations(eventChoice, len(eventChoice)):
                         yield list(zip(carChoice, eventChoicePermutations))
+    else:
+        yield([])
 
 def descendentGenerator(state):
-    commitGen = commitGenerator(list(state.cars.getUnCommitedKeys()), list(state.events.getUnCommitedKeys()))
+    tempEventList = list(state.events.getUnCommitedKeys())
+    eventList = [e for e in tempEventList if state.events.getObject(e).status == Status.OPENED_NOT_COMMITED]
+    carList   = list(state.cars.getUnCommitedKeys())
+    commitGen = commitGenerator(carList, eventList)
     for commit in commitGen:
         # commit cars
         newCommitState = deepcopy(state)
@@ -437,6 +458,7 @@ def descendentGenerator(state):
         newCommitState.parent   = state
         newCommitState.time     += 1
         newCommitState.commitCars(commit)
+        newCommitState.updateOptionalCost(commit,newCommitState.getDistanceMatrix())
         numUnCommitedCars = len(newCommitState.cars.notCommited)
         moveGen = moveGenerator(numUnCommitedCars)
         for possibleMove in moveGen:
@@ -531,9 +553,6 @@ def anticipatorySimulation(initState,nStochastic, gs, tPred, eTimeWindow, lam, a
             optionalStatesList.append(optionalState)
             stochasticStatesDict = optionalState.getStateForStochasticRuns(stochasticEventsDict)
             if len(stochasticStatesDict):
-                # dump logs
-                with open('tempOptionalState.p', 'wb') as out:
-                    pickle.dump({'optionalState': optionalState,'stochasticStatesDict': stochasticStatesDict,  'time': currentTime}, out)
                 # there are cars that are not commited and therefore we want to calculate the expected cost of future rides
                 # run determistic algorithm on stochastic state and keep the cost of the run
                 stochasticCost = np.zeros(shape = (nStochastic,1))
@@ -554,9 +573,9 @@ def anticipatorySimulation(initState,nStochastic, gs, tPred, eTimeWindow, lam, a
                         etime       = time.clock()
                         runTime     = etime - stime
                         if shouldPrint:
-                            print('finished stochastic run '+str(j) +'/'+str(len(stochasticEventsDict)))
-                            print('run time for determistic is:'+str(round(runTime,3)))
-                            print('cost of determinstic is: ' + str(p[-1].gval))
+                            print('finished stochastic run '+str(j+1) +'/'+str(len(stochasticEventsDict)))
+                            print('run time for aStar is:'+str(round(runTime,3)))
+                            print('cost of aStar is: ' + str(p[-1].gval))
                         stochasticCost[j] = p[-1].gval
                     else:
                         stochasticCost[j] = 0
@@ -564,15 +583,16 @@ def anticipatorySimulation(initState,nStochastic, gs, tPred, eTimeWindow, lam, a
                 expectedCost = np.mean(stochasticCost)
                 if shouldPrint:
                     print('finished optional state # '+str(i))
-                    print('state cost is: ' + str(optionalState.gval) + ', expected cost is: '+str(expectedCost))
+                    print('state cost is: ' + str(optionalState.gval) + ', expected cost is: '+str(expectedCost) +' , commited cost is:'+str(optionalState.optionalGval))
             else:
                 expectedCost = 0
                 if shouldPrint:
-                    print('finished optional state # '+str(i))
-                    print('state cost is: ' + str(optionalState.gval) + ', expected cost is: '+str(expectedCost))
+                    print('no stochastic runs, finished optional state # '+str(i))
+                    print('state cost is: ' + str(optionalState.gval) + ', expected cost is: '+str(expectedCost) +' , commited cost is:'+str(optionalState.optionalGval))
 
             optionalExpectedCost.append(expectedCost)
-            optionalTotalCost.append(expectedCost+optionalState.gval)
+            # optional total cost includes the actual cost of movement + optional cost for commited events + expected cost of future events
+            optionalTotalCost.append(expectedCost+optionalState.gval+ optionalState.optionalGval)
         chosenTotalCost = np.min(np.array(optionalTotalCost))
         if shouldPrint:
             print('chosen cost is: '+str(chosenTotalCost))
