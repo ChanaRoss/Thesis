@@ -35,7 +35,7 @@ class Car:
         self.id         = id
         self.commited   = False
         self.targetId   = None
-        self.path       = [self.position]
+        self.path       = [deepcopy(self.position)]
         return
 
     def __lt__(self, other):
@@ -321,12 +321,12 @@ class State:
         # uncommited
         for i,k in enumerate(self.cars.getUnCommitedKeys()):
             tempCar  = self.cars.getObject(k)
-            tempCar.path.append(tempCar.position)
+            tempCar.path.append(deepcopy(tempCar.position))
             tempCar.position += move[i, :]
         # commited cars
         for k in self.cars.getCommitedKeys():
             tempCar = self.cars.getObject(k)
-            tempCar.path.append(tempCar.position)
+            tempCar.path.append(deepcopy(tempCar.position))
             targetPosition = self.events.getObject(tempCar.targetId).position
             delta = targetPosition - tempCar.position
             if delta[0]!=0:
@@ -569,13 +569,16 @@ def anticipatorySimulation(initState,nStochastic, gs, tPred, eTimeWindow, lam, a
                         try:
                             p       = aStar(stateForCalc)
                         except:
-                            print('time:' + str(currentTime)+'trying to run aStar on numEvents:'+str(len(stateForCalc.events.notCommited))+" case number "+str(j))
+                            print('time:' + str(currentTime)+' trying to run aStar on numEvents:'+str(len(stateForCalc.events.notCommited))+" case number "+str(j))
+                            with open('stateAstarFail.p', 'wb') as out:
+                                pickle.dump({'time': currentTime,
+                                             'state':stateForCalc}, out)
                         etime       = time.clock()
                         runTime     = etime - stime
-                        if shouldPrint:
-                            print('finished stochastic run '+str(j+1) +'/'+str(len(stochasticEventsDict)))
-                            print('run time for aStar is:'+str(round(runTime,3)))
-                            print('cost of aStar is: ' + str(p[-1].gval))
+                        # if shouldPrint:
+                        #     print('finished stochastic run '+str(j+1) +'/'+str(len(stochasticEventsDict)))
+                        #     print('run time for aStar is:'+str(round(runTime,3)))
+                        #     print('cost of aStar is: ' + str(p[-1].gval))
                         stochasticCost[j] = p[-1].gval
                     else:
                         stochasticCost[j] = 0
@@ -618,8 +621,8 @@ def main():
     shouldPrint = True
     # params
     epsilon     = 0.001  # distance between locations to be considered same location
-    lam         = 10 / 30  # number of events per hour/ 60
-    lengthSim   = 30  # minutes
+    lam         = 30 / 40  # number of events per hour/ 60
+    lengthSim   = 15  # minutes
     numStochasticRuns   = 40
     # initilize stochastic event list for each set checked -
     lengthPrediction    = 4
