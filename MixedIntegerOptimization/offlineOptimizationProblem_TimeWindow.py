@@ -50,7 +50,7 @@ def calcReward(eventPos,carPos,closeReward,cancelPenalty,openedPenalty):
 
 
 
-def runMaxFlowOpt(tStart,carPos,eventPos,eventOpenTime,eventCloseTime,closeReward,cancelPenalty,openedPenalty):
+def runMaxFlowOpt(tStart,carPos,eventPos,eventOpenTime,eventCloseTime,closeReward,cancelPenalty,openedPenalty,outputFlag = 1):
     nEvents = eventPos.shape[0]
     nCars   = carPos.shape[0]
     rewardCarsToEvents, rewardEventsToEvents, timeCarsToEvents, timeEventsToEvents = calcReward(eventPos,carPos,closeReward,cancelPenalty,openedPenalty)
@@ -107,15 +107,11 @@ def runMaxFlowOpt(tStart,carPos,eventPos,eventOpenTime,eventCloseTime,closeRewar
 
     obj = rEvents + rCars + pEvents
     m.setObjective(obj, GRB.MAXIMIZE)
-
+    m.setParam('OutputFlag', outputFlag)
+    m.setParam('LogFile',"")
     m.optimize()
 
-    for v in m.getVars():
-        print('%s %g' % (v.varName, v.x))
-
-    print('Obj: %g' % obj.getValue())
-
-    return m
+    return m,obj
 
 
 def poissonRandomEvents(startTime,endSimTime,lam):
@@ -153,7 +149,7 @@ def createEventsDistribution(gridSize, startTime, endTime, lam, eventTimeWindow)
     return eventsPos,eventsTimeWindow
 
 def plotResults(m,carsPos,eventsPos,eventsOpenTime,eventsCloseTime,gs):
-    plot_gif = True
+    plot_gif = False
     nCars = carsPos.shape[0]
     nEvents = eventsPos.shape[0]
     paramKey = [v.varName.split('[')[0] for v in m.getVars()]
@@ -256,7 +252,7 @@ def plotResults(m,carsPos,eventsPos,eventsOpenTime,eventsCloseTime,gs):
     plt.plot(timeVec, numTotalEventsVec, c='k', marker='*')
     ax.grid(True)
     plt.legend()
-    #plt.show()
+    plt.show()
     if plot_gif:
         imageio.mimsave('./gif_MIO_' + str(gs) + 'grid_' + str(carsPos.shape[0]) + 'cars_' + str(eventsPos.shape[0]) + 'events_' + str(int(maxTime)) + 'maxTime.gif', imageList, fps=1)
     return
@@ -309,11 +305,11 @@ def main():
     openedPenalty = 1
 
     np.random.seed(1)
-    gridSize            = 20
-    nCars               = 10
+    gridSize            = 30
+    nCars               = 5
     tStart              = 0
-    deltaOpenTime       = 2
-    lengthSim           = 20
+    deltaOpenTime       = 3
+    lengthSim           = 40
     lam                 = 5/3
 
 
@@ -323,8 +319,11 @@ def main():
     eventStartTime = eventTimes[:, 0]
     eventEndTime = eventTimes[:, 1]
 
-    m = runMaxFlowOpt(tStart,carPos,eventPos,eventStartTime,eventEndTime,closeReward,cancelPenalty,openedPenalty)
+    m,obj = runMaxFlowOpt(tStart,carPos,eventPos,eventStartTime,eventEndTime,closeReward,cancelPenalty,openedPenalty)
+    for v in m.getVars():
+        print('%s %g' % (v.varName, v.x))
 
+    print('Obj: %g' % obj.getValue())
     plotResults(m,carPos,eventPos,eventStartTime,eventEndTime,gridSize)
 
 
