@@ -1,19 +1,19 @@
+# mathematical imports -
 import numpy as np
 import matplotlib
-from matplotlib import pyplot as plt
-import copy, time, sys
 from scipy.optimize import linear_sum_assignment
+from scipy.stats import truncnorm
+# system imports -
+import pickle
+import more_itertools as mrt
+import copy, time, sys
+# my files -
+sys.path.insert(0, '/home/chana/Documents/Thesis/FromGitFiles/Simulation/Anticipitory/')
+from simAnticipatoryWithMIO_V1 import *
+# for graphics
+from matplotlib import pyplot as plt
 import seaborn as sns
 import imageio
-from scipy.stats import truncnorm
-import pickle
-
-# my files
-sys.path.insert(0, '/home/chana/Documents/Thesis/FromGitFiles/Simulation/Anticipatory/')
-from offlineOptimizationProblem_TimeWindow import runMaxFlowOpt
-
-import more_itertools as mrt
-
 sns.set()
 
 
@@ -231,19 +231,19 @@ def createCarUseLog(carDict, currentTime):
 
 
 def createEventLog(eventLog, eventDict, currentTime,totalCost,eventPenalty):
+    for event in eventDict.values():
+        if event['timeStart'] <= currentTime and event['timeEnd'] >= currentTime and not event['answered']:
+            eventDict[event['id']]['statusLog'].append([currentTime, True])
+        else:
+            eventDict[event['id']]['statusLog'].append([currentTime, False])
+        if event['timeEnd'] == currentTime-1 and not event['answered']:
+            eventDict[event['id']]['canceled'] = True
+            totalCost += eventPenalty
     eventLog['count'].append(len([e for e in eventDict.values() if e['timeStart'] <= currentTime]))
     eventLog['answered'].append(len([e for e in eventDict.values() if e['answered']]))
     eventLog['canceled'].append(len([e for e in eventDict.values() if e['canceled']]))
     eventLog['current'].append(len(filterEvents(eventDict, currentTime)))
     eventLog['time'].append(currentTime)
-    for event in eventDict.values():
-        if event['timeStart'] <= currentTime and event['timeEnd'] > currentTime and not event['answered']:
-            eventDict[event['id']]['statusLog'].append([currentTime, True])
-        else:
-            eventDict[event['id']]['statusLog'].append([currentTime, False])
-        if event['timeEnd'] == currentTime and not event['answered']:
-            eventDict[event['id']]['canceled'] = True
-            totalCost += eventPenalty
     return eventLog,totalCost
 
 
@@ -266,8 +266,8 @@ def main():
         lg = pickle.load(open(pathName + pickleName + '.p', 'rb'))
         # params
         lengthSim       = np.max(lg['time'])  # minutes
-        gridWidth       = lg['gridSize']
-        gridHeight      = lg['gridSize']
+        gridWidth       = lg['gs']
+        gridHeight      = lg['gs']
         eventReward     = lg['pathresults'][0].closeReward
         eventPenalty    = lg['pathresults'][0].cancelPenalty
         carsPos         = [c.path for c in lg['pathresults'][0].cars.notCommited.values()]
@@ -279,7 +279,7 @@ def main():
         # init event dict
         eventDict = {}
         # create event dict
-        for i, in range(numEvents):
+        for i in range(numEvents):
             event = copy.deepcopy(eventTemp)
             event['timeStart'] = eventsStartTime[i]
             event['timeEnd']   = eventsEndTime[i]
@@ -295,7 +295,7 @@ def main():
         carDict   = {}
         for i in range(numCars):
             car             = copy.deepcopy(carEntityTemp)
-            car['position'] = list(carsPos[i])
+            car['position'] = list(carsPos[i][0])
             car['velocity'] = 1
             car['id']       = i
             carDict[i]      = car
@@ -355,7 +355,7 @@ def main():
     timeLine.sort()
     lengthSim = np.max(timeLine)
     deltaT = 1
-    continuesTimeLine = np.linspace(0, lengthSim+lastEventDelta, (lengthSim + lastEventDelta)/ deltaT + 1)
+    continuesTimeLine = np.linspace(0, lengthSim, lengthSim + 1)
 
     # initial state plot
     # plotSim(carDict, eventDict, 0, gridWidth, gridHeight)
@@ -364,7 +364,7 @@ def main():
     # main loop
     timeIndex = 0
 
-    while timeIndex < len(continuesTimeLine) - 1:
+    while timeIndex <= len(continuesTimeLine):
         # log car positions and close events
         for car in carDict.values():
             carPositionLog[car['id']].append(createCarPositionLog(car, continuesTimeLine[timeIndex]))
@@ -425,6 +425,7 @@ def main():
         # dump logs
     with open('HungarianMethod'+pickleName+'.p', 'wb') as out:
         pickle.dump({'cars'     : carPositionLog,
+                     'gs'       : gridHeight,
                      'events'   : eventDict,
                      'eventLog' : eventLog,
                      'carDict'  : carDict,

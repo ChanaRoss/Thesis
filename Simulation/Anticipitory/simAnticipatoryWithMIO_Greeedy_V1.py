@@ -3,6 +3,7 @@ import time,sys,pickle
 from enum import Enum
 from copy import deepcopy
 # for mathematical calculations and statistical distributions
+from scipy.optimize import linear_sum_assignment
 from scipy.stats import truncnorm
 from scipy.spatial.distance import cdist
 from scipy.special import comb
@@ -485,7 +486,7 @@ def createStochasticEvents(numStochasticRuns ,gridSize,startTime,endTime,lam,eve
     return stochasticEventsDict
 
 
-def anticipatorySimulation(initState,nStochastic, gs, tPred, eTimeWindow, lam, aStarWeight = 1,shouldPrint=False):
+def anticipatorySimulation(initState,nStochastic, gs, tPred, eTimeWindow, lam,shouldPrint=False):
     """
     this function is the anticipatory simulation
     :param initState: initial state of the system (cars and events)
@@ -573,26 +574,101 @@ def anticipatorySimulation(initState,nStochastic, gs, tPred, eTimeWindow, lam, a
             isGoal = True
             print('finished run - total cost is:'+str(current.gval))
         # dump logs
+        dataInRun = postAnalysis(current.path())
+        # Anticipatory output:
         with open('SimAnticipatoryMioResults_'+ str(currentTime+1)+'time_' + str(current.events.length()) + 'numEvents_'  + str(current.cars.length()) + 'numCars_' + str(lam) + 'lam_' + str(gs) + 'gridSize.p', 'wb') as out:
-            pickle.dump({'time'         : currentTime+1,
-                         'currentState' : current,
-                         'expectedCost' : optionalExpectedCost,
-                         'optionalCosts': optionalActualCost,
-                         'cost'         : current.gval}, out)
+            pickle.dump({'pathresults'      : current.path(),
+                         'time'             : dataInRun['timeVector'],
+                         'gs'               : gs,
+                         'OpenedEvents'     : dataInRun['openedEvents'],
+                         'closedEvents'     : dataInRun['closedEvents'],
+                         'canceledEvents'   : dataInRun['canceledEvents'],
+                         'allEvents'        : dataInRun['allEvents'],
+                         'cost'             : current.gval}, out)
+
     return current.path()
 
+
+def greedySimulation(initState,gs,shouldPrint):
+    isGoal = False
+    current = initState
+    while not isGoal:
+        currentTime             = current.time
+        newState                = deepcopy(current)
+        # update root,parent and time for all descendants
+        newState.root           = False
+        newState.parent         = current
+        newState.time          += 1
+        carsPos                 = np.zeros(shape=(newState.cars.length(), 2))
+        currentEventsPos        = []
+        currentEventStartTime   = []
+        currentEventsEndTime    = []
+        currentEventIndex       = []
+        carMoves                = []
+        # get car locations from state -
+        for d, k in enumerate(newState.cars.getUnCommitedKeys()):
+            carsPos[d, :] = deepcopy(newState.cars.getObject(k).position)
+            newState.cars.getObject(k).path.append(deepcopy(carsPos[d, :]))
+        # get opened event locations from state -
+        for k in newState.events.getUnCommitedKeys():
+            if newState.events.getObject(k).status == Status.OPENED_NOT_COMMITED:
+                currentEventsPos.append(deepcopy(newState.events.getObject(k).position))
+                currentEventIndex.append(deepcopy(newState.events.getObject(k).id))
+                currentEventStartTime.append(deepcopy(newState.events.getObject(k).startTime))
+                currentEventsEndTime.append(deepcopy(newState.events.getObject(k).endTime))
+        carsPos          = np.array(carsPos)
+        currentEventsPos = np.array(currentEventsPos)
+        # run deterministic optimization for stochastic events -
+        if currentEventsPos.shape[0]>0:
+            distMat = cdist(carsPos,currentEventsPos,metric='cityblock')
+            # matching
+            carIndices, matchedIndices = linear_sum_assignment(distMat)
+            for ie,ic in enumerate(carIndices):
+                tempCar = newState.cars.getObject(ic)
+                targetPosition = newState.events.getObject(currentEventIndex[matchedIndices[ie]]).position
+                delta = targetPosition - tempCar.position
+                if delta[0] != 0:
+                    carMovement = np.array([np.sign(delta[0]),0])
+
+                else:
+                    carMovement = np.array([0,np.sign(delta[1])])
+                tempCar.position += carMovement
+                carMoves.append(carMovement)
+                if shouldPrint:
+                    print('t:'+str(currentTime+1)+'moved car:'+str(ic)+' towards event:'+str(currentEventIndex[ie]))
+        else:
+            for i in range(newState.cars.length()):
+                # there are no opened events so cars should not move
+                carMoves.append(np.array([0,0]))
+        # calc distance matrix between cars and events
+        dm = newState.getDistanceMatrix()
+        # update status of events relative to new car positions
+        counter = newState.updateStatus(dm)
+        # update cost: sum of new cost and previous state cost
+        newState.updateCost(counter, np.array(carMoves))
+        current = newState
+        # check if this state is a goal or not-
+        if current.goalCheck():
+            isGoal = True
+            print('finished run - total cost is:' + str(current.gval))
+        # dump logs
+        with open('SimGreedy' + str(currentTime + 1) + 'time_' + str(
+                current.events.length()) + 'numEvents_' + str(current.cars.length()) + 'numCars_' + str(gs) + 'gridSize.p', 'wb') as out:
+            pickle.dump({'time': currentTime + 1,
+                         'currentState': current,
+                         'cost': current.gval}, out)
+    return current.path()
 
 
 
 def main():
     np.random.seed(10)
-    shouldPrint = True
+    shouldPrint         = True
     # params
-    epsilon     = 0.001  # distance between locations to be considered same location
-    lam         = 140 / 60  # number of events per hour/ 60
-    lengthSim   = 30  # minutes
-    numStochasticRuns   = 150
-    # initilize stochastic event list for each set checked -
+    epsilon             = 0.001  # distance between locations to be considered same location
+    lam                 = 5 / 4  # number of events per hour/ 60
+    lengthSim           = 15  # minutes
+    numStochasticRuns   = 40
     lengthPrediction    = 5
     deltaTimeForCommit  = 10
     closeReward         = 80
@@ -600,16 +676,9 @@ def main():
     openedCommitedPenalty    = 1
     openedNotCommitedPenalty = 5
 
-    gridSize            = 15
-    deltaOpenTime       = 5
+    gridSize            = 10
+    deltaOpenTime       = 3
     numCars             = 2
-
-    aStarWeight         = 10
-    # carPos              = np.array([0, 0]).reshape(2, numCars)
-    # eventPos            = np.array([[5, 5], [5, 10]])
-    # eventStartTime      = np.array([5, 10])
-    # eventEndTime        = eventStartTime + deltaOpenTime
-
     carPos              = np.reshape(np.random.randint(0, gridSize, 2 * numCars), (numCars,2))
 
     eventPos,eventTimes = createEventsDistribution(gridSize, 1, lengthSim, lam, deltaOpenTime)
@@ -623,61 +692,106 @@ def main():
     numEvents           = eventStartTime.shape[0]
     for i in range(numCars):
         tempCar = Car(carPos[i,:], i)
-        uncommitedCarDict[i] = tempCar
+        uncommitedCarDict[i]   = tempCar
     for i in range(numEvents):
         tempEvent = Event(eventPos[i,:], i, eventStartTime[i], eventEndTime[i])
         uncommitedEventDict[i] = tempEvent
 
-    carMonitor = commitMonitor(commitedCarDict, uncommitedCarDict)
+    carMonitor   = commitMonitor(commitedCarDict, uncommitedCarDict)
     eventMonitor = commitMonitor(commitedEventDict, uncommitedEventDict)
-    initState = State(root=True, carMonitor=carMonitor, eventMonitor=eventMonitor, cost=0, parent=None, time=0,
+    initState    = State(root=True, carMonitor=carMonitor, eventMonitor=eventMonitor, cost=0, parent=None, time=0,
                       openedNotCommitedPenalty = openedNotCommitedPenalty, openedCommitedPenalty = openedCommitedPenalty,
                       cancelPenalty=cancelPenalty, closeReward=closeReward,
                       timeDelta=deltaTimeForCommit,eps=epsilon)
+
+    # run anticipatory:
+    stime           = time.clock()
+    pAnticipatory   = anticipatorySimulation(initState, numStochasticRuns, gridSize, lengthPrediction, deltaOpenTime, lam, shouldPrint=shouldPrint)
+    etime           = time.clock()
+    runTimeA        = etime - stime
+    print('Anticipatory cost is:' + str(pAnticipatory[-1].gval))
+    print('run time is:'+str(runTimeA))
+
+
+    dataAnticipatory = postAnalysis(pAnticipatory)
+    fileName = str(eventTimes.shape[0]) + 'numEvents_'+ str(numCars) + 'numCars_' + str(lam) + 'lam_' + str(gridSize) + 'gridSize.p'
+    # Anticipatory output:
+    with open('SimAnticipatoryMioFinalResults_' + fileName, 'wb') as out:
+        pickle.dump({'runTime'          : runTimeA,
+                     'pathresults'      : pAnticipatory,
+                     'time'             : dataAnticipatory['timeVector'],
+                     'gs'               : gridSize,
+                     'OpenedEvents'     : dataAnticipatory['openedEvents'],
+                     'closedEvents'     : dataAnticipatory['closedEvents'],
+                     'canceledEvents'   : dataAnticipatory['canceledEvents'],
+                     'allEvents'        : dataAnticipatory['allEvents'],
+                     'cost'             : pAnticipatory[-1].gval}, out)
+    imageList = []
+    for s in pAnticipatory:
+        imageList.append(plotForGif(s, numEvents, numCars, gridSize))
+    imageio.mimsave('./' + 'SimAnticipatoryMioFinalResults_' + fileName + '.gif', imageList, fps=1)
+    plt.close()
+
+    # run greedy:
     stime = time.clock()
-    p = anticipatorySimulation(initState, numStochasticRuns, gridSize, lengthPrediction, deltaOpenTime, lam,aStarWeight = aStarWeight, shouldPrint=True)
+    pGreedy = greedySimulation(initState, gridSize, True)
     etime = time.clock()
-    runTime = etime - stime
-    print('cost is:' + str(p[-1].gval))
-    print('run time is: ' + str(runTime))
-    actualMaxTime       = len(p)
-    numUnCommited       = np.zeros(actualMaxTime)
-    numCommited         = np.zeros(actualMaxTime)
-    timeVector          = list(range(actualMaxTime))
-    closedEvents        = np.zeros(actualMaxTime)
-    openedEvents        = np.zeros(actualMaxTime)
-    canceledEvents      = np.zeros(actualMaxTime)
-    allEvents           = np.zeros(actualMaxTime)
+    runTimeG = etime - stime
+    print('Greedy cost is:' + str(pGreedy[-1].gval))
+    print('run time is: ' + str(runTimeG))
+    dataGreedy = postAnalysis(pGreedy)
+    # Greedy output:
+    with open('SimGreedyFinalResults_' + fileName, 'wb') as out:
+        pickle.dump({'runTime': runTimeG,
+                     'pathresults': pGreedy,
+                     'time': dataGreedy['timeVector'],
+                     'gs': gridSize,
+                     'OpenedEvents': dataGreedy['openedEvents'],
+                     'closedEvents': dataGreedy['closedEvents'],
+                     'canceledEvents': dataGreedy['canceledEvents'],
+                     'allEvents': dataGreedy['allEvents'],
+                     'cost': pGreedy[-1].gval}, out)
+    imageList = []
+    for s in pGreedy:
+        imageList.append(plotForGif(s, numEvents, numCars, gridSize))
+    imageio.mimsave('./' + 'SimGreedyFinalResults_' + fileName + '.gif', imageList, fps=1)
+    plt.close()
+    return
+
+
+
+def postAnalysis(p):
+    actualMaxTime   = len(p)
+    numEvents       = p[0].events.length()
+    numUnCommited   = np.zeros(actualMaxTime)
+    numCommited     = np.zeros(actualMaxTime)
+    timeVector      = list(range(actualMaxTime))
+    closedEvents    = np.zeros(actualMaxTime)
+    openedEvents    = np.zeros(actualMaxTime)
+    canceledEvents  = np.zeros(actualMaxTime)
+    allEvents       = np.zeros(actualMaxTime)
+    dataOut         = {}
     for i, st in enumerate(p):
         numUnCommited[i]    = len(list(st.events.getUnCommitedKeys()))
         numCommited[i]      = len(list(st.events.getCommitedKeys()))
         for iE in range(numEvents):
-            eventTemp = st.events.getObject(iE)
+            eventTemp       = st.events.getObject(iE)
             if eventTemp.status == Status.CANCELED:
-                canceledEvents[i] += 1
+                canceledEvents[i]   += 1
             elif eventTemp.status == Status.CLOSED:
-                closedEvents[i]   += 1
+                closedEvents[i]     += 1
             elif eventTemp.status == Status.OPENED_COMMITED or eventTemp.status == Status.OPENED_NOT_COMMITED:
-                openedEvents[i]   += 1
-        allEvents[i] = canceledEvents[i] + closedEvents[i] + openedEvents[i]
+                openedEvents[i]     += 1
+        allEvents[i]        = canceledEvents[i] + closedEvents[i] + openedEvents[i]
 
-    # dump logs
-    with open('SimAnticipatoryMioFinalResults_'+ str(eventTimes.shape[0]) + 'numEvents_'+ str(numCars) + 'numCars_' + str(lam) + 'lam_' + str(
-            gridSize) + 'gridSize.p', 'wb') as out:
-        pickle.dump({'runTime'          : runTime,
-                     'pathresults'      : p,
-                     'time'             : timeVector,
-                     'gs'               : gridSize,
-                     'OpenedEvents'     : openedEvents,
-                     'closedEvents'     : closedEvents,
-                     'canceledEvents'   : canceledEvents,
-                     'allEvents'        : allEvents, 'cost': p[-1].gval}, out)
-    imageList = []
-    for s in p:
-        imageList.append(plotForGif(s, numEvents, numCars, gridSize))
-    imageio.mimsave('./gif_AStarSolution_' + str(gridSize) + 'grid_' + str(numCars) + 'cars_' + str(numEvents) + 'events_' + str(
-            deltaOpenTime) + 'eventsTw_' + str(actualMaxTime) + 'maxTime.gif', imageList, fps=1)
-    return
+    dataOut['closedEvents']     = closedEvents
+    dataOut['openedEvents']     = openedEvents
+    dataOut['canceledEvents']   = canceledEvents
+    dataOut['actualMaxTime']    = actualMaxTime
+    dataOut['allEvents']        = allEvents
+    dataOut['timeVec']          = timeVector
+    return dataOut
+
 
 
 def plotForGif(s, ne,nc, gs):
@@ -718,8 +832,6 @@ def plotForGif(s, ne,nc, gs):
     image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
     image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
     return image
-
-
 
 if __name__ == '__main__':
     main()

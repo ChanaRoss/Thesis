@@ -37,14 +37,14 @@ def calcReward(eventPos,carPos,closeReward,cancelPenalty,openedPenalty):
     :return: rewardCarsToEvents -   R_{cars,events},
              rewardEventsToEvents - R_{events,events}
     """
-    nCars   = carPos.shape[0]
-    nEvents = eventPos.shape[0]
+    nCars              = carPos.shape[0]
+    nEvents            = eventPos.shape[0]
     distEventsToEvents = cdist(eventPos,eventPos,metric = 'cityblock')
     distCarsToEvents   = cdist(carPos,eventPos,metric='cityblock')
 
-    rewardCarsToEvents   = -distCarsToEvents + np.ones(shape = (nCars,nEvents))*closeReward
+    rewardCarsToEvents   = -distCarsToEvents   + np.ones(shape = (nCars,nEvents))*closeReward
     rewardEventsToEvents = -distEventsToEvents + np.ones(shape = (nEvents,nEvents))*closeReward
-    timeEventsToEvents    = distEventsToEvents
+    timeEventsToEvents   = distEventsToEvents
     timeCarsToEvents     = distCarsToEvents
     return rewardCarsToEvents,rewardEventsToEvents,timeCarsToEvents,timeEventsToEvents
 
@@ -94,22 +94,25 @@ def runMaxFlowOpt(tStart, carPos, eventPos , eventOpenTime, eventCloseTime,close
     for i in range(nEvents):
         m.addConstr(x[i,i] == 0) # an event cant pick itself up
 
-    rEvents = 0
-    rCars   = 0
-    pEvents = 0
+    rEvents       = 0 # reward for events that are closed after an event
+    rCars         = 0 # reward for events that are closed after car
+    pEvents       = 0 # penalty for events that are canceled
+    pEventsOpened = 0 # penatly for time that events waited
     for i in range(nEvents):
         for j in range(nEvents):
             rEvents += rewardEventsToEvents[i,j]*x[i,j]
+            pEventsOpened -= openedPenalty*(t[j]-eventOpenTime[j])*x[i,j]
+
         for j in range(nCars):
             rCars += rewardCarsToEvents[j,i]*y[j,i]
+            pEventsOpened -= openedPenalty*(t[i] - eventOpenTime[i])*y[j,i]
         pEvents -= cancelPenalty*(1-p[i])
 
-    obj = rEvents + rCars + pEvents
+    obj = rEvents + rCars + pEvents + pEventsOpened
     m.setObjective(obj, GRB.MAXIMIZE)
     m.setParam('OutputFlag', outputFlag)
     m.setParam('LogFile',"")
     m.optimize()
-
     return m,obj
 
 
@@ -148,7 +151,7 @@ def createEventsDistribution(gridSize, startTime, endTime, lam, eventTimeWindow)
     return eventsPos,eventsTimeWindow
 
 def plotResults(m,carsPos,eventsPos,eventsOpenTime,eventsCloseTime,gs):
-    plot_gif = False
+    plot_gif = True
     nCars = carsPos.shape[0]
     nEvents = eventsPos.shape[0]
     paramKey = [v.varName.split('[')[0] for v in m.getVars()]
@@ -183,18 +186,18 @@ def plotResults(m,carsPos,eventsPos,eventsOpenTime,eventsCloseTime,gs):
         pathCars[i] = np.array(pathCars[i])
     carFullPath = [[carsPos[i,:]] for i in range(nCars)]
     currentPos  = copy.deepcopy(carsPos)
-    maxTime = np.max(param['pickUpTime']).astype(int)
+    maxTime = np.max(eventsCloseTime).astype(int)
 
     for c in range(nCars):
         k = 0
-        for t in range(int(maxTime)+1):
+        for t in range(int(maxTime)):
             if cdist(currentPos[c,:].reshape(1,2),targetPos[c].reshape(1,2),metric = 'cityblock')>0:
                 # move car towards target
                 currentPos[c,:] = moveCar(currentPos[c,:],targetPos[c])
             else:
                 if len(eventsPerCar[c])>0:
                     # car has reached current target, check if target can be picked up
-                    if t<param['pickUpTime'][eventsPerCar[c][k]]:
+                    if t < param['pickUpTime'][eventsPerCar[c][k]]:
                         # target has not opened yet, needs to wait for target to open
                         targetPos[c] = copy.deepcopy(currentPos[c,:])
                     else:
@@ -205,6 +208,7 @@ def plotResults(m,carsPos,eventsPos,eventsOpenTime,eventsCloseTime,gs):
                         else:
                             # car reached target and there are no more targets in cars list
                             targetPos[c] = copy.deepcopy(currentPos[c,:])
+                        currentPos[c, :] = moveCar(currentPos[c, :], targetPos[c])
             carFullPath[c].append(copy.deepcopy(currentPos[c,:]))
 
     imageList = []
@@ -217,12 +221,12 @@ def plotResults(m,carsPos,eventsPos,eventsOpenTime,eventsCloseTime,gs):
     ax.scatter([], [], c='r', marker = '*', label='Canceled')
     ax.scatter([], [], c='g', marker = '*', label='Closed')
 
-    numClosedVec = np.zeros(maxTime+1)
-    numCanceledVec = np.zeros(maxTime+1)
-    numOpenedVec = np.zeros(maxTime+1)
-    numTotalEventsVec = np.zeros(maxTime+1)
-    tempEventsVec = np.zeros(maxTime+1)
-    for t in range(int(maxTime)+1):
+    numClosedVec = np.zeros(maxTime)
+    numCanceledVec = np.zeros(maxTime)
+    numOpenedVec = np.zeros(maxTime)
+    numTotalEventsVec = np.zeros(maxTime)
+    tempEventsVec = np.zeros(maxTime)
+    for t in range(int(maxTime)):
         numEventsOpened   = 0
         numEventsClosed   = 0
         numEventsCanceled = 0
@@ -244,7 +248,7 @@ def plotResults(m,carsPos,eventsPos,eventsOpenTime,eventsCloseTime,gs):
         if plot_gif:
             currentCarsPos = np.array([c[t] for c in carFullPath])
             imageList.append(plotForGif(currentCarsPos,eventsPos,param['pickUpTime'],eventsOpenTime,eventsCloseTime,param['isPickedUp'], gs,t))
-    timeVec = np.array(range(int(maxTime)+1))
+    timeVec = np.array(range(int(maxTime)))
     plt.plot(timeVec, numClosedVec,      c='g', marker='*')
     plt.plot(timeVec, numCanceledVec,    c='r', marker='*')
     plt.plot(timeVec, numOpenedVec,      c='y', marker='*')
@@ -280,10 +284,11 @@ def plotForGif(carPos,eventPos,eventPickUpTime,eventOpenTime,eventCloseTime,isEv
     ax.scatter([], [], c='r', label='Canceled')
     ax.scatter([], [], c='g', label='Closed')
     for i in range(eventPos.shape[0]):
-        if eventOpenTime[i]<=t and eventCloseTime[i]>t:
-            ax.scatter(eventPos[i,0], eventPos[i,1], c='b', alpha=0.7)
-        elif t>eventPickUpTime[i] and isEventPicked[i]:
+
+        if t>=eventPickUpTime[i] and isEventPicked[i]:
             ax.scatter(eventPos[i,0], eventPos[i,1], c='g', alpha=0.2)
+        elif eventOpenTime[i]<=t and eventCloseTime[i]>t:
+            ax.scatter(eventPos[i,0], eventPos[i,1], c='b', alpha=0.7)
         elif t>eventCloseTime[i]:
             ax.scatter(eventPos[i,0], eventPos[i,1], c='r', alpha=0.2)
         else:
@@ -306,15 +311,15 @@ def main():
     # eventTime           = np.array([5, 8])
     closeReward = 50
     cancelPenalty = 100
-    openedPenalty = 1
+    openedPenalty = 5
 
     np.random.seed(1)
-    gridSize            = 30
-    nCars               = 5
+    gridSize            = 10
+    nCars               = 1
     tStart              = 0
-    deltaOpenTime       = 3
-    lengthSim           = 40
-    lam                 = 5/3
+    deltaOpenTime       = 2
+    lengthSim           = 10
+    lam                 = 2/3
 
 
     carPos = np.reshape(np.random.randint(0, gridSize, 2 * nCars), (nCars, 2))
