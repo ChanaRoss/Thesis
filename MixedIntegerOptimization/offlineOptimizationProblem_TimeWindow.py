@@ -49,8 +49,7 @@ def calcReward(eventPos,carPos,closeReward,cancelPenalty,openedPenalty):
     return rewardCarsToEvents,rewardEventsToEvents,timeCarsToEvents,timeEventsToEvents
 
 
-
-def runMaxFlowOpt(tStart,carPos,eventPos,eventOpenTime,eventCloseTime,closeReward,cancelPenalty,openedPenalty,outputFlag = 1):
+def runMaxFlowOpt(tStart, carPos, eventPos , eventOpenTime, eventCloseTime,closeReward,cancelPenalty,openedPenalty,outputFlag = 1):
     nEvents = eventPos.shape[0]
     nCars   = carPos.shape[0]
     rewardCarsToEvents, rewardEventsToEvents, timeCarsToEvents, timeEventsToEvents = calcReward(eventPos,carPos,closeReward,cancelPenalty,openedPenalty)
@@ -261,12 +260,17 @@ def plotResults(m,carsPos,eventsPos,eventsOpenTime,eventsCloseTime,gs):
 
 def plotForGif(carPos,eventPos,eventPickUpTime,eventOpenTime,eventCloseTime,isEventPicked, gs,t):
     """
-        plot cars as red points, events as blue points,
-        and lines connecting cars to their targets
-        :param carDict:
-        :param eventDict:
-        :return: image for gif
-        """
+
+    :param carPos: position of cars at time t (nc,2)
+    :param eventPos: position of events (ne,2)
+    :param eventPickUpTime: time that event was picked up
+    :param eventOpenTime: time event started being opened
+    :param eventCloseTime: time event closed if not picked up
+    :param isEventPicked: True/False if event is picked up or not
+    :param gs: grid size
+    :param t: current time to plot
+    :return: graph to add to list of graphs
+    """
     fig, ax = plt.subplots()
     ax.set_title('time: {0}'.format(t))
     for c in range(carPos.shape[0]):
