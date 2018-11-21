@@ -12,10 +12,13 @@ sns.set()
 #  load logs
 pickleNames = []
 
+# 1 car:
+pickleNames.append('SimAnticipatoryMioFinalResults_11numEvents_1numCars_0.75lam_5gridSize')
+pickleNames.append('SimGreedyFinalResults_11numEvents_1numCars_0.75lam_5gridSize')
 
-pickleNames.append('SimAnticipatoryMioFinalResults_15numEvents_2numCars_0.75lam_7gridSize')
-pickleNames.append('HungarianMethodSimAnticipatoryMioFinalResults_15numEvents_2numCars_0.75lam_7gridSize')
-# pickleNames.append('MyAStarResult_1weight_2numCars_40numEvents_8gridSize')
+# 2 cars:
+# pickleNames.append('SimAnticipatoryMioFinalResults_15numEvents_2numCars_0.75lam_7gridSize')
+# pickleNames.append('SimGreedyFinalResults_10numEvents_2numCars_0.75lam_7gridSize')
 
 
 def filterEvents(eventDict, currentTime,lg):
@@ -80,7 +83,7 @@ def plotCurrentTimeGreedy(time,gridSize,lg):
 
 def plotCarsHeatmap(gridSize,lg,simTime,pickleName):
     heatMat = np.zeros(shape=(gridSize,gridSize))
-    if 'SimAnticipatoryMio' in pickleName:
+    if 'SimAnticipatoryMio' in pickleName or 'Greedy' in pickleName:
         carsPos = [c.path for c in lg['pathresults'][-1].cars.notCommited.values()]
         for carPos in carsPos:
             for pos in carPos:
@@ -99,14 +102,14 @@ def plotCarsHeatmap(gridSize,lg,simTime,pickleName):
             plt.title('Heat map of car location - greedy')
 
 def plotBasicStatisticsOfEvents(gridSize,lg,pickleName,simTime):
-    if 'Hungarian' in pickleName:
+    if 'Hungarian' in pickleName or 'Greedy' in pickleName:
         labelStr = 'Greey Algorithm'
     elif 'MIO' in pickleName:
         labelStr = 'Deterministic optimal Algorithm'
     elif 'SimAnticipatoryMio':
         labelStr = 'Anticipatory Algorithm'
 
-    if 'SimAnticipatoryMio' in pickleName:
+    if 'SimAnticipatoryMio' in pickleName or 'Greedy' in pickleName:
         plt.figure(2)
         plt.scatter(lg['time'], lg['allEvents'], c='r', label='Num Created events')
         plt.plot(lg['time'], lg['closedEvents'], label='Num Closed for :' + labelStr)
@@ -254,10 +257,10 @@ def main():
             print('number of closed events:'+str(numEventsClosed))
             cost = lg['cost']
             print('total cost is : '+str(cost))
-        elif 'SimAnticipatoryMio' in pickleName:
+        elif 'SimAnticipatoryMio' in pickleName or 'Greedy' in pickleName:
             # this is the anticipatory results for inner MIO opt.
             time           = lg['time']
-            gridSize       = lg['gs']
+            gridSize       = 5#lg['gs']
             simTime        = np.max(time)
             openedEvents   = np.array(lg['OpenedEvents'])
             closedEvents   = np.array(lg['closedEvents'])
@@ -274,7 +277,7 @@ def main():
                 plt.close()
             plotBasicStatisticsOfEvents(gridSize, lg, pickleName, simTime)
             plotCarsHeatmap(gridSize, lg, simTime, pickleName)
-            print('number of closed events:' + str(closedEvents.size))
+            print('number of closed events:' + str(closedEvents[-1]))
             cost           = lg['cost']
             print('total cost is : ' + str(cost))
 

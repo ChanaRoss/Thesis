@@ -18,7 +18,7 @@ sns.set()
 # my files
 sys.path.insert(0, '/home/chana/Documents/Thesis/FromGitFiles/MixedIntegerOptimization/')
 from offlineOptimizationProblem_TimeWindow import runMaxFlowOpt
-
+# from simAnticipatoryWithMIO_V1 import Status
 
 class Status(Enum):
     PREOPENED           = 0
@@ -663,12 +663,15 @@ def greedySimulation(initState,gs,shouldPrint):
 
 def main():
     np.random.seed(10)
+    shouldRunAnticipatory = 0
+    shouldRunGreedy       = 1
+    loadFromPickle        = 1
     shouldPrint         = True
     # params
     epsilon             = 0.001  # distance between locations to be considered same location
     lam                 = 5 / 4  # number of events per hour/ 60
-    lengthSim           = 15  # minutes
-    numStochasticRuns   = 40
+    lengthSim           = 40  # minutes
+    numStochasticRuns   = 100
     lengthPrediction    = 5
     deltaTimeForCommit  = 10
     closeReward         = 80
@@ -676,9 +679,9 @@ def main():
     openedCommitedPenalty    = 1
     openedNotCommitedPenalty = 5
 
-    gridSize            = 10
-    deltaOpenTime       = 3
-    numCars             = 2
+    gridSize            = 12
+    deltaOpenTime       = 4
+    numCars             = 3
     carPos              = np.reshape(np.random.randint(0, gridSize, 2 * numCars), (numCars,2))
 
     eventPos,eventTimes = createEventsDistribution(gridSize, 1, lengthSim, lam, deltaOpenTime)
@@ -703,59 +706,69 @@ def main():
                       openedNotCommitedPenalty = openedNotCommitedPenalty, openedCommitedPenalty = openedCommitedPenalty,
                       cancelPenalty=cancelPenalty, closeReward=closeReward,
                       timeDelta=deltaTimeForCommit,eps=epsilon)
+    if shouldRunAnticipatory:
+        # run anticipatory:
+        stime           = time.clock()
+        pAnticipatory   = anticipatorySimulation(initState, numStochasticRuns, gridSize, lengthPrediction, deltaOpenTime, lam, shouldPrint=shouldPrint)
+        etime           = time.clock()
+        runTimeA        = etime - stime
+        print('Anticipatory cost is:' + str(pAnticipatory[-1].gval))
+        print('run time is:'+str(runTimeA))
 
-    # run anticipatory:
-    stime           = time.clock()
-    pAnticipatory   = anticipatorySimulation(initState, numStochasticRuns, gridSize, lengthPrediction, deltaOpenTime, lam, shouldPrint=shouldPrint)
-    etime           = time.clock()
-    runTimeA        = etime - stime
-    print('Anticipatory cost is:' + str(pAnticipatory[-1].gval))
-    print('run time is:'+str(runTimeA))
 
+        dataAnticipatory = postAnalysis(pAnticipatory)
+        fileName = str(eventTimes.shape[0]) + 'numEvents_'+ str(numCars) + 'numCars_' + str(lam) + 'lam_' + str(gridSize) + 'gridSize.p'
+        # Anticipatory output:
+        with open('SimAnticipatoryMioFinalResults_' + fileName, 'wb') as out:
+            pickle.dump({'runTime'          : runTimeA,
+                         'pathresults'      : pAnticipatory,
+                         'time'             : dataAnticipatory['timeVector'],
+                         'gs'               : gridSize,
+                         'OpenedEvents'     : dataAnticipatory['openedEvents'],
+                         'closedEvents'     : dataAnticipatory['closedEvents'],
+                         'canceledEvents'   : dataAnticipatory['canceledEvents'],
+                         'allEvents'        : dataAnticipatory['allEvents'],
+                         'cost'             : pAnticipatory[-1].gval}, out)
+        imageList = []
+        for s in pAnticipatory:
+            imageList.append(plotForGif(s, numEvents, numCars, gridSize))
+        imageio.mimsave('./' + 'SimAnticipatoryMioFinalResults_' + fileName + '.gif', imageList, fps=1)
+        plt.close()
+    if shouldRunGreedy:
+        if loadFromPickle:
+            pickleName = 'SimAnticipatoryMioFinalResults_15numEvents_2numCars_0.75lam_7gridSize'
+            pathName = '/home/chana/Documents/Thesis/FromGitFiles/Simulation/Anticipitory/PickleFiles/'
+            dataPickle = pickle.load(open(pathName + pickleName + '.p', 'rb'))
+            initState = dataPickle['pathresults'][0]
+            gridSize  = dataPickle['gs']
+            fileName  = '15numEvents_2numCars_0.75lam_7gridSize'
+            numEvents = initState.events.length()
+            numCars   = initState.cars.length()
 
-    dataAnticipatory = postAnalysis(pAnticipatory)
-    fileName = str(eventTimes.shape[0]) + 'numEvents_'+ str(numCars) + 'numCars_' + str(lam) + 'lam_' + str(gridSize) + 'gridSize.p'
-    # Anticipatory output:
-    with open('SimAnticipatoryMioFinalResults_' + fileName, 'wb') as out:
-        pickle.dump({'runTime'          : runTimeA,
-                     'pathresults'      : pAnticipatory,
-                     'time'             : dataAnticipatory['timeVector'],
-                     'gs'               : gridSize,
-                     'OpenedEvents'     : dataAnticipatory['openedEvents'],
-                     'closedEvents'     : dataAnticipatory['closedEvents'],
-                     'canceledEvents'   : dataAnticipatory['canceledEvents'],
-                     'allEvents'        : dataAnticipatory['allEvents'],
-                     'cost'             : pAnticipatory[-1].gval}, out)
-    imageList = []
-    for s in pAnticipatory:
-        imageList.append(plotForGif(s, numEvents, numCars, gridSize))
-    imageio.mimsave('./' + 'SimAnticipatoryMioFinalResults_' + fileName + '.gif', imageList, fps=1)
-    plt.close()
-
-    # run greedy:
-    stime = time.clock()
-    pGreedy = greedySimulation(initState, gridSize, True)
-    etime = time.clock()
-    runTimeG = etime - stime
-    print('Greedy cost is:' + str(pGreedy[-1].gval))
-    print('run time is: ' + str(runTimeG))
-    dataGreedy = postAnalysis(pGreedy)
-    # Greedy output:
-    with open('SimGreedyFinalResults_' + fileName, 'wb') as out:
-        pickle.dump({'runTime': runTimeG,
-                     'pathresults': pGreedy,
-                     'time': dataGreedy['timeVector'],
-                     'gs': gridSize,
-                     'OpenedEvents': dataGreedy['openedEvents'],
-                     'closedEvents': dataGreedy['closedEvents'],
-                     'canceledEvents': dataGreedy['canceledEvents'],
-                     'allEvents': dataGreedy['allEvents'],
-                     'cost': pGreedy[-1].gval}, out)
-    imageList = []
-    for s in pGreedy:
-        imageList.append(plotForGif(s, numEvents, numCars, gridSize))
-    imageio.mimsave('./' + 'SimGreedyFinalResults_' + fileName + '.gif', imageList, fps=1)
-    plt.close()
+        # run greedy:
+        stime = time.clock()
+        pGreedy = greedySimulation(initState, gridSize, True)
+        etime = time.clock()
+        runTimeG = etime - stime
+        print('Greedy cost is:' + str(pGreedy[-1].gval))
+        print('run time is: ' + str(runTimeG))
+        dataGreedy = postAnalysis(pGreedy)
+        # Greedy output:
+        with open('SimGreedyFinalResults_' + fileName, 'wb') as out:
+            pickle.dump({'runTime'          : runTimeG,
+                         'pathresults'      : pGreedy,
+                         'time'             : dataGreedy['timeVector'],
+                         'gs'               : gridSize,
+                         'OpenedEvents'     : dataGreedy['openedEvents'],
+                         'closedEvents'     : dataGreedy['closedEvents'],
+                         'canceledEvents'   : dataGreedy['canceledEvents'],
+                         'allEvents'        : dataGreedy['allEvents'],
+                         'cost'             : pGreedy[-1].gval}, out)
+        imageList = []
+        for s in pGreedy:
+            imageList.append(plotForGif(s, numEvents, numCars, gridSize))
+        imageio.mimsave('./' + 'SimGreedyFinalResults_' + fileName + '.gif', imageList, fps=1)
+        plt.close()
     return
 
 
@@ -789,7 +802,7 @@ def postAnalysis(p):
     dataOut['canceledEvents']   = canceledEvents
     dataOut['actualMaxTime']    = actualMaxTime
     dataOut['allEvents']        = allEvents
-    dataOut['timeVec']          = timeVector
+    dataOut['timeVector']       = timeVector
     return dataOut
 
 
