@@ -16,13 +16,23 @@ sns.set()
 pickleNames = []
 
 # 1 car:
-pickleNames.append('SimAnticipatoryMioFinalResults_11numEvents_1numCars_0.75lam_5gridSize')
+# pickleNames.append('SimAnticipatoryMioFinalResults_11numEvents_1numCars_0.75lam_5gridSize')
 # pickleNames.append('SimGreedyFinalResults_11numEvents_1numCars_0.75lam_5gridSize')
 
 # 2 cars:
 # pickleNames.append('SimAnticipatoryMioFinalResults_15numEvents_2numCars_0.75lam_7gridSize')
 # pickleNames.append('SimGreedyFinalResults_10numEvents_2numCars_0.75lam_7gridSize')
 
+
+# 3 cars:
+pickleNames.append('SimAnticipatoryMioFinalResults_35numEvents_3numCars_1p5lam_15gridSize_30sRuns_4lPred')
+pickleNames.append('SimAnticipatoryMioFinalResults_35numEvents_3numCars_1p5lam_15gridSize_30sRuns_7lPred')
+pickleNames.append('SimAnticipatoryMioFinalResults_35numEvents_3numCars_1p5lam_15gridSize_100sRuns_4lPred')
+pickleNames.append('SimGreedyFinalResults_35numEvents_3numCars_1p5lam_15gridSize_30sRuns_7lPred')
+
+# # 5 cars:
+# pickleNames.append('SimAnticipatoryMioFinalResults_22time_35numEvents_5numCars_1p25lam_15gridSize_30sRuns_4lPred')
+# pickleNames.append('SimGreedyFinalResults_35numEvents_5numCars_1p25lam_15gridSize_30sRuns_4lPred')
 
 def filterEvents(eventDict, currentTime,lg):
     filterdEventDict = {}
@@ -241,7 +251,7 @@ def plotCurrentTimeAnticipatory(s, ne,nc, gs,fileName):
 def main():
     imageList = []
 
-    FlagCreateGif = 1
+    FlagCreateGif = 0
     fileLoc = '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/PickleFiles/'
     for pickleName in pickleNames:
         lg  = pickle.load(open(fileLoc + pickleName + '.p', 'rb'))
@@ -268,7 +278,7 @@ def main():
                 os.mkdir(fileLoc + pickleName)
             # this is the anticipatory results for inner MIO opt.
             time           = lg['time']
-            gridSize       = 5#lg['gs']
+            gridSize       = lg['gs']
             simTime        = np.max(time)
             openedEvents   = np.array(lg['OpenedEvents'])
             closedEvents   = np.array(lg['closedEvents'])
