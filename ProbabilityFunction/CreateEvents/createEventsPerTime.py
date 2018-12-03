@@ -4,40 +4,41 @@ import seaborn as sns
 sns.set()
 
 
-
-
-
-
-
 def createEventDistributionUber(startTime, endTime, probabilityMatrix, eventTimeWindow):
     eventPos = []
     eventTimes = []
-    hour = [startTime % 4]  # each time is a quarter of an hour
+    hour = [startTime // 4]  # each time is a quarter of an hour
     numTimeSteps = endTime - startTime
     if numTimeSteps > 4:
         hour.append(hour[0] + 1)
     for h in hour:
-        for x, y in zip(range(probabilityMatrix.shape[0]), range(probabilityMatrix.shape[1])):
-            randNum = np.random.uniform(0, 1)
-            if randNum <= probabilityMatrix[x, y, h]:
-                eventPos.append([x, y])
-                eventTimes.append(4 * h + np.random.randint(0, 4))
-
+        for x in range(probabilityMatrix.shape[0]):
+            for y in range(probabilityMatrix.shape[1]):
+                randNum = np.random.uniform(0, 1)
+                cdfNumEvents = probabilityMatrix[x, y, h, :]
+                numEvents = np.searchsorted(cdfNumEvents, randNum, side='left')  # find how many events are happenning at the same time
+                print('at loc:'+str(x)+','+str(y)+' num events:'+str(numEvents))
+                for n in range(numEvents):
+                    eventPos.append(np.array([x, y]))
+                    eventTimes.append(np.random.randint(0, 4) + h * 4)
     eventsPos = np.array(eventPos)
+    eventTimes = np.array(eventTimes)
     eventsTimeWindow = np.column_stack([eventTimes, eventTimes + eventTimeWindow])
+    plt.scatter(eventsPos[:, 0], eventsPos[:, 1], label='event position')
+    plt.legend()
+    plt.figure()
+    plt.scatter(range(eventTimes.shape[0]), eventTimes, label='times of event at hour:'+str(h))
+    plt.legend()
+    print('hi')
     return eventsPos, eventsTimeWindow
 
 
 def main():
-    TimeMatrix = np.load('3DMat_weekNum_18wday_2.p')
-    starTime = 0
-    endTime = 4
-    probabilityMatrix = np.load('weekNum18_wday2_probabilityMatrix.p')
+    starTime = 24
+    endTime = 28
+    probabilityMatrix = np.load('4DProbabilityCDF_wday_1.p')
     eventTimeWindow = 4
-    eventPos,eventTime = createEventDistributionUber(starTime,endTime,probabilityMatrix,eventTimeWindow)
-
-    print('hi')
-
+    eventPos,eventTime = createEventDistributionUber(starTime, endTime, probabilityMatrix, eventTimeWindow)
 
 if __name__ == '__main__':
     main()

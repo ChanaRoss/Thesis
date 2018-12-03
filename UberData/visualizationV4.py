@@ -3,7 +3,6 @@ from matplotlib import pyplot as plt
 import matplotlib
 from matplotlib import cm
 import matplotlib.animation as animation
-matplotlib.use('TKAgg')
 import pandas as pd
 from collections import Counter
 import seaborn as sns
@@ -243,12 +242,12 @@ def createProbMatrix(df):
             for t in range(mat.shape[2]):
                 for nWeek in range(mat.shape[3]):
                     nEvents = mat[ix, iy, t, nWeek].astype(int)
-                    #if nEvents > 20:
-                    #    nEvents = 20
+                    if nEvents > 10:
+                       nEvents = 10
                     matOut[ix, iy, t, nEvents] += 1
                 # normalizing numbers to be probability instead of absolute value
                 matOut[ix, iy, t, :] = matOut[ix, iy, t, :]/np.sum(matOut[ix, iy, t, :])
-    matOut.dump('4DProbabilityMat_' + 'wday_' + str(weekDay) + '.p')
+    matOut.dump('4DLimitedProbabilityMat_' + 'wday_' + str(weekDay) + '.p')
     fig, ax = plt.subplots(1, 1)
     for i in range(matOut.shape[2]):
         a = np.sum(matOut[:, :, i, :], axis=(0, 1))
