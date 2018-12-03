@@ -1,0 +1,18 @@
+Lat
+Lon
+Base
+TimeStamp
+weekday (0-6)
+weeknum (14-40)
+month (4-9)
+hour (0-23)
+minute (0-60)
+weekPeriod (0-671)
+dayQuad (0-5)
+x
+y
+x_grid_dist
+y_grid_dist
+grid_x (184-229)
+grid_y (274-355)
+grid_id
