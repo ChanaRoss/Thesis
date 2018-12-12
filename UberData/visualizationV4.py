@@ -6,6 +6,7 @@ import matplotlib.animation as animation
 import pandas as pd
 from collections import Counter
 import seaborn as sns
+import pickle
 
 
 def gridIndicesToMatIndices(i,j, maxI, maxJ):
@@ -219,24 +220,24 @@ def createFastStackPlot(df ,block=True):
         # plt.savefig('FastStackPlot_' + str(wnum) + '.png')
 
 def createProbMatrix(df):
+    weekDay = 1
     dfTemp = df.copy()
-    dfTemp = dfTemp[dfTemp['weekday'] == 1]  # use only monday
+    dfTemp = dfTemp[dfTemp['weekday'] == weekDay]  # use only monday
+    dfTemp['weekPeriod5'] = dfTemp['weekPeriod5'] - np.min(dfTemp['weekPeriod5'])
     dfTemp['grid_x'] = dfTemp['grid_x'] - np.min(dfTemp['grid_x'])
     dfTemp['grid_y'] = dfTemp['grid_y'] - np.min(dfTemp['grid_y'])
     gridX = dfTemp['grid_x'].unique()
     gridY = dfTemp['grid_y'].unique()
-
-    mat = np.zeros(shape = (gridX.size,gridY.size,24,df['weeknum'].unique().size))
-    wnumMin = df['weeknum'].min()
-    weekDay = 1
-    for wnum in df['weeknum'].unique():
+    mat = np.zeros(shape=(gridX.size, gridY.size, dfTemp['weekPeriod5'].unique().size, dfTemp['weeknum'].unique().size))
+    wnumMin = dfTemp['weeknum'].min()
+    for wnum in dfTemp['weeknum'].unique():
         dfTemp1 = dfTemp[dfTemp['weeknum'] == wnum]
-        for t in dfTemp1['hour'].unique():
-            dfTemp2 = dfTemp1[dfTemp1['hour'] == t]
+        for t in dfTemp1['weekPeriod5'].unique():
+            dfTemp2 = dfTemp1[dfTemp1['weekPeriod5'] == t]
             for ix, iy in zip(dfTemp2['grid_x'], dfTemp2['grid_y']):
                 mat[ix, iy, t, wnum-wnumMin] += 1
     maxNumEvents = np.max(mat).astype(int)
-    matOut = np.zeros(shape = (gridX.size, gridY.size, 24, maxNumEvents+1))
+    matOut = np.zeros(shape = (gridX.size, gridY.size, mat.shape[2], 11))
     for ix in range(mat.shape[0]):
         for iy in range(mat.shape[1]):
             for t in range(mat.shape[2]):
@@ -247,7 +248,7 @@ def createProbMatrix(df):
                     matOut[ix, iy, t, nEvents] += 1
                 # normalizing numbers to be probability instead of absolute value
                 matOut[ix, iy, t, :] = matOut[ix, iy, t, :]/np.sum(matOut[ix, iy, t, :])
-    matOut.dump('4DLimitedProbabilityMat_' + 'wday_' + str(weekDay) + '.p')
+    matOut.dump('4D_UpdatedGrid_5min_LimitedProbabilityMat_' + 'wday_' + str(weekDay) + '.p')
     fig, ax = plt.subplots(1, 1)
     for i in range(matOut.shape[2]):
         a = np.sum(matOut[:, :, i, :], axis=(0, 1))
@@ -259,7 +260,7 @@ def createProbMatrix(df):
 
 def main():
     # path to data pickle (after preproc)
-    dataPath = '/Users/chanaross/dev/Thesis/UberData/alldata_corrected_pickle.p'
+    dataPath = '/Users/chanaross/dev/Thesis/UberData/alldataupdatedGridpickle.p'
     # dataPath = '/Users/chanaross/Documents/Thesis/uberAnalysis/allData.p'
     # read data
     df = pd.read_pickle(dataPath)
@@ -273,16 +274,23 @@ def main():
     # filter file to only manhattan area (get rid of sparse area)
     df = df[(df["Lon"]>=(-83.812)) & (df['Lon']<=(-83.7668))]
     df = df[(df["Lat"]>=-16.483) & (df['Lat']<=-16.3314)]
+
+    df['weekPeriod5'] = df['weekday'] * (24 * 12) + df['hour'] * 12 + np.floor_divide(df['minute'], 5).astype(np.int64)
+
     # add single index grid id
-    maxXgrid = np.max(df['grid_x'])
+    df['grid_x']  = df['grid_x'] - np.min(df['grid_x'])
+    df['grid_y']  = df['grid_y'] - np.min(df['grid_y'])
+    maxXgrid      = np.max(df['grid_x'])
     df['grid_id'] = df['grid_x'] + df['grid_y'] * maxXgrid
 
+    with open ('/Users/chanaross/dev/Thesis/UberData/manhattenData_DenseGrid_5min_pickle.p', 'wb') as op:
+        pickle.dump(df, op)
     createProbMatrix(df)
     # createFastStackPlot(df,True)
     # createScatterMaps(df,True)
     # createHeatMaps(df,False)
     # CreateMatrix(df)
-    #createStackPlot(df, True)
+    # createStackPlot(df, True)
 
     return
 

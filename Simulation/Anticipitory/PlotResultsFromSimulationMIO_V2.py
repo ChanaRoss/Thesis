@@ -6,7 +6,7 @@ import seaborn as sns
 from ipywidgets import interact
 import imageio
 # import my file in order to load state class from pickle
-from simAnticipatoryWithMIO_Greeedy_V1 import *
+from simAnticipatoryWithMIO_Greeedy_UberData_V1 import *
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/UtilsCode/')
 from createGif import create_gif
 import os
@@ -25,14 +25,25 @@ pickleNames = []
 
 
 # 3 cars:
-pickleNames.append('SimAnticipatoryMioFinalResults_35numEvents_3numCars_1p5lam_15gridSize_30sRuns_4lPred')
-pickleNames.append('SimAnticipatoryMioFinalResults_35numEvents_3numCars_1p5lam_15gridSize_30sRuns_7lPred')
-pickleNames.append('SimAnticipatoryMioFinalResults_35numEvents_3numCars_1p5lam_15gridSize_100sRuns_4lPred')
-pickleNames.append('SimGreedyFinalResults_35numEvents_3numCars_1p5lam_15gridSize_30sRuns_7lPred')
+# pickleNames.append('SimAnticipatoryMioFinalResults_35numEvents_3numCars_1p5lam_15gridSize_30sRuns_4lPred')
+# pickleNames.append('SimAnticipatoryMioFinalResults_35numEvents_3numCars_1p5lam_15gridSize_30sRuns_7lPred')
+# pickleNames.append('SimAnticipatoryMioFinalResults_35numEvents_3numCars_1p5lam_15gridSize_100sRuns_4lPred')
+# pickleNames.append('SimGreedyFinalResults_35numEvents_3numCars_1p5lam_15gridSize_30sRuns_7lPred')
 
 # # 5 cars:
 # pickleNames.append('SimAnticipatoryMioFinalResults_22time_35numEvents_5numCars_1p25lam_15gridSize_30sRuns_4lPred')
 # pickleNames.append('SimGreedyFinalResults_35numEvents_5numCars_1p25lam_15gridSize_30sRuns_4lPred')
+
+
+
+## uber data:
+# 2 cars
+# pickleNames.append('SimAnticipatoryMioFinalResults_6gridX_11gridY_36numEvents_2numCars_uberData')
+# pickleNames.append('SimGreedyFinalResults_6gridX_11gridY_36numEvents_2numCars_uberData')
+# larger grid -
+pickleNames.append('SimAnticipatoryMioFinalResults_11gridX_15gridY_120numEvents_2numCars_uberData')
+# pickleNames.append('SimGreedyFinalResults_11gridX_15gridY_120numEvents_2numCars_uberData')
+
 
 def filterEvents(eventDict, currentTime,lg):
     filterdEventDict = {}
@@ -95,7 +106,7 @@ def plotCurrentTimeGreedy(time,gridSize,lg):
 
 
 def plotCarsHeatmap(gridSize,lg,simTime,pickleName):
-    heatMat = np.zeros(shape=(gridSize,gridSize))
+    heatMat = np.zeros(shape=(gridSize[0], gridSize[1]))
     if 'SimAnticipatoryMio' in pickleName or 'Greedy' in pickleName:
         carsPos = [c.path for c in lg['pathresults'][-1].cars.notCommited.values()]
         for carPos in carsPos:
@@ -157,8 +168,8 @@ def plotBasicStatisticsOfEvents(gridSize,lg,pickleName,simTime):
         plt.xlabel('grid X')
         plt.ylabel('grid Y')
         plt.title('event locations for: ' + labelStr)
-        plt.xlim([-3, gridSize + 3])
-        plt.ylim([-3, gridSize + 3])
+        plt.xlim([-3, gridSize[0] + 3])
+        plt.ylim([-3, gridSize[1] + 3])
 
     if 'Hungarian' in pickleName:
         eventLog    = lg['eventLog']
@@ -234,8 +245,8 @@ def plotCurrentTimeAnticipatory(s, ne,nc, gs,fileName):
             ax.scatter(eventTemp.position[0], eventTemp.position[1], c='r', alpha=0.4)
         else:
             ax.scatter(eventTemp.position[0], eventTemp.position[1], c='y', alpha=0.4)
-    ax.set_xlim([-1, gs + 1])
-    ax.set_ylim([-1, gs + 1])
+    ax.set_xlim([-1, gs[0] + 1])
+    ax.set_ylim([-1, gs[1] + 1])
     ax.grid(True)
     plt.legend()
     plt.savefig(fileName + '_' + str(s.time)+'.png')
@@ -251,7 +262,7 @@ def plotCurrentTimeAnticipatory(s, ne,nc, gs,fileName):
 def main():
     imageList = []
 
-    FlagCreateGif = 0
+    FlagCreateGif = 1
     fileLoc = '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/PickleFiles/'
     for pickleName in pickleNames:
         lg  = pickle.load(open(fileLoc + pickleName + '.p', 'rb'))
@@ -293,7 +304,7 @@ def main():
                 listNames = [pickleName+'_'+str(t)+'.png' for t in time]
                 create_gif(fileLoc+pickleName+'/', listNames, 1, pickleName)
             plotBasicStatisticsOfEvents(gridSize, lg, pickleName, simTime)
-            plotCarsHeatmap(gridSize, lg, simTime, pickleName)
+            # plotCarsHeatmap(gridSize, lg, simTime, pickleName)
             print('number of closed events:' + str(closedEvents[-1]))
             cost           = lg['cost']
             print('total cost is : ' + str(cost))
