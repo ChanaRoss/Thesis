@@ -35,8 +35,8 @@ def XyToLongLat(x, y):
 def main():
     # set path to dataset (csv)
     dataPath = '/Users/chanaross/Documents/Thesis/UberData/allData.csv'
-    xGridResolution = 500  # grid rectangle width
-    yGridResolution = 500  # grid rectangle height
+    xGridResolution = 250  # grid rectangle width
+    yGridResolution = 250  # grid rectangle height
     # read data to dataframe
     df = pd.read_csv(dataPath)
 
@@ -51,7 +51,6 @@ def main():
     df = df.drop('Date/Time', axis=1)
     # add repetitive weekly time id
     df['weekPeriod'] = df['weekday']*(24*4) + df['hour']*4 + np.floor_divide(df['minute'], 15).astype(np.int64)
-    # df['weekPeriod5'] = df['weekday']*(24*4) + df['hour']*4 + np.floor_divide(df['minute'], 5).astype(np.int64)
     df['dayQuad'] = np.floor_divide(df['hour'], 4).astype(np.int64)
 
     # coordinate transformation and grid creation
@@ -82,8 +81,8 @@ def main():
     df['grid_id'] = df['grid_x'] + df['grid_y']*maxXgrid
 
     # pickle data
-    df.to_pickle(dataPath.replace('.csv', 'updated_Gridpickle.p'))
-    with open (dataPath.replace('.csv', 'updated_Gridpickle.p'), 'wb') as op:
+    df.to_pickle(dataPath.replace('.csv', 'updated_Gridpickle250.p'))
+    with open (dataPath.replace('.csv', 'updated_Gridpickle250.p'), 'wb') as op:
         pickle.dump(df,op)
 
     df.to_csv(dataPath.replace('.csv', 'updatedGridXY2.csv'))

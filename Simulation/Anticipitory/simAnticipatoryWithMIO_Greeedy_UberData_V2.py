@@ -18,7 +18,7 @@ import imageio
 sns.set()
 # my files
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/MixedIntegerOptimization/')
-from offlineOptimizationProblem_TimeWindow import runMaxFlowOpt
+from offlineOptimizationProblem_TimeWindow import runMaxFlowOpt,plotResults
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/UtilsCode/')
 from createGif import create_gif
 
@@ -338,7 +338,7 @@ class State:
             tempCar.path.append(deepcopy(tempCar.position))
             targetPosition = self.events.getObject(tempCar.targetId).position
             delta = targetPosition - tempCar.position
-            if delta[0]!=0:
+            if delta[0]!= 0:
                 tempCar.position[0] += np.sign(delta[0])
             else:
                 tempCar.position[1] += np.sign(delta[1])
@@ -346,7 +346,7 @@ class State:
 
     def updateStatus(self, matrix):
         # update event status
-        counter = {Status.OPENED_COMMITED : 0,Status.OPENED_NOT_COMMITED : 0, Status.CLOSED: 0, Status.CANCELED: 0}
+        counter = {Status.OPENED_COMMITED: 0, Status.OPENED_NOT_COMMITED: 0, Status.CLOSED: 0, Status.CANCELED: 0}
         for eventId in range(self.events.length()):
             tempEvent               = self.events.getObject(eventId)
             newStatus               = tempEvent.updateStatus(self.time)
@@ -357,19 +357,20 @@ class State:
         for carId in range(self.cars.length()):
             tempCar = self.cars.getObject(carId)
             if tempCar.commited:
-                if matrix[carId, tempCar.targetId]<=self.eps and self.events.getObject(tempCar.targetId).status==Status.OPENED_COMMITED:
+                if matrix[carId, tempCar.targetId] <= self.eps and self.events.getObject(tempCar.targetId).status==Status.OPENED_COMMITED:
                     self.events.getObject(tempCar.targetId).status = Status.CLOSED  # update event status
                     self.events.unCommitObject(tempCar.targetId)  # uncommit event
                     self.cars.unCommitObject(carId)  # uncommit car
                     tempCar.uncommit()  # update car field
                     counter[Status.CLOSED] += 1
             else:  # update uncommited events
-                closedEvents = np.where(matrix[carId, :]<=self.eps)
+                closedEvents = np.where(matrix[carId, :] <= self.eps)
                 for e in closedEvents[0]:
                     tempEvent = self.events.getObject(e)
-                    if tempEvent.status==Status.OPENED_NOT_COMMITED:  # uncommited event reached
+                    if tempEvent.status == Status.OPENED_NOT_COMMITED:  # uncommited event reached
                         tempEvent.status = Status.CLOSED  # close event
-                        counter[Status.CLOSED] += 1  # incriment counter
+                        counter[Status.CLOSED] += 1  # increment counter
+                        break
         return counter
 
 
@@ -460,7 +461,7 @@ def poissonRandomEvents(startTime,endSimTime,lam):
 def createEventDistributionUber(simStartTime, startTime, endTime, probabilityMatrix,eventTimeWindow,simTime):
     eventPos = []
     eventTimes = []
-    firstTime = startTime + simTime + simStartTime  # each time is a quarter of an hour
+    firstTime = startTime + simTime + simStartTime  # each time is a 5 min
     numTimeSteps = endTime - startTime
     for t in range(numTimeSteps):
         for x in range(probabilityMatrix.shape[0]):
@@ -471,9 +472,10 @@ def createEventDistributionUber(simStartTime, startTime, endTime, probabilityMat
                 numEvents = np.searchsorted(cdfNumEvents, randNum, side='left')
                 numEvents = np.floor(numEvents).astype(int)
                 # print('at loc:' + str(x) + ',' + str(y) + ' num events:' + str(numEvents))
-                for n in range(numEvents):
+                #for n in range(numEvents):
+                if numEvents > 0:
                     eventPos.append(np.array([x, y]))
-                    eventTimes.append(t+firstTime)
+                    eventTimes.append(t + startTime)
     eventsPos  = np.array(eventPos)
     eventTimes = np.array(eventTimes)
     eventsTimeWindow = np.column_stack([eventTimes, eventTimes + eventTimeWindow])
@@ -511,12 +513,12 @@ def createStochasticEvents(simStartTime, numStochasticRuns, startTime, endTime, 
     """
     stochasticEventsDict = {}
     for i in range(numStochasticRuns):
-        eventPos, eventTimeWindow = createEventDistributionUber(simStartTime, startTime,endTime,probabilityMatrix,eventsTimeWindow, simTime)
+        eventPos, eventTimeWindow = createEventDistributionUber(simStartTime, startTime, endTime, probabilityMatrix, eventsTimeWindow, simTime)
         stochasticEventsDict[i] = {'eventsPos': eventPos, 'eventsTimeWindow': eventTimeWindow}
     return stochasticEventsDict
 
 
-def anticipatorySimulation(initState,nStochastic, gs, tPred, eTimeWindow, simStartTime ,shouldPrint=False):
+def anticipatorySimulation(initState, nStochastic, gs, tPred, eTimeWindow, simStartTime ,shouldPrint=False):
     """
     this function is the anticipatory simulation
     :param initState: initial state of the system (cars and events)
@@ -606,15 +608,17 @@ def anticipatorySimulation(initState,nStochastic, gs, tPred, eTimeWindow, simSta
         # dump logs
         dataInRun = postAnalysis(current.path())
         # Anticipatory output:
-        with open('SimAnticipatoryMioResults_'+ str(currentTime+1)+'time_' + str(current.events.length()) + 'numEvents_'  + str(current.cars.length()) + 'numCars_uberData.p', 'wb') as out:
-            pickle.dump({'pathresults'      : current.path(),
-                         'time'             : dataInRun['timeVector'],
-                         'gs'               : gs,
-                         'OpenedEvents'     : dataInRun['openedEvents'],
-                         'closedEvents'     : dataInRun['closedEvents'],
-                         'canceledEvents'   : dataInRun['canceledEvents'],
-                         'allEvents'        : dataInRun['allEvents'],
-                         'cost'             : current.gval}, out)
+        # with open('SimAnticipatoryMioResults_'+ str(currentTime+1)+'time_' + str(current.events.length()) + 'numEvents_'  + str(current.cars.length()) + 'numCars_uberData.p', 'wb') as out:
+        #     pickle.dump({'pathresults'      : current.path(),
+        #                  'time'             : dataInRun['timeVector'],
+        #                  'gs'               : gs,
+        #                  'OpenedEvents'     : dataInRun['openedEvents'],
+        #                  'closedEvents'     : dataInRun['closedEvents'],
+        #                  'canceledEvents'   : dataInRun['canceledEvents'],
+        #                  'allEvents'        : dataInRun['allEvents'],
+        #                  'stochasticResults': optionalTotalCost,
+        #                  'stochasticEventsDict': stochasticEventsDict,
+        #                  'cost'             : current.gval}, out)
 
     return current.path()
 
@@ -682,39 +686,62 @@ def greedySimulation(initState, shouldPrint):
             isGoal = True
             print('finished run - total cost is:' + str(current.gval))
         # dump logs
-        with open('SimGreedy' + str(currentTime + 1) + 'time_' + str(
-                current.events.length()) + 'numEvents_' + str(current.cars.length()) + 'numCars_uberData.p', 'wb') as out:
-            pickle.dump({'time': currentTime + 1,
-                         'currentState': current,
-                         'cost': current.gval}, out)
+        # with open('SimGreedy' + str(currentTime + 1) + 'time_' + str(
+        #         current.events.length()) + 'numEvents_' + str(current.cars.length()) + 'numCars_uberData.p', 'wb') as out:
+        #     pickle.dump({'time': currentTime + 1,
+        #                  'currentState': current,
+        #                  'cost': current.gval}, out)
     return current.path()
 
 
 
+def optimizedSimulation(initialState, fileLoc, fileName, gridSize):
+    plotFigures     = False
+    carsPos         = np.zeros(shape=(initialState.cars.length(), 2))
+    eventsPos       = []
+    eventsStartTime = []
+    eventsEndTime   = []
+    for d, k in enumerate(initialState.cars.getUnCommitedKeys()):
+        carsPos[d, :] = deepcopy(initialState.cars.getObject(k).position)
+    # get opened event locations from state -
+    for k in initialState.events.getUnCommitedKeys():
+        eventsPos.append(deepcopy(initialState.events.getObject(k).position))
+        eventsStartTime.append(deepcopy(initialState.events.getObject(k).startTime))
+        eventsEndTime.append(deepcopy(initialState.events.getObject(k).endTime))
+
+    m, obj = runMaxFlowOpt(0, carsPos, np.array(eventsPos), np.array(eventsStartTime), np.array(eventsEndTime),
+                           initialState.closeReward,initialState.cancelPenalty, initialState.openedNotCommitedPenalty, 0)
+    dataOut = plotResults(m, carsPos, np.array(eventsPos), np.array(eventsStartTime), np.array(eventsEndTime), plotFigures, fileLoc
+                ,fileName, gridSize)
+
+    dataOut['cost'] = -obj.getValue()
+    return dataOut
+
 def main():
     # loading probability matrix from uber data. matrix is: x,y,h where x,y are the grid size and h is the time (0-24 hours)
-    probFileName        = '/Users/chanaross/dev/Thesis/ProbabilityFunction/CreateEvents/4D_UpdatedGrid_5min_LimitedProbability_CDFMat_wday_1.p'
+    probFileName        = '/Users/chanaross/dev/Thesis/ProbabilityFunction/CreateEvents/4D_UpdatedGrid_5min_250grid_LimitedProbability_CDFMat_wday_1.p'
     probabilityMatrix   = np.load(probFileName)
-    probabilityMatrix   = probabilityMatrix[:, 0:13, :]
+    probabilityMatrix   = probabilityMatrix[5:15, 0:10, :]
     np.random.seed(10)
     shouldRunAnticipatory = 1
     shouldRunGreedy       = 1
+    shouldRunOptimization = 1
     loadFromPickle        = 0
     shouldPrint         = True
     # params
     epsilon             = 0.001  # distance between locations to be considered same location
     simStartTime        = 0
-    lengthSim           = 24     # one hour, each time step is 5 min. of real time
+    lengthSim           = 26     # one hour, each time step is 5 min. of real time
     numStochasticRuns   = 50
-    lengthPrediction    = 3
+    lengthPrediction    = 5
     deltaTimeForCommit  = 10
     closeReward         = 80
-    cancelPenalty       = 140
+    cancelPenalty            = 140
     openedCommitedPenalty    = 1
     openedNotCommitedPenalty = 5
 
     gridSize            = [probabilityMatrix.shape[0], probabilityMatrix.shape[1]]
-    deltaOpenTime       = 4
+    deltaOpenTime       = 3
     numCars             = 2
     carPosX             = np.random.randint(0, gridSize[0], numCars)
     carPosY             = np.random.randint(0, gridSize[1], numCars)
@@ -742,6 +769,11 @@ def main():
                          time=0, openedNotCommitedPenalty = openedNotCommitedPenalty, openedCommitedPenalty = openedCommitedPenalty,
                       cancelPenalty=cancelPenalty, closeReward=closeReward,
                       timeDelta=deltaTimeForCommit,eps=epsilon)
+    fileName = str(lengthPrediction) + 'lpred_' + str(simStartTime) + 'startTime_' + str(gridSize[0]) + 'gridX_' +\
+               str(gridSize[1]) + 'gridY_' + str(eventTimes.shape[0]) + 'numEvents_' + \
+               str(numStochasticRuns) + 'nStochastic_' + str(numCars) + 'numCars_uberData'
+    fileLoc = '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/Results/'
+
     if shouldRunAnticipatory:
         # run anticipatory:
         stime           = time.process_time()
@@ -753,8 +785,6 @@ def main():
 
 
         dataAnticipatory = postAnalysis(pAnticipatory)
-        fileName             = str(simStartTime) + 'startTime_' + str(gridSize[0]) + 'gridX_'+str(gridSize[1])+'gridY_'+str(eventTimes.shape[0]) + 'numEvents_' +str(numStochasticRuns)+'nStochastic_'+ str(numCars) + 'numCars_uberData'
-        fileLoc              = '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/Results/'
         anticipatoryFileName = 'SimAnticipatoryMioFinalResults_'+fileName
         greedyFileName       = 'SimGreedyFinalResults_'+fileName
         # Anticipatory output:
@@ -779,7 +809,7 @@ def main():
         plt.close()
     if shouldRunGreedy:
         if loadFromPickle:
-            pickleName = 'SimAnticipatoryMioFinalResults_15numEvents_2numCars_0.75lam_7gridSize'
+            pickleName = 'SimAnticipatoryMioFinalResults_8lpred_0startTime_10gridX_10gridY_23numEvents_30nStochastic_2numCars_uberData'
             pathName = '/home/chana/Documents/Thesis/FromGitFiles/Simulation/Anticipitory/PickleFiles/'
             dataPickle = pickle.load(open(pathName + pickleName + '.p', 'rb'))
             initState = dataPickle['pathresults'][0]
@@ -818,6 +848,31 @@ def main():
         listNames = [greedyFileName + '_' + str(t) + '.png' for t in time2]
         create_gif(fileLoc + greedyFileName + '/', listNames, 1, greedyFileName)
         plt.close()
+
+
+    if shouldRunOptimization:
+        if loadFromPickle:
+            pickleName = 'SimAnticipatoryMioFinalResults_4lpred_0startTime_10gridX_10gridY_22numEvents_50nStochastic_2numCars_uberData'
+            pathName = '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/PickleFiles/'
+            dataPickle = pickle.load(open(pathName + pickleName + '.p', 'rb'))
+            initState = dataPickle['pathresults'][0]
+            gridSize  = dataPickle['gs']
+            fileName  = '4lpred_0startTime_10gridX_10gridY_22numEvents_50nStochastic_2numCars_uberData'
+            numEvents = initState.events.length()
+            numCars   = initState.cars.length()
+
+        dataOptimization = optimizedSimulation(initState, fileLoc, fileName, gridSize)
+
+        # optimization output:
+        with open('SimOptimizationFinalResults_' + fileName + '.p', 'wb') as out:
+            pickle.dump({'time'             : dataOptimization['time'],
+                         'gs'               : gridSize,
+                         'OpenedEvents'     : dataOptimization['openedEvents'],
+                         'closedEvents'     : dataOptimization['closedEvents'],
+                         'canceledEvents'   : dataOptimization['canceledEvents'],
+                         'cost'             : dataOptimization['cost'],
+                         'allEvents'        : dataOptimization['allEvents']}, out)
+
     return
 
 

@@ -12,6 +12,8 @@ import itertools
 import seaborn as sns
 from matplotlib import pyplot as plt
 import imageio
+sys.path.insert(0, '/Users/chanaross/dev/Thesis/UtilsCode/')
+from createGif import create_gif
 
 sns.set()
 
@@ -150,8 +152,11 @@ def createEventsDistribution(gridSize, startTime, endTime, lam, eventTimeWindow)
     eventsTimeWindow    = np.column_stack([eventTimes,eventTimes+eventTimeWindow])
     return eventsPos,eventsTimeWindow
 
-def plotResults(m,carsPos,eventsPos,eventsOpenTime,eventsCloseTime,gs):
-    plot_gif = True
+def plotResults(m,carsPos,eventsPos,eventsOpenTime,eventsCloseTime,plotFigures,fileLoc,fileName, gs):
+    plot_gif = False
+    if plot_gif:
+        if not os.path.isdir(fileLoc + fileName):
+            os.mkdir(fileLoc + fileName)
     nCars = carsPos.shape[0]
     nEvents = eventsPos.shape[0]
     paramKey = [v.varName.split('[')[0] for v in m.getVars()]
@@ -212,14 +217,13 @@ def plotResults(m,carsPos,eventsPos,eventsOpenTime,eventsCloseTime,gs):
             carFullPath[c].append(copy.deepcopy(currentPos[c,:]))
 
     imageList = []
-
-    plt.figure()
-    fig,ax = plt.subplots()
-    ax.set_title('total results')
-    ax.scatter([], [], c='y', marker = '*', label='Opened')
-    ax.scatter([], [], c='k', marker = '*',label = 'Created')
-    ax.scatter([], [], c='r', marker = '*', label='Canceled')
-    ax.scatter([], [], c='g', marker = '*', label='Closed')
+    if plotFigures:
+        fig, ax = plt.subplots()
+        ax.set_title('total results')
+        ax.scatter([], [], c='y', marker = '*', label='Opened')
+        ax.scatter([], [], c='k', marker = '*',label = 'Created')
+        ax.scatter([], [], c='r', marker = '*', label='Canceled')
+        ax.scatter([], [], c='g', marker = '*', label='Closed')
 
     numClosedVec = np.zeros(maxTime)
     numCanceledVec = np.zeros(maxTime)
@@ -247,22 +251,30 @@ def plotResults(m,carsPos,eventsPos,eventsOpenTime,eventsCloseTime,gs):
         numCanceledVec[t] = numEventsCanceled
         if plot_gif:
             currentCarsPos = np.array([c[t] for c in carFullPath])
-            imageList.append(plotForGif(currentCarsPos,eventsPos,param['pickUpTime'],eventsOpenTime,eventsCloseTime,param['isPickedUp'], gs,t))
+            plotForGif(currentCarsPos,eventsPos,param['pickUpTime'],eventsOpenTime,eventsCloseTime,param['isPickedUp'], fileName, t, gs)
     timeVec = np.array(range(int(maxTime)))
-    plt.plot(timeVec, numClosedVec,      c='g', marker='*')
-    plt.plot(timeVec, numCanceledVec,    c='r', marker='*')
-    plt.plot(timeVec, numOpenedVec,      c='y', marker='*')
-    plt.plot(timeVec, numTotalEventsVec, c='k', marker='*')
-    ax.grid(True)
-    plt.legend()
-    plt.show()
+    dataOut = {'closedEvents'       : numClosedVec,
+               'canceledEvents'     : numCanceledVec,
+               'openedEvents'       : numOpenedVec,
+               'allEvents'          : numTotalEventsVec,
+               'time'               : timeVec}
+    if plotFigures:
+        plt.plot(timeVec, numClosedVec,      c='g', marker='*')
+        plt.plot(timeVec, numCanceledVec,    c='r', marker='*')
+        plt.plot(timeVec, numOpenedVec,      c='y', marker='*')
+        plt.plot(timeVec, numTotalEventsVec, c='k', marker='*')
+        ax.grid(True)
+        plt.legend()
+        plt.show()
+
     if plot_gif:
-        imageio.mimsave('./gif_MIO_' + str(gs) + 'grid_' + str(carsPos.shape[0]) + 'cars_' + str(eventsPos.shape[0]) + 'events_' + str(int(maxTime)) + 'maxTime.gif', imageList, fps=1)
-    return
+        listNames = [fileName + '_' + str(t) + '.png' for t in range(int(maxTime))]
+        create_gif(fileLoc + fileName + '/', listNames, 1, fileName)
+    return dataOut
 
 
 
-def plotForGif(carPos,eventPos,eventPickUpTime,eventOpenTime,eventCloseTime,isEventPicked, gs,t):
+def plotForGif(carPos,eventPos,eventPickUpTime,eventOpenTime,eventCloseTime,isEventPicked, fileName,t, gs):
     """
 
     :param carPos: position of cars at time t (nc,2)
@@ -293,15 +305,13 @@ def plotForGif(carPos,eventPos,eventPickUpTime,eventOpenTime,eventCloseTime,isEv
             ax.scatter(eventPos[i,0], eventPos[i,1], c='r', alpha=0.2)
         else:
             ax.scatter(eventPos[i,0], eventPos[i,1], c='y', alpha=0.2)
-    ax.set_xlim([-1, gs + 1])
-    ax.set_ylim([-1, gs + 1])
+    ax.set_xlim([-1, gs[0] + 1])
+    ax.set_ylim([-1, gs[1] + 1])
     ax.grid(True)
     plt.legend()
-    # Used to return the plot as an image rray
-    fig.canvas.draw()  # draw the canvas, cache the renderer
-    image = np.frombuffer(fig.canvas.tostring_rgb(), dtype='uint8')
-    image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-    return image
+    plt.savefig(fileName + '_' + str(t)+'.png')
+    plt.close()
+    return
 
 
 
@@ -314,17 +324,20 @@ def main():
     openedPenalty = 5
 
     np.random.seed(1)
-    gridSize            = 10
+    gridSize            = [10,10]
     nCars               = 1
     tStart              = 0
     deltaOpenTime       = 2
     lengthSim           = 10
     lam                 = 2/3
 
+    plotFigures = False
+    fileLoc = '/Users/chanaross/dev/Thesis/MixedIntegerOptimization/'
+    fileName = 'optimizationResults'
 
-    carPos = np.reshape(np.random.randint(0, gridSize, 2 * nCars), (nCars, 2))
+    carPos = np.reshape(np.random.randint(0, gridSize[0], 2 * nCars), (nCars, 2))
 
-    eventPos, eventTimes = createEventsDistribution(gridSize, 0, lengthSim, lam, deltaOpenTime)
+    eventPos, eventTimes = createEventsDistribution(gridSize[0], 0, lengthSim, lam, deltaOpenTime)
     eventStartTime = eventTimes[:, 0]
     eventEndTime = eventTimes[:, 1]
 
@@ -333,8 +346,7 @@ def main():
         print('%s %g' % (v.varName, v.x))
 
     print('Obj: %g' % obj.getValue())
-    plotResults(m,carPos,eventPos,eventStartTime,eventEndTime,gridSize)
-
+    dataOut = plotResults(m,carPos,eventPos,eventStartTime,eventEndTime,plotFigures,fileLoc,fileName,gridSize)
 
 if __name__ == '__main__':
     main()

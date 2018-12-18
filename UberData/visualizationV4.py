@@ -248,7 +248,7 @@ def createProbMatrix(df):
                     matOut[ix, iy, t, nEvents] += 1
                 # normalizing numbers to be probability instead of absolute value
                 matOut[ix, iy, t, :] = matOut[ix, iy, t, :]/np.sum(matOut[ix, iy, t, :])
-    matOut.dump('4D_UpdatedGrid_5min_LimitedProbabilityMat_' + 'wday_' + str(weekDay) + '.p')
+    matOut.dump('4D_UpdatedGrid_5min_500Grid_LimitedProbabilityMat_' + 'wday_' + str(weekDay) + '.p')
     fig, ax = plt.subplots(1, 1)
     for i in range(matOut.shape[2]):
         a = np.sum(matOut[:, :, i, :], axis=(0, 1))
@@ -260,7 +260,7 @@ def createProbMatrix(df):
 
 def main():
     # path to data pickle (after preproc)
-    dataPath = '/Users/chanaross/dev/Thesis/UberData/alldataupdatedGridpickle.p'
+    dataPath = '/Users/chanaross/dev/Thesis/UberData/allDataupdated_Gridpickle.p'
     # dataPath = '/Users/chanaross/Documents/Thesis/uberAnalysis/allData.p'
     # read data
     df = pd.read_pickle(dataPath)
@@ -283,7 +283,7 @@ def main():
     maxXgrid      = np.max(df['grid_x'])
     df['grid_id'] = df['grid_x'] + df['grid_y'] * maxXgrid
 
-    with open ('/Users/chanaross/dev/Thesis/UberData/manhattenData_DenseGrid_5min_pickle.p', 'wb') as op:
+    with open ('/Users/chanaross/dev/Thesis/UberData/manhattenData_500Grid_5min_pickle.p', 'wb') as op:
         pickle.dump(df, op)
     createProbMatrix(df)
     # createFastStackPlot(df,True)

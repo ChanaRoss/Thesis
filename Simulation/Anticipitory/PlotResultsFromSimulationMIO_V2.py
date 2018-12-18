@@ -1,14 +1,18 @@
 import numpy as np
 import pickle
 from matplotlib import pyplot as plt
+from copy import deepcopy
 import pandas as pd
 import seaborn as sns
 from ipywidgets import interact
 import imageio
 # import my file in order to load state class from pickle
-from simAnticipatoryWithMIO_Greeedy_UberData_V1 import *
+from simAnticipatoryWithMIO_Greeedy_UberData_V2 import *
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/UtilsCode/')
 from createGif import create_gif
+sys.path.insert(0, '/Users/chanaross/dev/Thesis/MixedIntegerOptimization/')
+from offlineOptimizationProblem_TimeWindow import runMaxFlowOpt,plotResults
+
 import os
 
 sns.set()
@@ -38,11 +42,9 @@ pickleNames = []
 
 ## uber data:
 # 2 cars
-# pickleNames.append('SimAnticipatoryMioFinalResults_6gridX_11gridY_36numEvents_2numCars_uberData')
-# pickleNames.append('SimGreedyFinalResults_6gridX_11gridY_36numEvents_2numCars_uberData')
-# larger grid -
-pickleNames.append('SimAnticipatoryMioFinalResults_11gridX_15gridY_120numEvents_2numCars_uberData')
-# pickleNames.append('SimGreedyFinalResults_11gridX_15gridY_120numEvents_2numCars_uberData')
+pickleNames.append('SimAnticipatoryMioFinalResults_5lpred_0startTime_10gridX_10gridY_22numEvents_50nStochastic_2numCars_uberData')
+pickleNames.append('SimGreedyFinalResults_5lpred_0startTime_10gridX_10gridY_22numEvents_50nStochastic_2numCars_uberData')
+pickleNames.append('SimOptimizationFinalResults_5lpred_0startTime_10gridX_10gridY_22numEvents_50nStochastic_2numCars_uberData')
 
 
 def filterEvents(eventDict, currentTime,lg):
@@ -126,18 +128,24 @@ def plotCarsHeatmap(gridSize,lg,simTime,pickleName):
             plt.title('Heat map of car location - greedy')
 
 def plotBasicStatisticsOfEvents(gridSize,lg,pickleName,simTime):
+    plotAllEvents = False
     if 'Hungarian' in pickleName or 'Greedy' in pickleName:
         labelStr = 'Greey Algorithm'
-    elif 'MIO' in pickleName:
-        labelStr = 'Deterministic optimal Algorithm'
-    elif 'SimAnticipatoryMio':
+        lineStyle = '--'
+    elif 'SimAnticipatoryMio' in pickleName:
         labelStr = 'Anticipatory Algorithm'
-
-    if 'SimAnticipatoryMio' in pickleName or 'Greedy' in pickleName:
+        lineStyle = '-'
+        plotAllEvents = True
+    elif 'Optimization' in pickleName:
+        labelStr = 'determinsitc MIO results'
+        lineStyle = ':'
+    if 'SimAnticipatoryMio' in pickleName or 'Greedy' in pickleName or 'Optimization' in pickleName:
         plt.figure(2)
-        plt.scatter(lg['time'], lg['allEvents'], c='r', label='Num Created events')
-        plt.plot(lg['time'], lg['closedEvents'], label='Num Closed for :' + labelStr)
-        plt.plot(lg['time'], lg['canceledEvents'], c='y', label='canceled')
+        if plotAllEvents:
+            plt.scatter(lg['time'], lg['allEvents'], c='r', label='Num Created events')
+            plotAllEvents = False
+        plt.plot(lg['time'], lg['closedEvents'], linestyle=lineStyle,linewidth = 2, label='Num Closed for :' + labelStr)
+        # plt.plot(lg['time'], lg['canceledEvents'], c='y', linestyle=lineStyle, label='canceled')
         plt.legend()
         plt.grid(True)
         plt.xlabel('time')
@@ -152,24 +160,24 @@ def plotBasicStatisticsOfEvents(gridSize,lg,pickleName,simTime):
         plt.ylabel('num events')
         plt.grid(True)
         plt.legend()
-        eventsPos = [c.position for c in lg['pathresults'][-1].events.notCommited.values()]
-        eventsStartTime = [c.startTime for c in lg['pathresults'][-1].events.notCommited.values()]
-        eventsEndTime = [c.endTime for c in lg['pathresults'][-1].events.notCommited.values()]
-        eventsStatus = [c.status for c in lg['pathresults'][-1].events.notCommited.values()]
-
-        plt.figure(4)
-        for (i,ePos,eStatus) in zip(range(len(eventsPos)),eventsPos,eventsStatus):
-            if eStatus == Status.CLOSED:
-                plt.scatter(ePos[0],ePos[1], color='g', label=str(i))
-                plt.text(ePos[0], ePos[1], i)
-            else:
-                plt.scatter(ePos[0], ePos[1], color='r', label=str(i))
-                plt.text(ePos[0], ePos[1], i)
-        plt.xlabel('grid X')
-        plt.ylabel('grid Y')
-        plt.title('event locations for: ' + labelStr)
-        plt.xlim([-3, gridSize[0] + 3])
-        plt.ylim([-3, gridSize[1] + 3])
+        if 'Optimization' not in pickleName:
+            eventsPos = [c.position for c in lg['pathresults'][-1].events.notCommited.values()]
+            eventsStartTime = [c.startTime for c in lg['pathresults'][-1].events.notCommited.values()]
+            eventsEndTime = [c.endTime for c in lg['pathresults'][-1].events.notCommited.values()]
+            eventsStatus = [c.status for c in lg['pathresults'][-1].events.notCommited.values()]
+            plt.figure(4)
+            for (i,ePos,eStatus) in zip(range(len(eventsPos)),eventsPos,eventsStatus):
+                if eStatus == Status.CLOSED:
+                    plt.scatter(ePos[0],ePos[1], color='g', label=str(i))
+                    plt.text(ePos[0], ePos[1], i)
+                else:
+                    plt.scatter(ePos[0], ePos[1], color='r', label=str(i))
+                    plt.text(ePos[0], ePos[1], i)
+            plt.xlabel('grid X')
+            plt.ylabel('grid Y')
+            plt.title('event locations for: ' + labelStr)
+            plt.xlim([-3, gridSize[0] + 3])
+            plt.ylim([-3, gridSize[1] + 3])
 
     if 'Hungarian' in pickleName:
         eventLog    = lg['eventLog']
@@ -258,6 +266,23 @@ def plotCurrentTimeAnticipatory(s, ne,nc, gs,fileName):
     # image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
     # return image
 
+def optimizedSimulation(initialState,numFigure):
+    carsPos         = np.zeros(shape=(initialState.cars.length(), 2))
+    eventsPos       = []
+    eventsStartTime = []
+    eventsEndTime   = []
+    for d, k in enumerate(initialState.cars.getUnCommitedKeys()):
+        carsPos[d, :] = deepcopy(initialState.cars.getObject(k).position)
+    # get opened event locations from state -
+    for k in initialState.events.getUnCommitedKeys():
+        eventsPos.append(deepcopy(initialState.events.getObject(k).position))
+        eventsStartTime.append(deepcopy(initialState.events.getObject(k).startTime))
+        eventsEndTime.append(deepcopy(initialState.events.getObject(k).endTime))
+
+    m, obj = runMaxFlowOpt(0, carsPos, np.array(eventsPos), np.array(eventsStartTime), np.array(eventsEndTime), initialState.closeReward,
+                           initialState.cancelPenalty, initialState.openedNotCommitedPenalty, 0)
+    plotResults(m, carsPos, np.array(eventsPos), np.array(eventsStartTime), np.array(eventsEndTime), numFigure)
+
 
 def main():
     imageList = []
@@ -285,8 +310,9 @@ def main():
             cost = lg['cost']
             print('total cost is : '+str(cost))
         elif 'SimAnticipatoryMio' in pickleName or 'Greedy' in pickleName:
-            if not os.path.isdir(fileLoc + pickleName):
-                os.mkdir(fileLoc + pickleName)
+            if FlagCreateGif:
+                if not os.path.isdir(fileLoc + pickleName):
+                    os.mkdir(fileLoc + pickleName)
             # this is the anticipatory results for inner MIO opt.
             time           = lg['time']
             gridSize       = lg['gs']
@@ -308,6 +334,16 @@ def main():
             print('number of closed events:' + str(closedEvents[-1]))
             cost           = lg['cost']
             print('total cost is : ' + str(cost))
+        elif 'Optimization' in pickleName:
+            time            = lg['time']
+            gridSize        = lg['gs']
+            simTime         = np.max(time)
+            closedEvents    = np.array(lg['closedEvents'])
+            cost            = lg['cost']
+            print('number of closed events:' + str(closedEvents[-1]))
+            print('total cost is :'+str(cost))
+            plotBasicStatisticsOfEvents(gridSize, lg, pickleName, simTime)
+
 
     plt.show()
 
