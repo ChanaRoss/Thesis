@@ -1,3 +1,8 @@
+python3 -m venv research
+source research/bin/activate
+pip install -r requirements.txt
+
+
 # Thesis
 Thesis - anticipatory online planning using reinforcement learning methods
 Introduction:

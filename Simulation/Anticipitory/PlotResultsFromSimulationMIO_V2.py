@@ -41,10 +41,23 @@ pickleNames = []
 
 
 ## uber data:
-# 2 cars
-pickleNames.append('SimAnticipatoryMioFinalResults_5lpred_0startTime_10gridX_10gridY_22numEvents_50nStochastic_2numCars_uberData')
-pickleNames.append('SimGreedyFinalResults_5lpred_0startTime_10gridX_10gridY_22numEvents_50nStochastic_2numCars_uberData')
-pickleNames.append('SimOptimizationFinalResults_5lpred_0startTime_10gridX_10gridY_22numEvents_50nStochastic_2numCars_uberData')
+# # 2 cars
+# pickleNames.append('SimAnticipatoryMioFinalResults_5lpred_0startTime_10gridX_10gridY_22numEvents_50nStochastic_2numCars_uberData')
+# pickleNames.append('SimGreedyFinalResults_5lpred_0startTime_10gridX_10gridY_22numEvents_50nStochastic_2numCars_uberData')
+# pickleNames.append('SimOptimizationFinalResults_5lpred_0startTime_10gridX_10gridY_22numEvents_50nStochastic_2numCars_uberData')
+
+# 3 cars
+# pickleNames.append('SimAnticipatoryMioFinalResults_5lpred_0startTime_10gridX_10gridY_17numEvents_50nStochastic_3numCars_uberData')
+# pickleNames.append('SimGreedyFinalResults_5lpred_0startTime_10gridX_10gridY_17numEvents_50nStochastic_3numCars_uberData')
+# pickleNames.append('SimOptimizationFinalResults_5lpred_0startTime_10gridX_10gridY_17numEvents_50nStochastic_3numCars_uberData')
+
+# 4 cars
+pickleNames.append('SimAnticipatoryMioFinalResults_5lpred_0startTime_15gridX_12gridY_43numEvents_50nStochastic_4numCars_uberData')
+pickleNames.append('SimGreedyFinalResults_5lpred_0startTime_15gridX_12gridY_43numEvents_50nStochastic_4numCars_uberData')
+pickleNames.append('SimOptimizationFinalResults_5lpred_0startTime_15gridX_12gridY_43numEvents_50nStochastic_4numCars_uberData')
+
+
+
 
 
 def filterEvents(eventDict, currentTime,lg):
@@ -287,7 +300,7 @@ def optimizedSimulation(initialState,numFigure):
 def main():
     imageList = []
 
-    FlagCreateGif = 1
+    FlagCreateGif = 0
     fileLoc = '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/PickleFiles/'
     for pickleName in pickleNames:
         lg  = pickle.load(open(fileLoc + pickleName + '.p', 'rb'))

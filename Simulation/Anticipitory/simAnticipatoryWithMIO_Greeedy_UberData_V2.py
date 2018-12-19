@@ -721,7 +721,7 @@ def main():
     # loading probability matrix from uber data. matrix is: x,y,h where x,y are the grid size and h is the time (0-24 hours)
     probFileName        = '/Users/chanaross/dev/Thesis/ProbabilityFunction/CreateEvents/4D_UpdatedGrid_5min_250grid_LimitedProbability_CDFMat_wday_1.p'
     probabilityMatrix   = np.load(probFileName)
-    probabilityMatrix   = probabilityMatrix[5:15, 0:10, :]
+    probabilityMatrix   = probabilityMatrix[0:15, 0:12, :]
     np.random.seed(10)
     shouldRunAnticipatory = 1
     shouldRunGreedy       = 1
@@ -742,7 +742,7 @@ def main():
 
     gridSize            = [probabilityMatrix.shape[0], probabilityMatrix.shape[1]]
     deltaOpenTime       = 3
-    numCars             = 2
+    numCars             = 4
     carPosX             = np.random.randint(0, gridSize[0], numCars)
     carPosY             = np.random.randint(0, gridSize[1], numCars)
     carPos              = np.array((carPosX, carPosY)).reshape(numCars, 2)
