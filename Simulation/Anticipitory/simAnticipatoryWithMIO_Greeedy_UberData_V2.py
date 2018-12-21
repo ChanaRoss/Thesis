@@ -208,7 +208,7 @@ class commitMonitor:
 
 
 class State:
-    def __init__(self,root , carMonitor, eventMonitor, cost, parent, probabilityMatrix, time, openedCommitedPenalty = 1,openedNotCommitedPenalty=5, cancelPenalty=50, closeReward=10, timeDelta=5, eps=0.001):
+    def __init__(self,root , carMonitor, eventMonitor, cost, parent, time, openedCommitedPenalty = 1,openedNotCommitedPenalty=5, cancelPenalty=50, closeReward=10, timeDelta=5, eps=0.001):
         self.cars                     = carMonitor
         self.events                   = eventMonitor
         self.gval                     = cost
@@ -220,7 +220,6 @@ class State:
         self.root                     = root
         self.td                       = timeDelta
         self.time                     = time
-        self.probabilityMatrix        = probabilityMatrix
         self.eps                      = eps
         self.optionalGval             = 0
         return
@@ -482,6 +481,26 @@ def createEventDistributionUber(simStartTime, startTime, endTime, probabilityMat
     print('number of events created:'+str(eventsPos.shape[0]))
     return eventsPos, eventsTimeWindow
 
+def createRealEventsDistributionUber(simStartTime, startTime, endTime, eventsMatrix,eventTimeWindow,simTime):
+    eventPos = []
+    eventTimes = []
+    firstTime = startTime + simTime + simStartTime  # each time is a 5 min
+    numTimeSteps = endTime - startTime
+    for t in range(numTimeSteps):
+        for x in range(eventsMatrix.shape[0]):
+            for y in range(eventsMatrix.shape[1]):
+                randNum = np.random.uniform(0, 1)
+                numEvents = eventsMatrix[x, y, t + firstTime]
+                # print('at loc:' + str(x) + ',' + str(y) + ' num events:' + str(numEvents))
+                # for n in range(numEvents):
+                if numEvents > 0:
+                    eventPos.append(np.array([x, y]))
+                    eventTimes.append(t + startTime)
+    eventsPos = np.array(eventPos)
+    eventTimes = np.array(eventTimes)
+    eventsTimeWindow = np.column_stack([eventTimes, eventTimes + eventTimeWindow])
+    print('number of events created:' + str(eventsPos.shape[0]))
+    return eventsPos, eventsTimeWindow
 
 def createEventsDistribution(gridSize, startTime, endTime, lam, eventTimeWindow):
     locX        = gridSize / 2
@@ -518,7 +537,7 @@ def createStochasticEvents(simStartTime, numStochasticRuns, startTime, endTime, 
     return stochasticEventsDict
 
 
-def anticipatorySimulation(initState, nStochastic, gs, tPred, eTimeWindow, simStartTime ,shouldPrint=False):
+def anticipatorySimulation(initState, nStochastic, gs, tPred, eTimeWindow, simStartTime, probabilityMatrix, shouldPrint=False):
     """
     this function is the anticipatory simulation
     :param initState: initial state of the system (cars and events)
@@ -538,7 +557,7 @@ def anticipatorySimulation(initState, nStochastic, gs, tPred, eTimeWindow, simSt
         optionalStatesList   = []
         optionalTotalCost    = []
         optionalActualCost   = []
-        stochasticEventsDict = createStochasticEvents(simStartTime, nStochastic, 1, 1 + tPred, current.probabilityMatrix, eTimeWindow, currentTime)
+        stochasticEventsDict = createStochasticEvents(simStartTime, nStochastic, 1, 1 + tPred, probabilityMatrix, eTimeWindow, currentTime)
         for i, optionalState in enumerate(descendantGenerator(current)):
             optionalStatesList.append(optionalState)
             # initialize variables for stochastic optimization
@@ -608,17 +627,17 @@ def anticipatorySimulation(initState, nStochastic, gs, tPred, eTimeWindow, simSt
         # dump logs
         dataInRun = postAnalysis(current.path())
         # Anticipatory output:
-        # with open('SimAnticipatoryMioResults_'+ str(currentTime+1)+'time_' + str(current.events.length()) + 'numEvents_'  + str(current.cars.length()) + 'numCars_uberData.p', 'wb') as out:
-        #     pickle.dump({'pathresults'      : current.path(),
-        #                  'time'             : dataInRun['timeVector'],
-        #                  'gs'               : gs,
-        #                  'OpenedEvents'     : dataInRun['openedEvents'],
-        #                  'closedEvents'     : dataInRun['closedEvents'],
-        #                  'canceledEvents'   : dataInRun['canceledEvents'],
-        #                  'allEvents'        : dataInRun['allEvents'],
-        #                  'stochasticResults': optionalTotalCost,
-        #                  'stochasticEventsDict': stochasticEventsDict,
-        #                  'cost'             : current.gval}, out)
+        with open('SimAnticipatoryMioResults_'+ str(currentTime+1)+'time_' + str(current.events.length()) + 'numEvents_'  + str(current.cars.length()) + 'numCars_uberData.p', 'wb') as out:
+            pickle.dump({'pathresults'      : current.path(),
+                         'time'             : dataInRun['timeVector'],
+                         'gs'               : gs,
+                         'OpenedEvents'     : dataInRun['openedEvents'],
+                         'closedEvents'     : dataInRun['closedEvents'],
+                         'canceledEvents'   : dataInRun['canceledEvents'],
+                         'allEvents'        : dataInRun['allEvents'],
+                         'stochasticResults': optionalTotalCost,
+                         'stochasticEventsDict': stochasticEventsDict,
+                         'cost'             : current.gval}, out)
 
     return current.path()
 
@@ -721,7 +740,13 @@ def main():
     # loading probability matrix from uber data. matrix is: x,y,h where x,y are the grid size and h is the time (0-24 hours)
     probFileName        = '/Users/chanaross/dev/Thesis/ProbabilityFunction/CreateEvents/4D_UpdatedGrid_5min_250grid_LimitedProbability_CDFMat_wday_1.p'
     probabilityMatrix   = np.load(probFileName)
-    probabilityMatrix   = probabilityMatrix[0:15, 0:12, :]
+    xLim                = [0, 20]
+    yLim                = [40, 70]
+    probabilityMatrix   = probabilityMatrix[xLim[0]:xLim[1], yLim[0]:yLim[1], :, :]
+    eventsFileName      = '/Users/chanaross/dev/Thesis/UberData/4D_UpdatedGrid_5min_250Grid_LimitedEventsMat_wday1.p'
+    eventsMatrix        = np.load(eventsFileName)
+    eventsMatrix        = eventsMatrix[xLim[0]:xLim[1], yLim[0]:yLim[1], :, 1]
+
     np.random.seed(10)
     shouldRunAnticipatory = 1
     shouldRunGreedy       = 1
@@ -731,9 +756,9 @@ def main():
     # params
     epsilon             = 0.001  # distance between locations to be considered same location
     simStartTime        = 0
-    lengthSim           = 26     # one hour, each time step is 5 min. of real time
+    lengthSim           = 24*4     # one hour, each time step is 5 min. of real time
     numStochasticRuns   = 50
-    lengthPrediction    = 5
+    lengthPrediction    = 7
     deltaTimeForCommit  = 10
     closeReward         = 80
     cancelPenalty            = 140
@@ -745,12 +770,15 @@ def main():
     numCars             = 4
     carPosX             = np.random.randint(0, gridSize[0], numCars)
     carPosY             = np.random.randint(0, gridSize[1], numCars)
-    carPos              = np.array((carPosX, carPosY)).reshape(numCars, 2)
+    carPos              = np.column_stack((carPosX, carPosY)).reshape(numCars, 2)
 
-    eventPos,eventTimes = createEventDistributionUber(simStartTime, 0, lengthSim, probabilityMatrix, deltaOpenTime, 0)
+    eventPos,eventTimes = createRealEventsDistributionUber(simStartTime, 0, lengthSim, eventsMatrix, deltaOpenTime, 0)
     eventStartTime      = eventTimes[:, 0]
     eventEndTime        = eventTimes[:, 1]
 
+    # plt.scatter(eventPos[:,0],eventPos[:,1], c= 'r')
+    # plt.scatter(carPos[:,0],carPos[:,1],c='k')
+    # plt.show()
     uncommitedCarDict   = {}
     commitedCarDict     = {}
     uncommitedEventDict = {}
@@ -765,7 +793,7 @@ def main():
 
     carMonitor   = commitMonitor(commitedCarDict, uncommitedCarDict)
     eventMonitor = commitMonitor(commitedEventDict, uncommitedEventDict)
-    initState    = State(root=True, carMonitor=carMonitor, eventMonitor=eventMonitor, cost=0, parent=None, probabilityMatrix=probabilityMatrix,
+    initState    = State(root=True, carMonitor=carMonitor, eventMonitor=eventMonitor, cost=0, parent=None,
                          time=0, openedNotCommitedPenalty = openedNotCommitedPenalty, openedCommitedPenalty = openedCommitedPenalty,
                       cancelPenalty=cancelPenalty, closeReward=closeReward,
                       timeDelta=deltaTimeForCommit,eps=epsilon)
@@ -777,7 +805,7 @@ def main():
     if shouldRunAnticipatory:
         # run anticipatory:
         stime           = time.process_time()
-        pAnticipatory   = anticipatorySimulation(initState, numStochasticRuns, gridSize, lengthPrediction, deltaOpenTime, simStartTime, shouldPrint=shouldPrint)
+        pAnticipatory   = anticipatorySimulation(initState, numStochasticRuns, gridSize, lengthPrediction, deltaOpenTime, simStartTime, probabilityMatrix, shouldPrint=shouldPrint)
         etime           = time.process_time()
         runTimeA        = etime - stime
         print('Anticipatory cost is:' + str(pAnticipatory[-1].gval))
