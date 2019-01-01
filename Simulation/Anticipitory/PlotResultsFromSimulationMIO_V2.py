@@ -59,10 +59,52 @@ pickleNames = []
 # pickleNames.append('SimOptimizationFinalResults_5lpred_0startTime_15gridX_12gridY_43numEvents_50nStochastic_4numCars_uberData')
 
 # 4 cars , 4 hours
-pickleNames.append('SimAnticipatoryMioFinalResults_7lpred_0startTime_20gridX_30gridY_120numEvents_50nStochastic_4numCars_uberData')
-pickleNames.append('SimAnticipatoryMioFinalResults_7lpred_0startTime_20gridX_30gridY_120numEvents_100nStochastic_4numCars_uberData')
-pickleNames.append('SimGreedyFinalResults_7lpred_0startTime_20gridX_30gridY_120numEvents_50nStochastic_4numCars_uberData')
-pickleNames.append('SimOptimizationFinalResults_7lpred_0startTime_20gridX_30gridY_120numEvents_50nStochastic_4numCars_uberData')
+# pickleNames.append('SimAnticipatoryMioFinalResults_7lpred_0startTime_20gridX_30gridY_120numEvents_50nStochastic_4numCars_uberData')
+# pickleNames.append('SimAnticipatoryMioFinalResults_7lpred_0startTime_20gridX_30gridY_120numEvents_100nStochastic_4numCars_uberData')
+# pickleNames.append('SimGreedyFinalResults_7lpred_0startTime_20gridX_30gridY_120numEvents_50nStochastic_4numCars_uberData')
+# pickleNames.append('SimOptimizationFinalResults_7lpred_0startTime_20gridX_30gridY_120numEvents_50nStochastic_4numCars_uberData')
+
+# 2 cars, new method -
+# pickleNames.append('SimAnticipatoryMioFinalResults_3lpred_0startTime_20gridX_30gridY_16numEvents_50nStochastic_2numCars_uberData')
+# pickleNames.append('SimAnticipatoryMioFinalResults_bruteForce_3lpred_0startTime_20gridX_30gridY_16numEvents_50nStochastic_2numCars_uberData')
+# pickleNames.append('SimGreedyFinalResults_3lpred_0startTime_20gridX_30gridY_16numEvents_50nStochastic_2numCars_uberData')
+# pickleNames.append('SimOptimizationFinalResults_3lpred_0startTime_20gridX_30gridY_16numEvents_50nStochastic_2numCars_uberData')
+
+# 4 cars , new method -
+# pickleNames.append('SimAnticipatory_bruteForce_MioFinalResults_5lpred_0startTime_20gridX_30gridY_16numEvents_50nStochastic_4numCars_uberData')
+# pickleNames.append('SimAnticipatory_randomChoice_MioFinalResults_5lpred_0startTime_20gridX_30gridY_16numEvents_50nStochastic_4numCars_uberData')
+# pickleNames.append('SimGreedyFinalResults_5lpred_0startTime_20gridX_30gridY_16numEvents_50nStochastic_4numCars_uberData')
+# pickleNames.append('SimOptimizationFinalResults_5lpred_0startTime_20gridX_30gridY_16numEvents_50nStochastic_4numCars_uberData')
+
+# 4 cars , 4 hours , new method -
+# pickleNames.append('SimAnticipatory_bruteForce_MioFinalResults_5lpred_0startTime_20gridX_30gridY_63numEvents_50nStochastic_4numCars_uberData')
+# pickleNames.append('SimAnticipatory_randomChoice_MioFinalResults_7lpred_0startTime_20gridX_30gridY_63numEvents_100nStochastic_4numCars_uberData')
+# pickleNames.append('SimGreedyFinalResults_7lpred_0startTime_20gridX_30gridY_63numEvents_100nStochastic_4numCars_uberData')
+# pickleNames.append('SimOptimizationFinalResults_7lpred_0startTime_20gridX_30gridY_63numEvents_100nStochastic_4numCars_uberData')
+
+# 3 cars , 2 hours , new method -
+# pickleNames.append('SimAnticipatory_randomChoice_MioFinalResults_7lpred_0startTime_20gridX_30gridY_33numEvents_100nStochastic_3numCars_uberData')
+# pickleNames.append('SimAnticipatory_OptimalActionChoice_MioFinalResults_7lpred_0startTime_20gridX_30gridY_33numEvents_100nStochastic_3numCars_uberData')
+# pickleNames.append('SimGreedyFinalResults_7lpred_0startTime_20gridX_30gridY_33numEvents_100nStochastic_3numCars_uberData')
+# pickleNames.append('SimOptimizationFinalResults_7lpred_0startTime_20gridX_30gridY_33numEvents_100nStochastic_3numCars_uberData')
+
+
+
+# 5 cars, 3 hours, new method -
+# pickleNames.append('SimAnticipatory_OptimalActionChoice_MioFinalResults_5lpred_0startTime_20gridX_30gridY_63numEvents_140nStochastic_5numCars_uberData')
+# pickleNames.append('SimGreedyFinalResults_5lpred_0startTime_20gridX_30gridY_63numEvents_140nStochastic_5numCars_uberData')
+# pickleNames.append('SimOptimizationFinalResults_5lpred_0startTime_20gridX_30gridY_63numEvents_140nStochastic_5numCars_uberData')
+
+
+# 10 cars, 3 hours, new method -
+# pickleNames.append('SimAnticipatory_OptimalActionChoice_MioFinalResults_5lpred_0startTime_20gridX_30gridY_63numEvents_140nStochastic_10numCars_uberData')
+# pickleNames.append('SimGreedyFinalResults_5lpred_0startTime_20gridX_30gridY_63numEvents_140nStochastic_10numCars_uberData')
+# pickleNames.append('SimOptimizationFinalResults_5lpred_0startTime_20gridX_30gridY_63numEvents_140nStochastic_10numCars_uberData')
+
+# 2 cars, erez method -
+pickleNames.append('SimAnticipatory_randomChoice_MioFinalResults_7lpred_0startTime_20gridX_30gridY_33numEvents_100nStochastic_2numCars_uberData')
+pickleNames.append('SimGreedyFinalResults_7lpred_0startTime_20gridX_30gridY_33numEvents_100nStochastic_2numCars_uberData')
+pickleNames.append('SimOptimizationFinalResults_7lpred_0startTime_20gridX_30gridY_33numEvents_100nStochastic_2numCars_uberData')
 
 
 
@@ -128,7 +170,7 @@ def plotCurrentTimeGreedy(time,gridSize,lg):
 
 def plotCarsHeatmap(gridSize,lg,simTime,pickleName):
     heatMat = np.zeros(shape=(gridSize[0], gridSize[1]))
-    if 'SimAnticipatoryMio' in pickleName or 'Greedy' in pickleName:
+    if 'SimAnticipatory' in pickleName or 'Greedy' in pickleName:
         carsPos = [c.path for c in lg['pathresults'][-1].cars.notCommited.values()]
         for carPos in carsPos:
             for pos in carPos:
@@ -151,14 +193,14 @@ def plotBasicStatisticsOfEvents(gridSize,lg,pickleName,simTime):
     if 'Hungarian' in pickleName or 'Greedy' in pickleName:
         labelStr = 'Greey Algorithm'
         lineStyle = '--'
-    elif 'SimAnticipatoryMio' in pickleName:
+    elif 'SimAnticipatory' in pickleName:
         labelStr = 'Anticipatory Algorithm'
         lineStyle = '-'
         plotAllEvents = True
     elif 'Optimization' in pickleName:
         labelStr = 'determinsitc MIO results'
         lineStyle = ':'
-    if 'SimAnticipatoryMio' in pickleName or 'Greedy' in pickleName or 'Optimization' in pickleName:
+    if 'SimAnticipatory' in pickleName or 'Greedy' in pickleName or 'Optimization' in pickleName:
         plt.figure(2)
         if plotAllEvents:
             plt.scatter(lg['time'], lg['allEvents'], c='r', label='Num Created events')
@@ -328,7 +370,7 @@ def main():
             print('number of closed events:'+str(numEventsClosed))
             cost = lg['cost']
             print('total cost is : '+str(cost))
-        elif 'SimAnticipatoryMio' in pickleName or 'Greedy' in pickleName:
+        elif 'SimAnticipatory' in pickleName or 'Greedy' in pickleName:
             if FlagCreateGif:
                 if not os.path.isdir(fileLoc + pickleName):
                     os.mkdir(fileLoc + pickleName)

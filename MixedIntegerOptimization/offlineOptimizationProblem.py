@@ -109,15 +109,16 @@ def runMaxFlowOpt(tStart,carPos,eventPos,eventTime,closeReward,cancelPenalty,ope
 
     obj = rEvents + rCars + pEvents
     m.setObjective(obj, GRB.MAXIMIZE)
-
+    m.setParam('OutputFlag', 0)
+    m.setParam('LogFile', "")
     m.optimize()
 
-    for v in m.getVars():
-        print('%s %g' % (v.varName, v.x))
+    # for v in m.getVars():
+    #     print('%s %g' % (v.varName, v.x))
+    #
+    # print('Obj: %g' % obj.getValue())
 
-    print('Obj: %g' % obj.getValue())
-
-    return m
+    return m, obj
 
 
 def poissonRandomEvents(startTime,endSimTime,lam):
@@ -214,7 +215,7 @@ def main():
     eventStartTime = eventTimes[:, 0]
     eventEndTime = eventTimes[:, 1]
 
-    m = runMaxFlowOpt(tStart,carPos,eventPos,eventStartTime,closeReward,cancelPenalty,openedPenalty)
+    m, obj = runMaxFlowOpt(tStart,carPos,eventPos,eventStartTime,closeReward,cancelPenalty,openedPenalty)
 
     plotResults(m,carPos,eventPos)
 

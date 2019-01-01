@@ -17,8 +17,10 @@ from matplotlib import pyplot as plt
 import imageio
 sns.set()
 # my files
+sys.path.insert(0, '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/')
+from calculateOptimalActions import runActionOpt, getActions
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/MixedIntegerOptimization/')
-from offlineOptimizationProblem_TimeWindow import runMaxFlowOpt,plotResults
+from offlineOptimizationProblem import runMaxFlowOpt,plotResults
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/UtilsCode/')
 from createGif import create_gif
 
@@ -356,7 +358,7 @@ class State:
         for carId in range(self.cars.length()):
             tempCar = self.cars.getObject(carId)
             if tempCar.commited:
-                if matrix[carId, tempCar.targetId] <= self.eps and self.events.getObject(tempCar.targetId).status==Status.OPENED_COMMITED:
+                if matrix[carId, tempCar.targetId] <= self.eps and self.events.getObject(tempCar.targetId).status == Status.OPENED_COMMITED:
                     self.events.getObject(tempCar.targetId).status = Status.CLOSED  # update event status
                     self.events.unCommitObject(tempCar.targetId)  # uncommit event
                     self.cars.unCommitObject(carId)  # uncommit car
@@ -382,7 +384,7 @@ class State:
 
     def updateCost(self, counter, move):
         cost = 0
-        cost += np.sum(move)
+        cost += np.sum(abs(move))
         cost += len(self.cars.commited)
         cost += counter[Status.OPENED_COMMITED]*self.openedCommitedPenalty
         cost += counter[Status.OPENED_NOT_COMMITED]*self.openedNotCommitedPenalty
@@ -397,6 +399,13 @@ def moveGenerator(numCars):
     for move in moveIter:
         yield np.array(move).astype(np.int8)
 
+
+def moveGeneratorIndexs(numCars, actionOptions):
+    moveIter = itertools.product(range(len(actionOptions)), repeat=numCars)
+    for move in moveIter:
+        yield np.array(move).astype(np.int8)
+
+
 def commitGenerator(carIdList, eventIdList):
     if len(eventIdList):
         numOptionalCommits = np.min([len(carIdList)+1, len(eventIdList)+1])
@@ -407,6 +416,7 @@ def commitGenerator(carIdList, eventIdList):
                         yield list(zip(carChoice, eventChoicePermutations))
     else:
         yield([])
+
 
 def descendantGenerator(state):
     tempEventList = list(state.events.getUnCommitedKeys())
@@ -436,21 +446,54 @@ def descendantGenerator(state):
             # update cost: sum of new cost and previous state cost
             newMoveState.updateCost(counter, possibleMove)
             # yield the new state
-            yield newMoveState
+            yield (newMoveState,possibleMove)
 
-def calculateCost(state, possibleMoves):
+
+def singleCarMovementGenerator(state, actionDict, carIndex):
+    nCars   = state.cars.length()
+    for i in range(5):
+        possibleMove = np.zeros(shape=(nCars, 2)).astype(int)
+        possibleMove[carIndex, :] = actionDict[i]
+        # create copy for new descendant
+        newMoveState = deepcopy(state)
+        newMoveState.root = False
+        newMoveState.parent = state
+        newMoveState.time += 1
+        # move the cars according to possible move
+        newMoveState.moveCars(possibleMove)
+        # calc distance matrix between cars and events
+        dm = newMoveState.getDistanceMatrix()
+        # update status of events relative to new car positions
+        counter = newMoveState.updateStatus(dm)
+        # update cost: sum of new cost and previous state cost
+        newMoveState.updateCost(counter, possibleMove)
+        # yield the new state
+        yield newMoveState
+
+
+def spesificDescendantGenerator(state, possibleMoves):
     """
     this function calculates the cost of preforming a certain action assuming you move the cars each in their direction
     :param state: the previous state before the cars were moved
     :param possibleMoves: np array 2*n_c (movement of each car in each direction)
     :return: cost of preforming the movement
     """
-    tempState = deepcopy(state)
+    # create copy for new descendant
+    tempState        = deepcopy(state)
+    tempState.root   = False
+    tempState.parent = state
+    tempState.time  += 1
+    # move the cars according to possible move
     tempState.moveCars(possibleMoves)
-    dm = tempState.getDistanceMatrix()
-    counter = tempState.updateStatus(dm)
+    # calc distance matrix between cars and events
+    dm               = tempState.getDistanceMatrix()
+    # update status of events relative to new car positions
+    counter          = tempState.updateStatus(dm)
+    # update cost: sum of new cost and previous state cost
     tempState.updateCost(counter,possibleMoves)
-    return tempState.gval
+    return tempState
+
+
 
 
 def poissonRandomEvents(startTime,endSimTime,lam):
@@ -564,95 +607,119 @@ def anticipatorySimulation(initState, nStochastic, gs, tPred, eTimeWindow, simSt
     :param shouldPrint: True/False if the code should print log
     :return:
     """
-    isGoal = False
+    isGoal  = False
     current = initState
+    optionalActions        = np.array([[0, 0], [0, 1], [0, -1], [1, 0], [-1, 0]]).astype(int)
+    optionalActionsToIndex = {(0,  0): 0,
+                              (0,  1): 1,
+                              (0, -1): 2,
+                              (1,  0): 3,
+                              (-1, 0): 4}
     while not isGoal:
         currentTime = current.time
-        optionalExpectedCost = []
-        optionalStatesList   = []
-        optionalTotalCost    = []
-        optionalActualCost   = []
         stochasticEventsDict = createStochasticEvents(simStartTime, nStochastic, 1, 1 + tPred, probabilityMatrix, eTimeWindow, currentTime)
-        for i, optionalState in enumerate(descendantGenerator(current)):
-            optionalStatesList.append(optionalState)
-            # initialize variables for stochastic optimization
-            carsPos               = np.zeros(shape = (optionalState.cars.length(),2))
-            currentEventsPos      = []
-            currentEventStartTime = []
-            currentEventsEndTime  = []
-            stochasticCost        = np.zeros(shape=(nStochastic,1))
-            # get car locations from state -
-            for d,k in enumerate(optionalState.cars.getUnCommitedKeys()):
-                carsPos[d,:] = deepcopy(optionalState.cars.getObject(k).position)
-            # get opened event locations from state -
-            for k in optionalState.events.getUnCommitedKeys():
-                if optionalState.events.getObject(k).status == Status.OPENED_NOT_COMMITED:
-                    currentEventsPos.append(deepcopy(optionalState.events.getObject(k).position))
-                    # assume that event start time is current time for deterministic runs and the time left for event
-                    # is the time left - current time.
-                    # the deterministic run is from (currentTime+1) therefore need to subtract that value and not CurrentTime
-                    currentEventStartTime.append(deepcopy(optionalState.events.getObject(k).startTime)-(currentTime+1))
-                    currentEventsEndTime.append(deepcopy(optionalState.events.getObject(k).endTime)-(currentTime+1))
-            # run deterministic optimization for stochastic events -
-            for j in range(len(stochasticEventsDict)):
-                if len(stochasticEventsDict[j]['eventsPos']) + len(currentEventsPos) > 0:
-                    # there are events to be tested in deterministic optimization:
-                    eventsPos       = deepcopy(currentEventsPos)
-                    eventsStartTime = deepcopy(currentEventStartTime)
-                    eventsEndTime   = deepcopy(currentEventsEndTime)
-                    temp = [eventsPos.append(e) for e in stochasticEventsDict[j]['eventsPos']]
-                    temp = [eventsStartTime.append(e[0]) for e in stochasticEventsDict[j]['eventsTimeWindow']]
-                    temp = [eventsEndTime.append(e[1]) for e in stochasticEventsDict[j]['eventsTimeWindow']]
-                    eventsPos        = np.array(eventsPos).reshape(len(eventsPos),2)
-                    eventsStartTime  = np.array(eventsStartTime)
-                    eventsEndTime    = np.array(eventsEndTime)
-                    stime = time.process_time()
-                    m,obj = runMaxFlowOpt(0, carsPos, eventsPos, eventsStartTime, eventsEndTime, optionalState.closeReward, optionalState.cancelPenalty, optionalState.openedNotCommitedPenalty,0)
-                    etime = time.process_time()
-                    runTime = etime - stime
-                    # if shouldPrint:
-                        # print("finished MIO for run:"+str(j+1)+"/"+str(len(stochasticEventsDict)))
-                        # print("run time of MIO is:"+str(runTime))
-                        # print("cost of MIO is:"+str(-obj.getValue()))
-                    stochasticCost[j] = -obj.getValue()
-                else:
-                    stochasticCost[j] = 0
-            # calculate expected cost of all stochastic runs for this spesific optional State
-            if shouldPrint:
-                print("stochastic cost of optional run is:")
-                print(np.transpose(stochasticCost))
-            expectedCost = np.mean(stochasticCost)
-            if shouldPrint:
-                print('finished optional state # '+str(i))
-                print('state cost is: ' + str(optionalState.gval) + ', expected cost is: '+str(expectedCost) +' , commited cost is:'+str(optionalState.optionalGval))
-            optionalExpectedCost.append(expectedCost)
-            optionalActualCost.append(optionalState.gval)
-            # optional total cost includes the actual cost of movement + optional cost for commited events + expected cost of future events
-            optionalTotalCost.append(expectedCost + optionalState.gval + optionalState.optionalGval)
-        chosenTotalCost = np.min(np.array(optionalTotalCost))
-        chosenIndex     = np.argmin(np.array(optionalTotalCost))
-        print('t:'+str(currentTime)+', chosen action:'+str(chosenIndex)+' , chosen cost is: '+str(chosenTotalCost))
-        chosenState     = optionalStatesList[chosenIndex]
-        current         = chosenState
+        nCars                = current.cars.length()
+        moveOptions          = np.array(list(moveGeneratorIndexs(2, optionalActions)))
+        possibleMoves        = np.zeros(shape=(nCars, 2))
+        coupledRealCost      = np.zeros(shape=(nCars, nCars, 25))
+        # calculate the cost of moving two cars out of the total cars.
+        for carsIndex in itertools.permutations(range(nCars), 2):
+            for i, moveOption in enumerate(moveOptions):  # movement options for two cars
+                carMoves = deepcopy(possibleMoves)
+                carMoves[carsIndex[0], :] = optionalActions[moveOption[0]]
+                carMoves[carsIndex[1], :] = optionalActions[moveOption[1]]
+                tempState = spesificDescendantGenerator(current, carMoves.astype(int))
+                coupledRealCost[carsIndex[0], carsIndex[1], i] = tempState.gval
+
+        # calculate the expected value of moving a single car
+        # size is number of cars and number of optional actions for each car
+        expectedCost        = np.zeros(shape=(nCars, len(optionalActions)))
+        totalExpectedCost   = np.zeros(shape=(nCars, len(optionalActions)))
+        for carIndex in range(nCars):
+            # for each car calculate the optional expected cost of moving that car in some direction
+            for actionIndex, tempOptionalState in enumerate(singleCarMovementGenerator(current, optionalActions, carIndex)):
+                stochasticCost = np.zeros(shape=(nStochastic, 1))
+                # initialize variables for stochastic optimization
+                carsPos                 = np.zeros(shape=(tempOptionalState.cars.length(), 2))
+                currentEventsPos        = []
+                currentEventStartTime   = []
+                currentEventsEndTime    = []
+                # get car locations from state -
+                for d, k in enumerate(tempOptionalState.cars.getUnCommitedKeys()):
+                    carsPos[d, :] = deepcopy(tempOptionalState.cars.getObject(k).position)
+                # get opened event locations from state -
+                for k in tempOptionalState.events.getUnCommitedKeys():
+                    if tempOptionalState.events.getObject(k).status == Status.OPENED_NOT_COMMITED:
+                        currentEventsPos.append(deepcopy(tempOptionalState.events.getObject(k).position))
+                        # assume that event start time is current time for deterministic runs and the time left for event
+                        # is the time left - current time.
+                        # the deterministic run is from (currentTime+1) therefore need to subtract that value and not CurrentTime
+                        currentEventStartTime.append(deepcopy(tempOptionalState.events.getObject(k).startTime) - (currentTime + 1))
+                        currentEventsEndTime.append(deepcopy(tempOptionalState.events.getObject(k).endTime) - (currentTime + 1))
+                # run deterministic optimization for stochastic events -
+                for j in range(len(stochasticEventsDict)):
+                    if len(stochasticEventsDict[j]['eventsPos']) + len(currentEventsPos) > 0:
+                        # there are events to be tested in deterministic optimization:
+                        eventsPos           = deepcopy(currentEventsPos)
+                        eventsStartTime     = deepcopy(currentEventStartTime)
+                        eventsEndTime       = deepcopy(currentEventsEndTime)
+                        temp = [eventsPos.append(e) for e in stochasticEventsDict[j]['eventsPos']]
+                        temp = [eventsStartTime.append(e[0]) for e in stochasticEventsDict[j]['eventsTimeWindow']]
+                        temp = [eventsEndTime.append(e[1]) for e in stochasticEventsDict[j]['eventsTimeWindow']]
+                        eventsPos           = np.array(eventsPos).reshape(len(eventsPos), 2)
+                        eventsStartTime     = np.array(eventsStartTime)
+                        eventsEndTime       = np.array(eventsEndTime)
+                        stime               = time.process_time()
+                        m, obj              = runMaxFlowOpt(0, carsPos, eventsPos, eventsEndTime,
+                                            tempOptionalState.closeReward, tempOptionalState.cancelPenalty,
+                                            tempOptionalState.openedNotCommitedPenalty)
+                        etime   = time.process_time()
+                        runTime = etime - stime
+                        try:
+                            stochasticCost[j] = -obj.getValue()
+                        except:
+                            print('failed cuz of gurobi!')
+                    else:
+                        stochasticCost[j] = 0
+                # calculate expected cost of all stochastic runs for this spesific optional State
+                if shouldPrint:
+                    print("stochastic cost of optional run is:")
+                    print(np.transpose(stochasticCost))
+                expectedCost[carIndex, actionIndex] = np.mean(stochasticCost)
+                # optional total cost includes the actual cost of movement + optional cost for commited events + expected cost of future events
+                totalExpectedCost[carIndex, actionIndex] = expectedCost[carIndex, actionIndex] + tempOptionalState.gval + tempOptionalState.optionalGval
+                if shouldPrint:
+                    print('state cost is: ' + str(tempOptionalState.gval) + ', expected cost is: ' + str(expectedCost[carIndex, actionIndex]) + ' , commited cost is:' + str(tempOptionalState.optionalGval))
+
+        m2, obj2 = runActionOpt(coupledRealCost, totalExpectedCost, outputFlag=0)
+        chosenActionsIndex = getActions(m2, nCars)
+        for i in range(nCars):
+            possibleMoves[i, :] = optionalActions[np.where(chosenActionsIndex[i, :] == 1)]
+
+        chosenState = spesificDescendantGenerator(current, possibleMoves.astype(int))
+        current     = chosenState
+        print('t:' + str(currentTime) + ' , chosen cost is: ' + str(obj2.getValue()))
+
         # check if this state is a goal or not-
         if current.goalCheck():
             isGoal = True
-            print('finished run - total cost is:'+str(current.gval))
+            print('finished run - total cost is:' + str(current.gval))
         # dump logs
         dataInRun = postAnalysis(current.path())
         # Anticipatory output:
-        with open('SimAnticipatoryMioResults_'+ str(currentTime+1)+'time_' + str(current.events.length()) + 'numEvents_'  + str(current.cars.length()) + 'numCars_uberData.p', 'wb') as out:
-            pickle.dump({'pathresults'      : current.path(),
-                         'time'             : dataInRun['timeVector'],
-                         'gs'               : gs,
-                         'OpenedEvents'     : dataInRun['openedEvents'],
-                         'closedEvents'     : dataInRun['closedEvents'],
-                         'canceledEvents'   : dataInRun['canceledEvents'],
-                         'allEvents'        : dataInRun['allEvents'],
-                         'stochasticResults': optionalTotalCost,
-                         'stochasticEventsDict': stochasticEventsDict,
-                         'cost'             : current.gval}, out)
-
+        # with open('SimAnticipatoryMioResults_' + str(currentTime + 1) + 'time_' + str(
+        #         current.events.length()) + 'numEvents_' + str(current.cars.length()) + 'numCars_uberData.p',
+        #           'wb') as out:
+        #     pickle.dump({'pathresults': current.path(),
+        #                  'time': dataInRun['timeVector'],
+        #                  'gs': gs,
+        #                  'OpenedEvents': dataInRun['openedEvents'],
+        #                  'closedEvents': dataInRun['closedEvents'],
+        #                  'canceledEvents': dataInRun['canceledEvents'],
+        #                  'allEvents': dataInRun['allEvents'],
+        #                  'stochasticResults': optionalTotalCost,
+        #                  'stochasticEventsDict': stochasticEventsDict,
+        #                  'cost': current.gval}, out)
     return current.path()
 
 
@@ -755,33 +822,33 @@ def main():
     probFileName        = '/Users/chanaross/dev/Thesis/ProbabilityFunction/CreateEvents/4D_UpdatedGrid_5min_250grid_LimitedProbability_CDFMat_wday_1.p'
     probabilityMatrix   = np.load(probFileName)
     xLim                = [0, 20]
-    yLim                = [40, 70]
+    yLim                = [20, 50]
     probabilityMatrix   = probabilityMatrix[xLim[0]:xLim[1], yLim[0]:yLim[1], :, :]
     eventsFileName      = '/Users/chanaross/dev/Thesis/UberData/4D_UpdatedGrid_5min_250Grid_LimitedEventsMat_wday1.p'
     eventsMatrix        = np.load(eventsFileName)
     eventsMatrix        = eventsMatrix[xLim[0]:xLim[1], yLim[0]:yLim[1], :, 1]
 
-    np.random.seed(100)
-    shouldRunAnticipatory = 1
-    shouldRunGreedy       = 1
-    shouldRunOptimization = 1
-    loadFromPickle        = 0
-    shouldPrint         = False
+    np.random.seed(50)
+    shouldRunAnticipatory   = 1
+    shouldRunGreedy         = 1
+    shouldRunOptimization   = 1
+    loadFromPickle          = 0
+    shouldPrint             = True
     # params
-    epsilon             = 0.001  # distance between locations to be considered same location
-    simStartTime        = 0
-    lengthSim           = 24*3   # one hour, each time step is 5 min. of real time
-    numStochasticRuns   = 50
-    lengthPrediction    = 5
-    deltaTimeForCommit  = 10
-    closeReward         = 80
-    cancelPenalty            = 140
-    openedCommitedPenalty    = 1
-    openedNotCommitedPenalty = 5
+    epsilon                     = 0.001  # distance between locations to be considered same location
+    simStartTime                = 2
+    lengthSim                   = 24*2  # one hour, each time step is 5 min. of real time
+    numStochasticRuns           = 100
+    lengthPrediction            = 4
+    deltaTimeForCommit          = 10
+    closeReward                 = 80
+    cancelPenalty               = 140
+    openedCommitedPenalty       = 1
+    openedNotCommitedPenalty    = 5
 
     gridSize            = [probabilityMatrix.shape[0], probabilityMatrix.shape[1]]
     deltaOpenTime       = 3
-    numCars             = 4
+    numCars             = 10
     carPosX             = np.random.randint(0, gridSize[0], numCars)
     carPosY             = np.random.randint(0, gridSize[1], numCars)
     carPos              = np.column_stack((carPosX, carPosY)).reshape(numCars, 2)
@@ -789,6 +856,7 @@ def main():
     eventPos,eventTimes = createRealEventsDistributionUber(simStartTime, 0, lengthSim, eventsMatrix, deltaOpenTime, 0)
     eventStartTime      = eventTimes[:, 0]
     eventEndTime        = eventTimes[:, 1]
+
 
     # plt.scatter(eventPos[:,0],eventPos[:,1], c= 'r')
     # plt.scatter(carPos[:,0],carPos[:,1],c='k')
@@ -802,7 +870,7 @@ def main():
         tempCar = Car(carPos[i,:], i)
         uncommitedCarDict[i]   = tempCar
     for i in range(numEvents):
-        tempEvent = Event(eventPos[i,:], i, eventStartTime[i], eventEndTime[i])
+        tempEvent = Event(eventPos[i, :], i, eventStartTime[i], eventEndTime[i])
         uncommitedEventDict[i] = tempEvent
 
     carMonitor   = commitMonitor(commitedCarDict, uncommitedCarDict)
@@ -827,10 +895,10 @@ def main():
 
 
         dataAnticipatory = postAnalysis(pAnticipatory)
-        anticipatoryFileName = 'SimAnticipatoryMioFinalResults_'+fileName
+        anticipatoryFileName = 'SimAnticipatory_OptimalActionChoice_MioFinalResults_'+fileName
         greedyFileName       = 'SimGreedyFinalResults_'+fileName
         # Anticipatory output:
-        with open('SimAnticipatory_bruteForce_MioFinalResults_' + fileName+'.p', 'wb') as out:
+        with open('SimAnticipatory_OptimalActionChoice_MioFinalResults_' + fileName+'.p', 'wb') as out:
             pickle.dump({'runTime'          : runTimeA,
                          'pathresults'      : pAnticipatory,
                          'time'             : dataAnticipatory['timeVector'],
@@ -894,12 +962,12 @@ def main():
 
     if shouldRunOptimization:
         if loadFromPickle:
-            pickleName = 'SimAnticipatoryMioFinalResults_4lpred_0startTime_10gridX_10gridY_22numEvents_50nStochastic_2numCars_uberData'
+            pickleName = 'SimAnticipatory_randomChoice_MioFinalResults_7lpred_0startTime_20gridX_30gridY_63numEvents_100nStochastic_4numCars_uberData'
             pathName = '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/PickleFiles/'
             dataPickle = pickle.load(open(pathName + pickleName + '.p', 'rb'))
             initState = dataPickle['pathresults'][0]
             gridSize  = dataPickle['gs']
-            fileName  = '4lpred_0startTime_10gridX_10gridY_22numEvents_50nStochastic_2numCars_uberData'
+            fileName  = '7lpred_0startTime_20gridX_30gridY_63numEvents_100nStochastic_4numCars_uberData'
             numEvents = initState.events.length()
             numCars   = initState.cars.length()
 

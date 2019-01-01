@@ -115,7 +115,7 @@ def runMaxFlowOpt(tStart, carPos, eventPos , eventOpenTime, eventCloseTime,close
     m.setParam('OutputFlag', outputFlag)
     m.setParam('LogFile',"")
     m.optimize()
-    return m,obj
+    return m, obj
 
 
 def poissonRandomEvents(startTime,endSimTime,lam):
