@@ -261,6 +261,28 @@ def createProbMatrix(df):
     print('hi')
     return
 
+
+def createLearningMatrix(df):
+    dfTemp = df.copy()
+    dfTemp['weekPeriod5'] = dfTemp['weekPeriod5'] - np.min(dfTemp['weekPeriod5'])
+    dfTemp['grid_x'] = dfTemp['grid_x'] - np.min(dfTemp['grid_x'])
+    dfTemp['grid_y'] = dfTemp['grid_y'] - np.min(dfTemp['grid_y'])
+    gridX = dfTemp['grid_x'].unique()
+    gridY = dfTemp['grid_y'].unique()
+
+    i  = 0
+    mat = np.zeros(shape=(gridX.size, gridY.size, dfTemp['weekPeriod5'].unique().size * dfTemp['weeknum'].unique().size))
+    for wnum in dfTemp['weeknum'].unique():
+        dfTemp1 = dfTemp[dfTemp['weeknum'] == wnum]
+        for t in dfTemp1['weekPeriod5'].unique():
+            dfTemp2 = dfTemp1[dfTemp1['weekPeriod5'] == t]
+            for ix, iy in zip(dfTemp2['grid_x'], dfTemp2['grid_y']):
+                mat[ix, iy, i] += 1
+            i += 1
+    mat.dump('3D_UpdatedGrid_5min_250Grid_LimitedEventsMat_' + 'wday_' + str(weekDay) + '.p')
+    print('hi')
+    return
+
 def main():
     # path to data pickle (after preproc)
     dataPath = '/Users/chanaross/dev/Thesis/UberData/allDataupdated_Gridpickle250.p'
@@ -286,9 +308,10 @@ def main():
     maxXgrid      = np.max(df['grid_x'])
     df['grid_id'] = df['grid_x'] + df['grid_y'] * maxXgrid
 
-    with open ('/Users/chanaross/dev/Thesis/UberData/manhattenData_250Grid_5min_pickle.p', 'wb') as op:
-        pickle.dump(df, op)
-    createProbMatrix(df)
+    # with open ('/Users/chanaross/dev/Thesis/UberData/manhattenData_250Grid_5min_pickle.p', 'wb') as op:
+    #     pickle.dump(df, op)
+    # createProbMatrix(df)
+    createLearningMatrix(df)
     # createFastStackPlot(df,True)
     # createScatterMaps(df,True)
     # createHeatMaps(df,False)

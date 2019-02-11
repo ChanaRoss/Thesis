@@ -826,7 +826,7 @@ def main():
     simStartTime        = 0
     lengthSim           = 24*2     # one hour, each time step is 5 min. of real time
     numStochasticRuns   = 100
-    lengthPrediction    = 7
+    lengthPrediction    = 6
     deltaTimeForCommit  = 10
     closeReward         = 80
     cancelPenalty            = 140
@@ -835,7 +835,7 @@ def main():
 
     gridSize            = [probabilityMatrix.shape[0], probabilityMatrix.shape[1]]
     deltaOpenTime       = 3
-    numCars             = 5
+    numCars             = 10
     carPosX             = np.random.randint(0, gridSize[0], numCars)
     carPosY             = np.random.randint(0, gridSize[1], numCars)
     carPos              = np.column_stack((carPosX, carPosY)).reshape(numCars, 2)

@@ -60,10 +60,10 @@ def runMaxFlowOpt(tStart,carPos,eventPos,eventTime,closeReward,cancelPenalty,ope
     # Create optimization model
     m = Model('OfflineOpt')
     # Create variables
-    x = m.addVars(nEvents,nEvents,name = 'cEventsToEvents',vtype=GRB.BINARY)
-    y = m.addVars(nCars,nEvents,name = 'cCarsToEvents',vtype=GRB.BINARY)
-    p = m.addVars(nEvents,name = 'isPickedUp',vtype=GRB.BINARY)
-    t = m.addVars(nEvents,name = 'pickUpTime')
+    x = m.addVars(nEvents, nEvents, name='cEventsToEvents', vtype=GRB.CONTINUOUS, lb=0.0, ub=1.0)
+    y = m.addVars(nCars, nEvents, name='cCarsToEvents', vtype=GRB.CONTINUOUS, lb=0.0, ub=1.0)
+    p = m.addVars(nEvents, name='isPickedUp', vtype=GRB.CONTINUOUS, lb=0.0, ub=1.0)
+    t = m.addVars(nEvents, name='pickUpTime')
 
     # add constraint for events - maximum one event is picked up after each event
     # if p=0 then no events are picked up after,
@@ -113,10 +113,7 @@ def runMaxFlowOpt(tStart,carPos,eventPos,eventTime,closeReward,cancelPenalty,ope
     m.setParam('LogFile', "")
     m.optimize()
 
-    # for v in m.getVars():
-    #     print('%s %g' % (v.varName, v.x))
-    #
-    # print('Obj: %g' % obj.getValue())
+
 
     return m, obj
 
@@ -161,10 +158,19 @@ def plotResults(m,carsPos,eventsPos):
     paramKey = [v.varName.split('[')[0] for v in m.getVars()]
     param = {k:[] for k in paramKey}
     for v in m.getVars():
-        param[v.varName.split('[')[0]].append(v.x)
-    param['cEventsToEvents'] = np.array(param['cEventsToEvents']).reshape(nEvents,nEvents)
-    param['cCarsToEvents']   = np.array(param['cCarsToEvents']).reshape(nCars,nEvents)
-    param['isPickedUp']      = np.array(param['isPickedUp']).reshape(nEvents,1)
+        tempName = v.varName.split('[')[0]
+        tempNum  = v.x
+        if (tempName !='pickUpTime'):
+            if (tempNum<0.1):
+                # results is 0 but because it has continues results might be 0.000000000001
+                tempNum = 0
+            else:
+                tempNum = 1
+
+        param[tempName].append(tempNum)
+    param['cEventsToEvents'] = np.array(param['cEventsToEvents']).reshape(nEvents, nEvents)
+    param['cCarsToEvents']   = np.array(param['cCarsToEvents']).reshape(nCars, nEvents)
+    param['isPickedUp']      = np.array(param['isPickedUp']).reshape(nEvents, 1)
     param['pickUpTime']      = np.array(param['pickUpTime']).reshape(nEvents, 1)
     eIds     = np.array(range(nEvents))
     pathCars = [[carsPos[i,:]] for i in range(nCars)]
@@ -185,11 +191,12 @@ def plotResults(m,carsPos,eventsPos):
     plt.figure()
     tempCarPos = carsPos
     for e in range(nEvents):
-        plt.plot(eventsPos[e,0],eventsPos[e,1],marker = 'o',color = 'k',label = 'EventId:'+str(e))
+        plt.plot(eventsPos[e, 0], eventsPos[e,1],marker = 'o',color = 'k',label = 'EventId:'+str(e))
     for i in range(maxTime):
         for c in range(nCars):
-            plt.plot(tempCarPos[c,0],tempCarPos[c,1],marker = '*',color = 'm',label = 'carId:'+str(c))
+            plt.plot(tempCarPos[c, 0], tempCarPos[c,1],marker = '*',color = 'm',label = 'carId:'+str(c))
     print('hi')
+    plt.show()
     return
 
 def main():
@@ -201,12 +208,26 @@ def main():
     openedPenalty = 1
 
     np.random.seed(1)
-    gridSize            = 20
+    gridSize = 20
     nCars = 5
-    tStart              = 0
-    deltaOpenTime       = 0
-    lengthSim           = 20
-    lam                 = 2/3
+    tStart = 0
+    deltaOpenTime = 0
+    lengthSim = 20
+    lam = 2 / 3
+
+
+    #
+    # closeReward = 50
+    # cancelPenalty = 100
+    # openedPenalty = 1
+    #
+    # np.random.seed(1)
+    # gridSize            = 30
+    # nCars = 10
+    # tStart              = 0
+    # deltaOpenTime       = 0
+    # lengthSim           = 30
+    # lam                 = 7/3
 
 
     carPos = np.reshape(np.random.randint(0, gridSize, 2 * nCars), (nCars, 2))
@@ -215,16 +236,15 @@ def main():
     eventStartTime = eventTimes[:, 0]
     eventEndTime = eventTimes[:, 1]
 
-    m, obj = runMaxFlowOpt(tStart,carPos,eventPos,eventStartTime,closeReward,cancelPenalty,openedPenalty)
+    m, obj = runMaxFlowOpt(tStart, carPos, eventPos, eventStartTime, closeReward, cancelPenalty, openedPenalty)
 
-    plotResults(m,carPos,eventPos)
+    plotResults(m, carPos, eventPos)
+
 
     for v in m.getVars():
         print('%s %g' % (v.varName, v.x))
 
     print('Obj: %g' % obj.getValue())
-
-
 
 if __name__ == '__main__':
     main()
