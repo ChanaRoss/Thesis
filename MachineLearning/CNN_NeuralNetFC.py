@@ -22,7 +22,6 @@ class CNN(nn.Module):
         self.sizeX = None
         self.sizeY = None
         self.sizeClasses = None
-        self.numChannels = 10
         # defining convolution network sizes
         self.kernalSize = None
         self.paddingSize = None
@@ -56,25 +55,22 @@ class CNN(nn.Module):
                 layers += [nn.MaxPool2d(kernel_size=self.poolingKernalSize, stride=self.poolingStrideSize)]
             else:
                 layers += [nn.Conv2d(in_channels, x, kernel_size=self.kernalSize, stride=self.strideSize, padding=self.paddingSize),
-                           nn.BatchNorm2d(x),
+                           #nn.BatchNorm2d(x),
                            nn.ReLU(inplace=True)]
-            in_channels = x
-        layers += [nn.Conv2d(in_channels, x, kernel_size=self.kernalSize, stride=self.strideSize,
-                             padding=self.paddingSize),
-                   nn.BatchNorm2d(x)]
-
+                in_channels = x
         # layers += [nn.AvgPool2d(kernel_size=1, stride=1)]
         return nn.Sequential(*layers)
 
     def forward(self, x):
         out = self.features(x)
-        # out = out.view(out.size(0), -1)
-        # out = self.classifier(out)
+        batchSize = out.size(0)
+        out = out.view(batchSize, -1)
+        out = self.classifier(out)
         # out dimension is: [batch size , num channels , height ,width ]
-        outTemp = out.clone().detach()
-        out = out.view(out.size(0)*out.size(2)*out.size(3), -1)
+        out = out.view(batchSize*self.sizeX*self.sizeY, -1)
         out = self.logsoftmax(out)
-        out = out.view_as(outTemp)
+        out = out.view(batchSize, self.sizeClasses, self.sizeX, self.sizeY)
+        # out = out.view_as(outTemp)
         return out
 
     # creating backward propagation - calculating loss function result

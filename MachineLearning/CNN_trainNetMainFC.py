@@ -11,7 +11,7 @@ import numpy as np
 # my imports -
 import sys
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/MachineLearning/')
-from CNN_NeuralNet import CNN
+from CNN_NeuralNetFC import CNN
 from dataLoader_uber import DataSetCnn
 
 import numpy as np
@@ -57,10 +57,10 @@ xmax = 20
 ymin = 0
 ymax = 20
 dataInput   = dataInput[xmin:xmax, ymin:ymax, :]  # shrink matrix size for fast training in order to test model
-classNum   = (np.max(np.unique(dataInput))+1).astype(int)
+numClasses  = np.unique(dataInput).size
 dataSize    = dataInput.shape[2]
 testSize    = 0.2
-sequenceDim = 15
+sequenceDim = 5
 num_train   = int((1 - testSize) * dataSize)
 
 data_train = dataInput[:, :, 0:num_train]
@@ -76,27 +76,27 @@ inY        = dataInput.shape[1]
 inChannels = sequenceDim
 inputSize  = (inChannels, inX, inY)  # size of input in data
 classNum   = (np.max(np.unique(dataInput))+1).astype(int)  # number of classes optional, number of simultaneous events per grid point
-fcSize     = classNum*inX*inY
+fcEndSize  = classNum*inX*inY
 maxEpochs  = 100
 # hyper parameters
-batchSize = [80]#[50,100]
+batchSize = [50]#[50,100]
 p_dp = [0.5]
 # non-constant parameters
-conv1Vec = [24]  #[8,16,32,64]
+conv1Vec = [8]  #[8,16,32,64]
 conv2Vec = [32]  #[16,32,64]
 conv3Vec = [32]  #[0,32,64]
-conv4Vec = [64]  #[0,32,64]
-conv5Vec = [classNum]  #[0,32,64]
-fcSize2  = [1024]
+conv4Vec = [0]  #[0,32,64]
+conv5Vec = [0]  #[0,32,64]
+fcSize2  = [500]
 # convolution parameters
-kernalSize = [3]  #[3,5]
+kernalSize = [5]  #[3,5]
 strideSize = [1]
 # max pooling parameters
 poolingKernalSize = [2]
 poolingStrideSize = [2]
 # optimization parameters
 optimType = [2]#[1,2]
-lrVec = [0.01, 0.01, 0.05]
+lrVec = [0.001, 0.01, 0.05]
 weightDecay = [0.0]
 momentum = [0.9]
 dampening = [0]
@@ -137,28 +137,31 @@ for netConfig in networksDict:
     Net.poolingKernalSize = networksDict[netConfig]['pks']
     Net.poolingStrideSize = networksDict[netConfig]['pss']
     # list of Convolution layout and size
-    featursParam = [networksDict[netConfig]['cnv1'], networksDict[netConfig]['cnv2'],
-                    networksDict[netConfig]['cnv3'], networksDict[netConfig]['cnv4'], networksDict[netConfig]['cnv5']]
+    # featursParam = [networksDict[netConfig]['cnv1'], networksDict[netConfig]['cnv2'],networksDict[netConfig]['cnv2'],networksDict[netConfig]['cnv2'],networksDict[netConfig]['cnv2'],networksDict[netConfig]['cnv2'],
+    #                 networksDict[netConfig]['cnv3'], networksDict[netConfig]['cnv4'], networksDict[netConfig]['cnv5']]
     # inputClassifier = networksDict[netConfig]['cnv5']
-    # if networksDict[netConfig]['cnv4'] == 0: # only 2 convolution layers
-    #     featursParam = [networksDict[netConfig]['cnv1'],'M', networksDict[netConfig]['cnv2'],'M',networksDict[netConfig]['cnv3'],'M']
-    #     # inputClassifier = networksDict[netConfig]['cnv3']
-    # elif networksDict[netConfig]['cnv5']==0:
-    #     featursParam = [networksDict[netConfig]['cnv1'],'M', networksDict[netConfig]['cnv2'],'M',networksDict[netConfig]['cnv3'],'M',networksDict[netConfig]['cnv4']]
-    #     # inputClassifier = networksDict[netConfig]['cnv4']
-    # else:
-    #     featursParam = [networksDict[netConfig]['cnv1'],     networksDict[netConfig]['cnv2'],'M',networksDict[netConfig]['cnv3'],'M',networksDict[netConfig]['cnv4'],'M',networksDict[netConfig]['cnv5']]
-        # inputClassifier = networksDict[netConfig]['cnv5']
+    if networksDict[netConfig]['cnv4'] == 0: # only 2 convolution layers
+        featursParam = [networksDict[netConfig]['cnv1'],'M', networksDict[netConfig]['cnv2'],'M',networksDict[netConfig]['cnv3'],'M']
+        # inputClassifier = networksDict[netConfig]['cnv3']
+    elif networksDict[netConfig]['cnv5']==0:
+        featursParam = [networksDict[netConfig]['cnv1'],'M', networksDict[netConfig]['cnv2'],'M',networksDict[netConfig]['cnv3'],'M',networksDict[netConfig]['cnv4']]
+        # inputClassifier = networksDict[netConfig]['cnv4']
+    else:
+        featursParam = [networksDict[netConfig]['cnv1'], networksDict[netConfig]['cnv2'], 'M', networksDict[netConfig]['cnv3'], 'M', networksDict[netConfig]['cnv4'], 'M', networksDict[netConfig]['cnv5']]
+        inputClassifier = networksDict[netConfig]['cnv5']
     # creating convolution layers based on wanted size
     Net.features = Net.makeLayers(featursParam, inChannels)
     # finding linear size
-    # Net.fcSize = Net.get_flat_fts(inputSize, Net.features)
+    Net.fcSize = Net.get_flat_fts(inputSize, Net.features)
     # creating linear layer
-    # if networksDict[netConfig]['fc2'] == 0:  # only 1 linear layer
-    #     Net.classifier = nn.Sequential(nn.Linear(Net.fcSize, fcSize))
-    # else:  # two linear layers
-    #     Net.classifier = nn.Sequential(nn.Linear(Net.fcSize, networksDict[netConfig]['fc2']), nn.ReLU(),
-    #                                    nn.Linear(networksDict[netConfig]['fc2'], fcSize))
+    if networksDict[netConfig]['fc2'] == 0:  # only 1 linear layer
+        Net.classifier = nn.Sequential(nn.Linear(Net.fcSize, fcEndSize))
+    else:  # two linear layers
+        Net.classifier = nn.Sequential(nn.Linear(Net.fcSize, networksDict[netConfig]['fc2']), nn.ReLU(),
+                                       nn.Linear(networksDict[netConfig]['fc2'], fcEndSize))
+    Net.sizeX = inX
+    Net.sizeY = inY
+    Net.sizeClasses = classNum
     # setup network
     if isServerRun:
         Net = Net.cuda()

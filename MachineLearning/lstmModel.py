@@ -68,7 +68,6 @@ def train(epoch, model, dataloader_uber_train, optimiser, loss_fn):
 
         optimiser.zero_grad()
         output = model(data)
-        output = output.floor()
         outputCorr = output.view_as(target)
         loss = loss_fn(outputCorr[:, :, -1], target[:, :, -1])
 
@@ -122,7 +121,7 @@ def main():
     ymax = 5
     dataInput = dataInput[xmin:xmax, ymin:ymax, :]  # shrink matrix size for fast training in order to test model
 
-    dataTemp = dataInput.reshape(dataInput.shape[0] * dataInput.shape[1], dataInput.shape[2])
+    dataTemp = dataInput.reshape(dataInput.shape[0]* dataInput.shape[1], dataInput.shape[2])
     dataDiff = createDiff(dataTemp)
 
     dataSize    = dataDiff.shape[1]

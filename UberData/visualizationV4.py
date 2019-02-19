@@ -279,7 +279,7 @@ def createLearningMatrix(df):
             for ix, iy in zip(dfTemp2['grid_x'], dfTemp2['grid_y']):
                 mat[ix, iy, i] += 1
             i += 1
-    mat.dump('3D_UpdatedGrid_5min_250Grid_LimitedEventsMat_' + 'wday_' + str(weekDay) + '.p')
+    mat.dump('3D_UpdatedGrid_5min_250Grid_LimitedEventsMat_allData.p')
     print('hi')
     return
 
