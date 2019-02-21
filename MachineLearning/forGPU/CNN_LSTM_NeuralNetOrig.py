@@ -72,7 +72,7 @@ class Model(nn.Module):
         self.fc_after_cnn   = nn.ModuleList()
         self.lstm           = None
         self.fc_after_lstm  = None
-        self.logSoftMax     = nn.LogSoftmax()
+        self.logSoftMax     = nn.LogSoftmax(dim=1)
 
 
     def create_cnn(self):
@@ -104,10 +104,10 @@ class Model(nn.Module):
 
 
     def forward(self,x):
-        cnn_output = torch.zeros([self.batch_size, self.fc_output_size, self.sequence_size]).to(device)
+        batch_size = x.size(0)
+        cnn_output = torch.zeros([batch_size, self.fc_output_size, self.sequence_size]).to(device)
         # x is of size : [batch_size , mat_x , mat_y , sequence_size]
         for i in range(self.sequence_size):
-            batch_size = x.size(0)
             xtemp = x[:, i, :, :].view(x.size(0), 1, x.size(2), x.size(3))
             out = self.cnn[i](xtemp)
             out = out.view((batch_size, -1))
@@ -132,7 +132,6 @@ class Model(nn.Module):
         # testing network on given test set
 
     def test_spesific(self, testLoader):
-
         # put model in evaluate mode
         self.eval()
         testCorr = 0.0
@@ -145,22 +144,23 @@ class Model(nn.Module):
             inputVar = Variable(inputs)
             labVar = Variable(labels)
             # compute test result of model
-            x_size = inputVar.shape[2]
-            y_size = inputVar.shape[3]
-            testOut = np.zeros(shape=(self.batch_size, self.class_size, x_size, y_size))
+            x_size = labels.shape[1]
+            y_size = labels.shape[2]
+            testOut = torch.zeros([self.batch_size, self.class_size, x_size, y_size]).to(device)
+            labTest = torch.zeros([self.batch_size, x_size, y_size]).to(device)
             k = 0
             for x in range(x_size):
                 for y in range(y_size):  # calculate output for each grid_id
-                    testOut[:, :, x, y] = self.forward(inputVar[:, :, :, :, k])
+                    testOut = self.forward(inputVar[:, :, :, :, k])
+                    _, labTest[:, x, y] = torch.max(testOut.data, 1)
+                    self.calcLoss(testOut, labVar[:, x, y])
                     k += 1
-            # find loss of test set
-            self.calcLoss(testOut, labels)
-            self.backward(testOut, labVar)
-            localLossTest.append(self.loss)
-            _, labTest = torch.max(testOut.data, 1)
-            if torch.cuda.is_available():
-                labTest = labTest.cpu()
-            testCorr = torch.sum(labTest == labels).detach().numpy() + testCorr
+            # self.backward(testOut, labVar)
+            localLossTest.append(self.loss.item())
+            if isServerRun:
+                testCorr = torch.sum(labTest.type(torch.cuda.LongTensor) == labels).cpu().detach().numpy() + testCorr
+            else:
+                testCorr = torch.sum(labTest.long() == labels).detach().numpy() + testCorr
             testTot = labels.size(0) * labels.size(1) * labels.size(2) + testTot
             localAccTest.append(100 * testCorr / testTot)
         accTest = np.average(localAccTest)
@@ -181,14 +181,22 @@ def main():
     # Generate data
     #####################
     # data loader -
-    path = '/home/schanaby@st.technion.ac.il/thesisML/'
+    if isServerRun:
+        path = '/home/schanaby@st.technion.ac.il/thesisML/'
+    else:
+        path = '/Users/chanaross/dev/Thesis/UberData/'
     fileName = '3D_UpdatedGrid_5min_250Grid_LimitedEventsMat_allData.p'
     dataInput = np.load(path + fileName)
+
+    flag_save_network = False
+
     xmin = 0
     xmax = 20
     ymin = 0
     ymax = 20
-    dataInput     = dataInput[xmin:xmax, ymin:ymax, :]  # shrink matrix size for fast training in order to test model
+    zmin = 4000
+    zmax = 4601
+    dataInput     = dataInput[xmin:xmax, ymin:ymax, zmin:zmax]  # shrink matrix size for fast training in order to test model
     # define important sizes for network -
     x_size        = dataInput.shape[0]
     y_size        = dataInput.shape[1]
@@ -198,7 +206,7 @@ def main():
     sequence_size = 5  # length of sequence for lstm network
     cnn_input_size= 1  # size of matrix in input cnn layer  - each sequence goes into different cnn network
     cnn_dimention = 7  # size of matrix around point i for cnn network
-    batch_size    = 300
+    batch_size    = 30
     num_epochs    = 100
     num_train = int((1 - testSize) * dataSize)
     # define hyper parameters -
@@ -255,7 +263,7 @@ def main():
         # for each epoch, calculate loss for each batch -
         my_net.train()
         localLoss = []
-        accTrain = []
+        accTrain = [0]
         trainCorr = 0.0
         trainTot = 0.0
         if (1+numEpoch)%20 == 0:
@@ -272,8 +280,6 @@ def main():
             # input is of size [batch_size, seq_len, x_inputCnn, y_inputCnn, grid_id]
             inputVar = Variable(inputD).to(device)
             labVar = Variable(labelsD).to(device)
-            assert(inputVar.device.type == 'cuda')
-            assert (labVar.device.type == 'cuda')
             # reset gradient
             my_net.optimizer.zero_grad()
             # forward
@@ -306,7 +312,7 @@ def main():
                       % (numEpoch + 1, my_net.maxEpochs, i + 1,
                          dataloader_uber_train.dataset.data.shape[2] // dataloader_uber_train.batch_size,
                          my_net.loss.item(), accTrain[-1]))
-            if (accTrain[-1]<= np.max(np.array(accTrain))):
+            if (accTrain[-1]<= np.max(np.array(accTrain[0:-1]))) and flag_save_network:
                 pickle.dump(my_net, open("gridSize"+str(xmax - xmin)+"_epoch"+str(numEpoch)+"_batch"+str(i)+ ".pkl", 'wb'))
                 my_net.saveModel("gridSize"+str(xmax - xmin)+"_epoch"+str(numEpoch)+"_batch"+str(i) + "_torch.pkl")
                 networkStr = "gridSize"+str(xmax - xmin)+"_epoch"+str(numEpoch)+"_batch"+str(i)
@@ -316,11 +322,12 @@ def main():
         my_net.accVecTrain.append(np.average(accTrain))
         # test network for each epoch stage
         accEpochTest, lossEpochTest = my_net.test_spesific(testLoader=dataloader_uber_test)
-        outArray = np.stack([np.array(my_net.lossVecTest), np.array(my_net.lossVecTrain),
-                             np.array(my_net.accVecTest), np.array(my_net.accVecTrain)])
-        np.save(networkStr + "_oArrBatch.npy", outArray)
         my_net.accVecTest.append(accEpochTest)
         my_net.lossVecTest.append(lossEpochTest)
+        if (flag_save_network):
+            outArray = np.stack([np.array(my_net.lossVecTest), np.array(my_net.lossVecTrain),
+                                 np.array(my_net.accVecTest), np.array(my_net.accVecTrain)])
+            np.save(networkStr + "_oArrBatch.npy", outArray)
     my_net.finalAcc = accEpochTest
     my_net.finalLoss = np.average(localLoss)
     endTime = time.process_time()
