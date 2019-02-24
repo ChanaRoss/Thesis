@@ -1,7 +1,8 @@
 import numpy as np
 from matplotlib import  pyplot as plt
 
-
+import seaborn as sns
+sns.set()
 
 def createEventDistributionUber(simStartTime, startTime, endTime, probabilityMatrix,eventTimeWindow,simTime):
     eventPos = []
@@ -79,12 +80,22 @@ def main():
     dataInputReal = dataInputReal[xmin:xmax, ymin:ymax, :]  # shrink matrix size for fast training in order to test model
     dataInputProb = dataInputProb[xmin:xmax, ymin:ymax, :, :]
     accuracy = []
+    accuracy1 = []
     for i in range(300):
         start_time = np.random.randint(10, dataInputProb.shape[2]-10)
         realMatOut, distMatOut = getBenchmarkAccuracy(start_time, 5, dataInputReal, dataInputProb)
         accuracy.append(np.sum(realMatOut == distMatOut)/(realMatOut.shape[0]*realMatOut.shape[1]))
-    plt.plot(range(len(accuracy)), np.array(accuracy))
+        realMatOut[realMatOut > 1] = 1
+        distMatOut[distMatOut > 1] = 1
+        accuracy1.append(np.sum(np.sum(realMatOut == distMatOut)/(realMatOut.shape[0]*realMatOut.shape[1])))
+    plt.scatter(range(len(accuracy)), np.array(accuracy))
+    plt.grid()
+    plt.figure()
+    plt.scatter(range(len(accuracy1)), np.array(accuracy1))
+    plt.grid()
     print("average accuracy for 300 runs is:"+str(np.mean(np.array(accuracy))))
+    print("average corrected accuracy for 300 runs is:" + str(np.mean(np.array(accuracy1))))
+
     plt.show()
     return
 
