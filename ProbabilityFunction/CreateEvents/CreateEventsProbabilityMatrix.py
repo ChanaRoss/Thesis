@@ -10,7 +10,7 @@ sns.set()
 
 
 
-TimeProbMatrix = np.load('/Users/chanaross/dev/Thesis/UberData/4D_UpdatedGrid_5min_250Grid_LimitedProbabilityMat_wday_1.p')
+TimeProbMatrix = np.load('/Users/chanaross/dev/Thesis/UberData/4D_UpdatedGrid_5min_250Grid_LimitedProbabilityMat_allData_Benchmark.p')
 
 cdf = np.zeros(TimeProbMatrix.shape[3])
 FullCdf = np.zeros(shape = (TimeProbMatrix.shape[0], TimeProbMatrix.shape[1], TimeProbMatrix.shape[2], cdf.size))
@@ -31,4 +31,6 @@ for t in range(TimeProbMatrix.shape[2]):
     # plt.figure()
     # plt.matshow(np.sum(TimeProbMatrix[:,:,t,:],axis = 2))
     # plt.show()
-FullCdf.dump('4D_UpdatedGrid_5min_250grid_LimitedProbability_CDFMat_wday_1.p')
+FullCdf.dump('4D_UpdatedGrid_5min_250Grid_LimitedProbability_CDF_mat_allData_Benchmark.p')
+
+print("done!")

@@ -188,14 +188,14 @@ def main():
     fileName = '3D_UpdatedGrid_5min_250Grid_LimitedEventsMat_allData.p'
     dataInput = np.load(path + fileName)
 
-    flag_save_network = False
+    flag_save_network = True
 
     xmin = 0
-    xmax = 20
+    xmax = dataInput.shape[0]
     ymin = 0
-    ymax = 20
+    ymax = dataInput.shape[1]
     zmin = 4000
-    zmax = 4601
+    zmax = 8000
     dataInput     = dataInput[xmin:xmax, ymin:ymax, zmin:zmax]  # shrink matrix size for fast training in order to test model
     # define important sizes for network -
     x_size        = dataInput.shape[0]
