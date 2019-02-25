@@ -4,13 +4,15 @@ import torch.nn.functional as F
 import torch
 import torch.utils.data as data
 from torch.autograd import Variable
+from sklearn import metrics
+from math import sqrt
 import numpy as np
 from matplotlib import pyplot as plt
 import time, pickle, itertools
 
 import sys
 sys.path.insert(0, '/home/schanaby@st.technion.ac.il/thesisML/')
-from dataLoader_uber import DataSetCnn_LSTM
+from dataLoader_uber import DataSetCnn_LSTM_BatchMode
 
 def to_var(x):
     if torch.cuda.is_available():
@@ -42,11 +44,12 @@ def CreateOptimizer(netParams, ot, lr, dmp, mm, eps):
 
 class Model(nn.Module):
     def __init__(self, cnn_input_size, class_size, hidden_size, batch_size, sequence_size, kernel_size,
-                 stride_size, num_cnn_features, num_cnn_layers, fc_after_cnn_out_size):
+                 stride_size, num_cnn_features, num_cnn_layers, fc_after_cnn_out_size, cnn_dimention):
         super(Model, self).__init__()
         self.sequence_size    = sequence_size
         self.hiddenSize       = hidden_size
         self.batch_size       = batch_size
+        self.cnn_dimention    = cnn_dimention
         self.kernel_size      = kernel_size
         self.stride_size      = stride_size
         self.cnn_input_size   = cnn_input_size
@@ -63,10 +66,13 @@ class Model(nn.Module):
         # output variables (loss, acc ect.)
         self.finalAcc       = 0
         self.finalLoss      = 0
+        self.finalRmse      = 0
         self.lossVecTrain   = []
         self.lossVecTest    = []
         self.accVecTrain    = []
         self.accVecTest     = []
+        self.rmseVecTrain   = []
+        self.rmseVecTest    = []
 
         self.cnn            = nn.ModuleList()
         self.fc_after_cnn   = nn.ModuleList()
@@ -115,7 +121,7 @@ class Model(nn.Module):
             cnn_output[:, :, i] = out
         output, (h_n, c_n) = self.lstm(cnn_output.view(self.sequence_size, batch_size, -1))
         out = self.fc_after_lstm(h_n)
-        out = self.logSoftMax(out.view(batch_size,-1))  # after last fc out is of size: [batch_size , num_classes] and is after LogSoftMax
+        out = self.logSoftMax(out.view(batch_size,-1))  # after last fc out is of size: [batch_size * grid id, num_classes] and is after LogSoftMax
         return out
 
     def calcLoss(self, outputs, labels):
@@ -138,6 +144,7 @@ class Model(nn.Module):
         testTot = 0.0
         localLossTest = []
         localAccTest = []
+        localRmseTest = []
         for inputs, labels in testLoader:
             inputs = inputs.to(device)
             labels = labels.to(device)
@@ -148,29 +155,35 @@ class Model(nn.Module):
             y_size = labels.shape[2]
             testOut = torch.zeros([self.batch_size, self.class_size, x_size, y_size]).to(device)
             labTest = torch.zeros([self.batch_size, x_size, y_size]).to(device)
-            k = 0
-            for x in range(x_size):
-                for y in range(y_size):  # calculate output for each grid_id
-                    testOut = self.forward(inputVar[:, :, :, :, k])
-                    _, labTest[:, x, y] = torch.max(testOut.data, 1)
-                    self.calcLoss(testOut, labVar[:, x, y])
-                    k += 1
+            batch_size = inputVar.size(0)
+            grid_size  = inputVar.size(1)
+            inputVarFlat = inputVar.view(batch_size * grid_size, self.sequence_size, self.cnn_dimention, self.cnn_dimention)
+
+            testOut = self.forward(inputVarFlat)  # output of network forward is : [batch*grid id, class number]
+            _, labTestTemp = torch.max(testOut.data, 1)  # output of max is : [batch*grid id]
+            testOut = testOut.view(batch_size, self.class_size, x_size, y_size)  # output after view is : [batch, class number, x, y]
+            labTest = labTestTemp.view_as(labTest)  # output after view is : [batch, x, y]
+            self.calcLoss(testOut, labVar)
+
             # self.backward(testOut, labVar)
             localLossTest.append(self.loss.item())
             if isServerRun:
-                print("corrected number is:"+str(torch.sum(labTest.type(torch.cuda.LongTensor) == labels).cpu().detach().numpy()))
+                labTestNp = labTest.type(torch.cuda.LongTensor).cpu().detach().numpy()
+                labelsNp  = labels.cpu().detach().numpy()
                 testCorr = torch.sum(labTest.type(torch.cuda.LongTensor) == labels).cpu().detach().numpy() + testCorr
             else:
+                labTestNp = labTest.long().detach().numpy()
+                labelsNp = labels.detach().numpy()
                 testCorr = torch.sum(labTest.long() == labels).detach().numpy() + testCorr
-            print("current label size is:"+str(labels.size(0) * labels.size(1) * labels.size(2)))
             testTot = labels.size(0) * labels.size(1) * labels.size(2) + testTot
+            rmse = sqrt(metrics.mean_squared_error(labTestNp.reshape(-1), labelsNp.reshape(-1)))
             localAccTest.append(100 * testCorr / testTot)
-            print("num test tot:"+str(testTot))
-            print("num corrected test :"+str(testCorr))
+            localRmseTest.append(rmse)
         accTest = np.average(localAccTest)
         lossTest = np.average(localLossTest)
-        print("test accuarcy is: {0}".format(accTest))
-        return accTest, lossTest
+        rmseTest = np.average(localRmseTest)
+        print("test accuarcy is: {0}, rmse is: {1}".format(accTest, rmseTest))
+        return accTest, lossTest, rmseTest
 
         # save network
 
@@ -199,7 +212,7 @@ def main():
     ymin = 0
     ymax = dataInput.shape[1]
     zmin = 4000
-    zmax = 8001
+    zmax = 4200
     dataInput     = dataInput[xmin:xmax, ymin:ymax, zmin:zmax]  # shrink matrix size for fast training in order to test model
     # define important sizes for network -
     x_size        = dataInput.shape[0]
@@ -210,7 +223,7 @@ def main():
     sequence_size = 5  # length of sequence for lstm network
     cnn_input_size= 1  # size of matrix in input cnn layer  - each sequence goes into different cnn network
     cnn_dimention = 7  # size of matrix around point i for cnn network
-    batch_size    = 200
+    batch_size    = 2
     num_epochs    = 100
     num_train = int((1 - testSize) * dataSize)
     # define hyper parameters -
@@ -222,7 +235,7 @@ def main():
     fc_after_cnn_out_size = 64
 
     # optimizer parameters -
-    lr  = 0.01
+    lr  = 0.1
     ot  = 1
     dmp = 0
     mm  = 0.9
@@ -231,7 +244,7 @@ def main():
 
     # create network based on input parameter's -
     my_net = Model(cnn_input_size, classNum, hidden_size, batch_size, sequence_size, kernel_size,
-                   stride_size, num_cnn_features, num_cnn_layers, fc_after_cnn_out_size)
+                   stride_size, num_cnn_features, num_cnn_layers, fc_after_cnn_out_size, cnn_dimention)
     for i in range(sequence_size):
         my_net.cnn.append(my_net.create_cnn())
         my_net.fc_after_cnn.append(my_net.create_fc_after_cnn(num_cnn_features*cnn_dimention*cnn_dimention, fc_after_cnn_out_size))
@@ -255,47 +268,103 @@ def main():
     data_train = dataInput[:, :, 0:num_train]
     data_test  = dataInput[:, :, num_train:]
 
-    dataset_uber_train = DataSetCnn_LSTM(data_train, sequence_size, cnn_dimention)
-    dataset_uber_test  = DataSetCnn_LSTM(data_test, sequence_size, cnn_dimention)
+    dataset_uber_train = DataSetCnn_LSTM_BatchMode(data_train, sequence_size, cnn_dimention)
+    dataset_uber_test  = DataSetCnn_LSTM_BatchMode(data_test, sequence_size, cnn_dimention)
 
     # creating data loader
     dataloader_uber_train = data.DataLoader(dataset=dataset_uber_train, batch_size=batch_size, shuffle=True)
-    dataloader_uber_test  = data.DataLoader(dataset=dataset_uber_test, batch_size=batch_size, shuffle=False)
-
+    dataloader_uber_test  = data.DataLoader(dataset=dataset_uber_test , batch_size=batch_size, shuffle=False)
+    num_iters = 2
+    M         = 25
     for numEpoch in range(num_epochs):
         my_net.loss = None
         # for each epoch, calculate loss for each batch -
         my_net.train()
-        localLoss = [0]
+        localLoss = [2]
         accTrain = [0]
+        rmseTrain = [1]
         trainCorr = 0.0
         trainTot = 0.0
-        if (1+numEpoch)%20 == 0:
+        if (1+numEpoch)%10 == 0:
             if my_net.optimizer.param_groups[0]['lr']>0.001:
                 my_net.optimizer.param_groups[0]['lr'] = my_net.optimizer.param_groups[0]['lr']/2
             else:
                 my_net.optimizer.param_groups[0]['lr'] = 0.001
         print('lr is: %.6f' % my_net.optimizer.param_groups[0]['lr'])
+
+        # for i in range(num_iters):
+        #
+        #     my_net.optimizer.zero_grad()
+        #
+        #     for m in range(M):
+        #         (input, labels) = next(iter(dataloader_uber_train))
+        #         inputD = input.to(device)
+        #         labelsD = labels.to(device)
+        #         # input is of size [batch_size, grid_id, seq_len, x_inputCnn, y_inputCnn]
+        #         inputVar = Variable(inputD).to(device)
+        #         labVar = Variable(labelsD).to(device)
+        #         # reset gradient
+        #         # my_net.optimizer.zero_grad()
+        #         # forward
+        #         labTrain = torch.tensor([]).to(device)
+        #         labTrain = labTrain.new_zeros(labVar.size())
+        #         batch_size = inputVar.size(0)
+        #         grid_size = inputVar.size(1)
+        #         inputVarFlat = inputVar.view(batch_size * grid_size, sequence_size, cnn_dimention, cnn_dimention)
+        #
+        #         netOut = my_net.forward(inputVarFlat)  # output of network forward is : [batch*grid id, class number]
+        #         _, labTrainTemp = torch.max(netOut.data, 1)  # output of max is : [batch*grid id]
+        #         netOut = netOut.view(batch_size, my_net.class_size, x_size,
+        #                              y_size)  # output after view is : [batch, class number, x, y]
+        #         labTrain = labTrainTemp.view_as(labTrain)  # output after view is : [batch, x, y]
+        #         my_net.calcLoss(netOut, labVar)
+        #         # backwards
+        #         my_net.backward()
+        #         # local loss function list
+        #         localLoss.append(my_net.loss.item())
+        #         # if isServerRun:
+        #         #     labTrain = labTrain.cpu()
+        #         if isServerRun:
+        #             labTrainNp = labTrain.type(torch.cuda.LongTensor).cpu().detach().numpy()
+        #             labelsNp = labels.cpu().detach().numpy()
+        #             trainCorr = torch.sum(
+        #                 labTrain.type(torch.cuda.LongTensor) == labels).cpu().detach().numpy() + trainCorr
+        #         else:
+        #             labTrainNp = labTrain.long().detach().numpy()
+        #             labelsNp = labels.detach().numpy()
+        #             trainCorr = torch.sum(labTrain.long() == labels).detach().numpy() + trainCorr
+        #         trainTot = labels.size(0) * labels.size(1) * labels.size(2) + trainTot
+        #         rmse = sqrt(metrics.mean_squared_error(labTrainNp.reshape(-1), labelsNp.reshape(-1)))
+        #         accTrain.append(100 * trainCorr / trainTot)
+        #         rmseTrain.append(rmse)
+        #     my_net.optimizer.step()
+        # accEpochTest, lossEpochTest, rmseEpochTest = my_net.test_spesific(testLoader=dataloader_uber_test)
+        # my_net.accVecTest.append(accEpochTest)
+        # my_net.lossVecTest.append(lossEpochTest)
+        # my_net.rmseVecTest.append(rmseEpochTest)
+        #
+
+
         for i, (input, labels) in enumerate(dataloader_uber_train):
             inputD = input.to(device)
             labelsD = labels.to(device)
-            my_net.loss = None
-            # create torch variables
-            # input is of size [batch_size, seq_len, x_inputCnn, y_inputCnn, grid_id]
+            # input is of size [batch_size, grid_id, seq_len, x_inputCnn, y_inputCnn]
             inputVar = Variable(inputD).to(device)
             labVar = Variable(labelsD).to(device)
             # reset gradient
-            my_net.optimizer.zero_grad()
+            # my_net.optimizer.zero_grad()
             # forward
-            k = 0
-            labTrain = torch.tensor([]).to(device)
-            labTrain = labTrain.new_zeros(labVar.size())
-            for x in range(x_size):
-                for y in range(y_size):  # calculate output for each grid_id
-                    netOut = my_net.forward(inputVar[:, :, :, :, k])
-                    _, labTrain[:, x, y] = torch.max(netOut.data, 1)
-                    my_net.calcLoss(netOut, labVar[:, x, y])
-                    k += 1
+            labTrain   = torch.tensor([]).to(device)
+            labTrain   = labTrain.new_zeros(labVar.size())
+            batch_size = inputVar.size(0)
+            grid_size  = inputVar.size(1)
+            inputVarFlat = inputVar.view(batch_size*grid_size, sequence_size, cnn_dimention, cnn_dimention)
+
+            netOut     = my_net.forward(inputVarFlat)  # output of network forward is : [batch*grid id, class number]
+            _, labTrainTemp = torch.max(netOut.data, 1)  # output of max is : [batch*grid id]
+            netOut = netOut.view(batch_size, my_net.class_size, x_size, y_size) # output after view is : [batch, class number, x, y]
+            labTrain = labTrainTemp.view_as(labTrain)  # output after view is : [batch, x, y]
+            my_net.calcLoss(netOut, labVar)
             # backwards
             my_net.backward()
             # optimizer step
@@ -305,17 +374,23 @@ def main():
             # if isServerRun:
             #     labTrain = labTrain.cpu()
             if isServerRun:
+                labTrainNp = labTrain.type(torch.cuda.LongTensor).cpu().detach().numpy()
+                labelsNp = labels.cpu().detach().numpy()
                 trainCorr = torch.sum(labTrain.type(torch.cuda.LongTensor) == labels).cpu().detach().numpy() + trainCorr
             else:
+                labTrainNp = labTrain.long().detach().numpy()
+                labelsNp = labels.detach().numpy()
                 trainCorr = torch.sum(labTrain.long() == labels).detach().numpy() + trainCorr
             trainTot = labels.size(0) * labels.size(1) * labels.size(2) + trainTot
+            rmse = sqrt(metrics.mean_squared_error(labTrainNp.reshape(-1), labelsNp.reshape(-1)))
             accTrain.append(100 * trainCorr / trainTot)
+            rmseTrain.append(rmse)
             # output current state
             if (i + 1) % 1 == 0:
-                print('Epoch: [%d/%d], Step: [%d/%d], Loss: %.4f, Acc: %.4f'
+                print('Epoch: [%d/%d], Step: [%d/%d], Loss: %.4f, Acc: %.4f, RMSE: %.4f'
                       % (numEpoch + 1, my_net.maxEpochs, i + 1,
                          dataloader_uber_train.dataset.data.shape[2] // dataloader_uber_train.batch_size,
-                         my_net.loss.item(), accTrain[-1]))
+                         my_net.loss.item(), accTrain[-1], rmseTrain[-1]))
             if (accTrain[-1]<= np.max(np.array(accTrain[0:-1]))) and flag_save_network:
                 pickle.dump(my_net, open("gridSize"+str(xmax - xmin)+"_epoch"+str(numEpoch)+"_batch"+str(i)+ ".pkl", 'wb'))
                 my_net.saveModel("gridSize"+str(xmax - xmin)+"_epoch"+str(numEpoch)+"_batch"+str(i) + "_torch.pkl")
@@ -324,16 +399,19 @@ def main():
                 np.save(networkStr + "_oArrBatch.npy", outArray)
         my_net.lossVecTrain.append(np.average(localLoss))
         my_net.accVecTrain.append(np.average(accTrain))
+        my_net.rmseVecTrain.append(np.average(rmseTrain))
         # test network for each epoch stage
-        accEpochTest, lossEpochTest = my_net.test_spesific(testLoader=dataloader_uber_test)
+        accEpochTest, lossEpochTest, rmseEpochTest = my_net.test_spesific(testLoader=dataloader_uber_test)
         my_net.accVecTest.append(accEpochTest)
         my_net.lossVecTest.append(lossEpochTest)
+        my_net.rmseVecTest.append(rmseEpochTest)
         if (flag_save_network):
             outArray = np.stack([np.array(my_net.lossVecTest), np.array(my_net.lossVecTrain),
                                  np.array(my_net.accVecTest), np.array(my_net.accVecTrain)])
-            np.save("gridSize"+str(xmax - xmin)+"_epoch"+str(numEpoch) + "_oArrEpoch.npy", outArray)
+            np.save(networkStr + "_oArrBatch.npy", outArray)
     my_net.finalAcc = accEpochTest
-    my_net.finalLoss = np.average(localLoss)
+    my_net.finalLoss = lossEpochTest
+    my_net.finalRmse = rmseEpochTest
     endTime = time.process_time()
 
     return

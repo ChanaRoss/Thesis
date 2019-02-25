@@ -1,6 +1,7 @@
 import numpy as np
 from matplotlib import  pyplot as plt
-
+from sklearn import metrics
+from math import sqrt
 import seaborn as sns
 sns.set()
 
@@ -81,18 +82,25 @@ def main():
     dataInputProb = dataInputProb[xmin:xmax, ymin:ymax, :, :]
     accuracy = []
     accuracy1 = []
+    rmse = []
     for i in range(300):
         start_time = np.random.randint(10, dataInputProb.shape[2]-10)
         realMatOut, distMatOut = getBenchmarkAccuracy(start_time, 5, dataInputReal, dataInputProb)
+        rmse.append(sqrt(metrics.mean_squared_error(realMatOut.reshape(-1), distMatOut.reshape(-1))))
         accuracy.append(np.sum(realMatOut == distMatOut)/(realMatOut.shape[0]*realMatOut.shape[1]))
         realMatOut[realMatOut > 1] = 1
         distMatOut[distMatOut > 1] = 1
         accuracy1.append(np.sum(np.sum(realMatOut == distMatOut)/(realMatOut.shape[0]*realMatOut.shape[1])))
-    plt.scatter(range(len(accuracy)), np.array(accuracy))
-    plt.grid()
+    plt.scatter(range(len(accuracy)), 100*np.array(accuracy))
+    plt.xlabel('run number [#]')
+    plt.ylabel('accuracy [%]')
     plt.figure()
-    plt.scatter(range(len(accuracy1)), np.array(accuracy1))
-    plt.grid()
+    plt.scatter(range(len(rmse)), np.array(rmse))
+    plt.xlabel('run number [#]')
+    plt.ylabel('RMSE')
+    plt.figure()
+    plt.scatter(range(len(accuracy1)), 100*np.array(accuracy1))
+    print("average RMSE for 300 runs is:"+str(np.mean(np.array(rmse))))
     print("average accuracy for 300 runs is:"+str(np.mean(np.array(accuracy))))
     print("average corrected accuracy for 300 runs is:" + str(np.mean(np.array(accuracy1))))
 

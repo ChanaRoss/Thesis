@@ -7,7 +7,8 @@ from torch.autograd import Variable
 import numpy as np
 from matplotlib import pyplot as plt
 import time, pickle, itertools
-
+from sklearn import metrics
+from math import sqrt
 import sys
 sys.path.insert(0, '/home/schanaby@st.technion.ac.il/thesisML/')
 from dataLoader_uber import DataSetCnn_LSTM
@@ -138,6 +139,7 @@ class Model(nn.Module):
         testTot = 0.0
         localLossTest = []
         localAccTest = []
+        localRmseTest = []
         for inputs, labels in testLoader:
             inputs = inputs.to(device)
             labels = labels.to(device)
@@ -158,19 +160,22 @@ class Model(nn.Module):
             # self.backward(testOut, labVar)
             localLossTest.append(self.loss.item())
             if isServerRun:
-                print("corrected number is:"+str(torch.sum(labTest.type(torch.cuda.LongTensor) == labels).cpu().detach().numpy()))
+                labTestNp = labTest.type(torch.cuda.LongTensor).cpu().detach().numpy()
+                labelsNp = labels.cpu().detach().numpy()
                 testCorr = torch.sum(labTest.type(torch.cuda.LongTensor) == labels).cpu().detach().numpy() + testCorr
             else:
+                labTestNp = labTest.long().detach().numpy()
+                labelsNp = labels.detach().numpy()
                 testCorr = torch.sum(labTest.long() == labels).detach().numpy() + testCorr
-            print("current label size is:"+str(labels.size(0) * labels.size(1) * labels.size(2)))
             testTot = labels.size(0) * labels.size(1) * labels.size(2) + testTot
+            rmse = sqrt(metrics.mean_squared_error(labTestNp.reshape(-1), labelsNp.reshape(-1)))
             localAccTest.append(100 * testCorr / testTot)
-            print("num test tot:"+str(testTot))
-            print("num corrected test :"+str(testCorr))
+            localRmseTest.append(rmse)
         accTest = np.average(localAccTest)
         lossTest = np.average(localLossTest)
-        print("test accuarcy is: {0}".format(accTest))
-        return accTest, lossTest
+        rmseTest = np.average(localRmseTest)
+        print("test accuarcy is: {0}, rmse is: {1}".format(accTest, rmseTest))
+        return accTest, lossTest, rmseTest
 
         # save network
 
@@ -266,8 +271,9 @@ def main():
         my_net.loss = None
         # for each epoch, calculate loss for each batch -
         my_net.train()
-        localLoss = [0]
+        localLoss = [4]
         accTrain = [0]
+        rmseTrain = [1]
         trainCorr = 0.0
         trainTot = 0.0
         if (1+numEpoch)%20 == 0:
@@ -295,9 +301,9 @@ def main():
                     netOut = my_net.forward(inputVar[:, :, :, :, k])
                     _, labTrain[:, x, y] = torch.max(netOut.data, 1)
                     my_net.calcLoss(netOut, labVar[:, x, y])
+                    # backwards
+                    my_net.backward()
                     k += 1
-            # backwards
-            my_net.backward()
             # optimizer step
             my_net.optimizer.step()
             # local loss function list
@@ -305,40 +311,50 @@ def main():
             # if isServerRun:
             #     labTrain = labTrain.cpu()
             if isServerRun:
+                labTrainNp = labTrain.type(torch.cuda.LongTensor).cpu().detach().numpy()
+                labelsNp = labels.cpu().detach().numpy()
                 trainCorr = torch.sum(labTrain.type(torch.cuda.LongTensor) == labels).cpu().detach().numpy() + trainCorr
             else:
+                labTrainNp = labTrain.long().detach().numpy()
+                labelsNp = labels.detach().numpy()
                 trainCorr = torch.sum(labTrain.long() == labels).detach().numpy() + trainCorr
             trainTot = labels.size(0) * labels.size(1) * labels.size(2) + trainTot
+            rmse = sqrt(metrics.mean_squared_error(labTrainNp.reshape(-1), labelsNp.reshape(-1)))
             accTrain.append(100 * trainCorr / trainTot)
+            rmseTrain.append(rmse)
             # output current state
             if (i + 1) % 1 == 0:
-                print('Epoch: [%d/%d], Step: [%d/%d], Loss: %.4f, Acc: %.4f'
+                print('Epoch: [%d/%d], Step: [%d/%d], Loss: %.4f, Acc: %.4f, RMSE: %.4f'
                       % (numEpoch + 1, my_net.maxEpochs, i + 1,
                          dataloader_uber_train.dataset.data.shape[2] // dataloader_uber_train.batch_size,
-                         my_net.loss.item(), accTrain[-1]))
-            if (accTrain[-1]<= np.max(np.array(accTrain[0:-1]))) and flag_save_network:
-                pickle.dump(my_net, open("gridSize"+str(xmax - xmin)+"_epoch"+str(numEpoch)+"_batch"+str(i)+ ".pkl", 'wb'))
-                my_net.saveModel("gridSize"+str(xmax - xmin)+"_epoch"+str(numEpoch)+"_batch"+str(i) + "_torch.pkl")
-                networkStr = "gridSize"+str(xmax - xmin)+"_epoch"+str(numEpoch)+"_batch"+str(i)
+                         my_net.loss.item(), accTrain[-1], rmseTrain[-1]))
+            if (accTrain[-1] <= np.max(np.array(accTrain[0:-1]))) and flag_save_network:
+                pickle.dump(my_net,
+                            open("gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch) + "_batch" + str(i) + ".pkl",
+                                 'wb'))
+                my_net.saveModel(
+                    "gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch) + "_batch" + str(i) + "_torch.pkl")
+                networkStr = "gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch) + "_batch" + str(i)
                 outArray = np.stack([np.array(localLoss), np.array(accTrain)])
                 np.save(networkStr + "_oArrBatch.npy", outArray)
         my_net.lossVecTrain.append(np.average(localLoss))
         my_net.accVecTrain.append(np.average(accTrain))
+        my_net.rmseVecTrain.append(np.average(rmseTrain))
         # test network for each epoch stage
-        accEpochTest, lossEpochTest = my_net.test_spesific(testLoader=dataloader_uber_test)
+        accEpochTest, lossEpochTest, rmseEpochTest = my_net.test_spesific(testLoader=dataloader_uber_test)
         my_net.accVecTest.append(accEpochTest)
         my_net.lossVecTest.append(lossEpochTest)
+        my_net.rmseVecTest.append(rmseEpochTest)
         if (flag_save_network):
             outArray = np.stack([np.array(my_net.lossVecTest), np.array(my_net.lossVecTrain),
                                  np.array(my_net.accVecTest), np.array(my_net.accVecTrain)])
-            np.save("gridSize"+str(xmax - xmin)+"_epoch"+str(numEpoch) + "_oArrEpoch.npy", outArray)
+            np.save(networkStr + "_oArrBatch.npy", outArray)
     my_net.finalAcc = accEpochTest
-    my_net.finalLoss = np.average(localLoss)
+    my_net.finalLoss = lossEpochTest
+    my_net.finalRmse = rmseEpochTest
     endTime = time.process_time()
 
     return
-
-
 
 
 if __name__ == '__main__':

@@ -126,7 +126,7 @@ class DataSetCnn_LSTM:
             temp = self.data[item - self.lenSeqIn:item, :, :]
         else:
             temp[self.lenSeqIn - item:, :, :] = self.data[0:item, :, :]
-        temp2 = np.zeros(shape=(self.lenSeqIn, self.sizeCnn , self.sizeCnn, self.lengthX*self.lengthY))
+        temp2 = np.zeros(shape=(self.lenSeqIn, self.sizeCnn, self.sizeCnn, self.lengthX*self.lengthY))
         tempPadded = np.zeros(shape=(temp.shape[0], temp.shape[1]+self.sizeCnn, temp.shape[2]+self.sizeCnn))
         tempPadded[:, self.sizeCnn: self.sizeCnn + temp.shape[1],  self.sizeCnn : self.sizeCnn + temp.shape[2]] = temp
         k = 0
@@ -162,6 +162,64 @@ class DataSetCnn_LSTM:
         else:
             xTensor = torch.Tensor(xArr)
             yTensor = torch.Tensor(yArr).type(torch.long)
+        return xTensor, yTensor
+
+    def __len__(self):
+        return self.data.shape[0]
+
+class DataSetCnn_LSTM_BatchMode:
+    def __init__(self, dataIn, lenSeqIn, sizeCnn):
+        self.lengthX = dataIn.shape[0]
+        self.lengthY = dataIn.shape[1]
+        self.lengthT = dataIn.shape[2]
+        self.sizeCnn = sizeCnn
+        self.data = dataIn.reshape(self.lengthT, self.lengthX, self.lengthY)
+        self.lenSeqIn = lenSeqIn
+
+    def __getitem__(self, item):
+        temp = np.zeros(shape=(self.lenSeqIn, self.data.shape[1], self.data.shape[2]))
+        if (item - self.lenSeqIn > 0):
+            temp = self.data[item - self.lenSeqIn:item, :, :]
+        else:
+            temp[self.lenSeqIn - item:, :, :] = self.data[0:item, :, :]
+        temp2 = np.zeros(shape=(self.lengthX*self.lengthY, self.lenSeqIn, self.sizeCnn, self.sizeCnn))
+        tempPadded = np.zeros(shape=(temp.shape[0], temp.shape[1]+self.sizeCnn, temp.shape[2]+self.sizeCnn))
+        tempPadded[:, self.sizeCnn: self.sizeCnn + temp.shape[1],  self.sizeCnn : self.sizeCnn + temp.shape[2]] = temp
+        k = 0
+        for i in range(self.lengthX):
+            for j in range(self.lengthY):
+                try:
+                    temp2[k, :, :, :] = tempPadded[:, i:i + self.sizeCnn, j: j+self.sizeCnn]
+                except:
+                    print("couldnt create input for cnn ")
+                k += 1
+        xArr = temp2
+        tempOut = np.zeros(shape=(self.lenSeqIn, self.data.shape[1], self.data.shape[2]))
+        try:
+
+            if (item + 1 <= self.data.shape[0]) and (item + 1 - self.lenSeqIn > 0):
+                tempOut = self.data[item + 1 - self.lenSeqIn: item + 1, :, :].reshape(self.lenSeqIn, self.data.shape[1], self.data.shape[2])
+            elif (item + 1 <= self.data.shape[0]) and (item + 1 - self.lenSeqIn <= 0):
+                tempOut[self.lenSeqIn - item - 1:, :, :] = self.data[0:item + 1, :, :]
+            elif (item + 1 > self.data.shape[0]) and (item + 1 - self.lenSeqIn > 0):
+                tempOut[0:self.lenSeqIn - 1, :, :] = self.data[item + 1 - self.lenSeqIn: item, :, :]  # taking the last part of the sequence
+        except:
+            print('couldnt find correct output sequence!!!')
+
+        try:
+            yArr = tempOut[-1, :, :]
+        except:
+            print("couldnt take last value of time sequence for output!!!")
+
+
+        if torch.cuda.is_available():
+            xTensor = torch.Tensor(xArr).cuda()
+            yTensor = torch.Tensor(yArr).type(torch.cuda.LongTensor)
+        else:
+            xTensor = torch.Tensor(xArr)
+            yTensor = torch.Tensor(yArr).type(torch.long)
+        # xTensor is of shape: [grid id, seq, x_cnn, y_cnn]
+        # yTensor is of shape: [grid x, grid y]
         return xTensor, yTensor
 
     def __len__(self):

@@ -22,12 +22,12 @@ def createEventDistributionUber(startTime, endTime, probabilityMatrix, eventTime
                     eventPos.append(np.array([x, y]))
                     eventTimes.append(t + firstTime)
 
-    # for t in np.unique(np.array(eventTimes)):
-    #     tempEventPos = [eventPos[i] for i in range(len(eventTimes)) if eventTimes[i] == t]
-    #     for x, y in tempEventPos:
-    #         plt.scatter(x, y)
-    #         plt.text(x, y, 't=' + str(t))
-    # plt.show()
+    for t in np.unique(np.array(eventTimes)):
+        tempEventPos = [eventPos[i] for i in range(len(eventTimes)) if eventTimes[i] == t]
+        for x, y in tempEventPos:
+            plt.scatter(x, y)
+            plt.text(x, y, 't=' + str(t))
+    plt.show()
     eventsPos = np.array(eventPos)
     eventTimes = np.array(eventTimes)
     eventsTimeWindow = np.column_stack([eventTimes, eventTimes + eventTimeWindow])
