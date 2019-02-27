@@ -67,6 +67,7 @@ def getBenchmarkAccuracy(start_time, seq_len, realMat, probMat):
 
 def main():
     # data loader -
+    data = np.load( '/home/chanaby/Documents/dev/Thesis/MachineLearning/forGPU/3D_UpdatedGrid_5min_250Grid_LimitedEventsMat_allData.p')
     path = '/Users/chanaross/dev/Thesis/UberData/'
     fileNameReal = '3D_UpdatedGrid_5min_250Grid_LimitedEventsMat_allData.p'
     fileNameDist = '4D_UpdatedGrid_5min_250Grid_LimitedProbability_CDF_mat_allData_Benchmark.p'
@@ -74,6 +75,8 @@ def main():
     # data dist have values that are the probability of having k events at x,y,t
     dataInputReal = np.load(path + fileNameReal)  # matrix size is : [xsize , ysize, timeseq]
     dataInputProb = np.load(path + fileNameDist)  # matrix size is : [xsize , ysize, timeseq, probability for k events]
+
+
     xmin = 0
     xmax = 20
     ymin = 0

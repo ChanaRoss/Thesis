@@ -123,10 +123,6 @@ class Model(nn.Module):
 
     def calcLoss(self, outputs, labels):
         self.loss = self.lossCrit(outputs, labels)
-        # if self.loss is None:
-        #     self.loss = self.lossCrit(outputs, labels).item()
-        # else:
-        #     self.loss += self.lossCrit(outputs, labels).item()
 
     # creating backward propagation - calculating loss function result
     def backward(self):
@@ -151,8 +147,8 @@ class Model(nn.Module):
             localBatchSize = labels.shape[0]
             x_size = labels.shape[1]
             y_size = labels.shape[2]
-            testOut = torch.zeros([localBatchSize, self.class_size, x_size, y_size]).to(device)
-            labTest = torch.zeros([localBatchSize, x_size, y_size]).to(device)
+            testOut = torch.zeros((localBatchSize, self.class_size, x_size, y_size)).to(device)
+            labTest = torch.zeros((localBatchSize, x_size, y_size)).to(device)
             k = 0
             for x in range(x_size):
                 for y in range(y_size):  # calculate output for each grid_id
@@ -303,6 +299,7 @@ def main():
             k = 0
             labTrain = torch.tensor([]).to(device)
             labTrain = labTrain.new_zeros(labVar.size())
+            num_zero_mats = 0
             for x in range(x_size):
                 for y in range(y_size):  # calculate output for each grid_id
                     netOut = my_net.forward(inputVar[:, :, :, :, k])

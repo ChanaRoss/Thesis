@@ -14,7 +14,6 @@ def createDiff(data):
     return dataOut
 
 
-
 class DataSetUber:
     def __init__(self, dataIn, lenSeqIn, lenSeqOut):
         self.data = dataIn
@@ -44,7 +43,6 @@ class DataSetUber:
         return self.data.shape[1]
 
 
-
 class DataSetLstm:
     def __init__(self, dataIn, lenSeqIn):
         self.data = dataIn
@@ -72,8 +70,6 @@ class DataSetLstm:
 
     def __len__(self):
         return self.data.shape[1]
-
-
 
 
 class DataSetCnn:
@@ -110,6 +106,7 @@ class DataSetCnn:
 
     def __len__(self):
         return self.data.shape[0]
+
 
 class DataSetCnn_LSTM:
     def __init__(self, dataIn, lenSeqIn, sizeCnn):
@@ -166,6 +163,7 @@ class DataSetCnn_LSTM:
 
     def __len__(self):
         return self.data.shape[0]
+
 
 class DataSetCnn_LSTM_BatchMode:
     def __init__(self, dataIn, lenSeqIn, sizeCnn):
@@ -226,8 +224,89 @@ class DataSetCnn_LSTM_BatchMode:
         return self.data.shape[0]
 
 
+class DataSetCnn_LSTM_NonZero:
+    def __init__(self, dataIn, lenSeqIn, sizeCnn):
+        self.lengthX = dataIn.shape[0]
+        self.lengthY = dataIn.shape[1]
+        self.lengthT = dataIn.shape[2]
+        self.sizeCnn = sizeCnn
+        self.data = dataIn.reshape(self.lengthT, self.lengthX, self.lengthY)
+        self.lenSeqIn = lenSeqIn
+
+    def __getitem__(self, item):
+        temp = np.zeros(shape=(self.lenSeqIn, self.data.shape[1], self.data.shape[2]))
+        if (item - self.lenSeqIn > 0):
+            temp = self.data[item - self.lenSeqIn:item, :, :]
+        else:
+            temp[self.lenSeqIn - item:, :, :] = self.data[0:item, :, :]
+        tempPadded = np.zeros(shape=(temp.shape[0], temp.shape[1]+self.sizeCnn, temp.shape[2]+self.sizeCnn))
+        tempPadded[:, self.sizeCnn: self.sizeCnn + temp.shape[1],  self.sizeCnn : self.sizeCnn + temp.shape[2]] = temp
+        k = 0
+        # temp 2 is of size: [seq_len, size_cnn, size_cnn, grid_x*grid_y]
+        num_zero_mats = 0
+        x_index_output = []
+        y_index_output = []
+        input_matrix = []
+        x_indices = list(range(self.lengthX))
+        y_indices = list(range(self.lengthY))
+        np.random.shuffle(x_indices)
+        np.random.shuffle(y_indices)
+        max_num_indices = 30
+        for i in x_indices:
+            for j in y_indices:
+                try:
+                    mat_to_add = tempPadded[:, i:i + self.sizeCnn, j: j+self.sizeCnn]
+                    if k < max_num_indices:
+                        if np.sum(mat_to_add) != 0:  # if the sum is larger than zero than should add run no matter what
+                            input_matrix.append(mat_to_add)
+                            x_index_output.append(i)
+                            y_index_output.append(j)
+                            k += 1
+                        else:  # if the sum is zero than should add run only if within limit of max runs
+                            num_zero_mats += 1
+                            input_matrix.append(mat_to_add)
+                            x_index_output.append(i)
+                            y_index_output.append(j)
+                            k += 1
+                    else:
+                        break
+                except:
+                    print("couldnt create input for cnn ")
+
+        xArr = np.array(input_matrix).reshape([self.lenSeqIn, self.sizeCnn, self.sizeCnn, len(x_index_output)])
+        tempOut = np.zeros(shape=(self.lenSeqIn, self.data.shape[1], self.data.shape[2]))
+        # tempOut is output and size is: [seq_len, size_x , size_y]
+        try:
+
+            if (item + 1 <= self.data.shape[0]) and (item + 1 - self.lenSeqIn > 0):
+                tempOut = self.data[item + 1 - self.lenSeqIn: item + 1, :, :].reshape(self.lenSeqIn, self.data.shape[1], self.data.shape[2])
+            elif (item + 1 <= self.data.shape[0]) and (item + 1 - self.lenSeqIn <= 0):
+                tempOut[self.lenSeqIn - item - 1:, :, :] = self.data[0:item + 1, :, :]
+            elif (item + 1 > self.data.shape[0]) and (item + 1 - self.lenSeqIn > 0):
+                tempOut[0:self.lenSeqIn - 1, :, :] = self.data[item + 1 - self.lenSeqIn: item, :, :]  # taking the last part of the sequence
+        except:
+            print('couldnt find correct output sequence!!!')
+
+        try:
+            yArr = tempOut[-1, x_index_output, y_index_output]
+        except:
+            print("couldnt take last value of time sequence for output!!!")
+
+
+        if torch.cuda.is_available():
+            xTensor = torch.Tensor(xArr).cuda()
+            yTensor = torch.Tensor(yArr).type(torch.cuda.LongTensor)
+        else:
+            xTensor = torch.Tensor(xArr)
+            yTensor = torch.Tensor(yArr).type(torch.long)
+        return xTensor, yTensor
+
+    def __len__(self):
+        return self.data.shape[0]
+
+
 def main():
-    path = '/Users/chanaross/dev/Thesis/UberData/'
+    path = '/home/chanaby/Documents/dev/Thesis/MachineLearning/forGPU//'
     fileName  = '3D_UpdatedGrid_5min_250Grid_LimitedEventsMat_allData.p'
     dataInput = np.load(path + fileName)
     xmin = 0
@@ -241,7 +320,7 @@ def main():
     dataSize = dataInput.shape[2]
     num_train = int((1 - 0.2) * dataSize)
     data_train = dataInput[:, :, 0:num_train]
-    dataset_uber = DataSetCnn_LSTM(data_train, 5,  7)
+    dataset_uber = DataSetCnn_LSTM_NonZero(data_train, 5,  7)
     dataloader_uber = data.DataLoader(dataset=dataset_uber, batch_size=300, shuffle=True)
     # a = list(iter(dataset_uber))
 
