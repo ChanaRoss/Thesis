@@ -68,6 +68,8 @@ class Model(nn.Module):
         self.lossVecTest    = []
         self.accVecTrain    = []
         self.accVecTest     = []
+        self.rmseVecTrain   = []
+        self.rmseVecTest    = []
 
         self.cnn            = nn.ModuleList()
         self.fc_after_cnn   = nn.ModuleList()
@@ -146,10 +148,11 @@ class Model(nn.Module):
             inputVar = Variable(inputs)
             labVar = Variable(labels)
             # compute test result of model
+            localBatchSize = labels.shape[0]
             x_size = labels.shape[1]
             y_size = labels.shape[2]
-            testOut = torch.zeros([self.batch_size, self.class_size, x_size, y_size]).to(device)
-            labTest = torch.zeros([self.batch_size, x_size, y_size]).to(device)
+            testOut = torch.zeros([localBatchSize, self.class_size, x_size, y_size]).to(device)
+            labTest = torch.zeros([localBatchSize, x_size, y_size]).to(device)
             k = 0
             for x in range(x_size):
                 for y in range(y_size):  # calculate output for each grid_id
@@ -168,6 +171,7 @@ class Model(nn.Module):
                 labelsNp = labels.detach().numpy()
                 testCorr = torch.sum(labTest.long() == labels).detach().numpy() + testCorr
             testTot = labels.size(0) * labels.size(1) * labels.size(2) + testTot
+            print("labTest:"+str(labTestNp.size)+", lables:"+str(labelsNp.size))
             rmse = sqrt(metrics.mean_squared_error(labTestNp.reshape(-1), labelsNp.reshape(-1)))
             localAccTest.append(100 * testCorr / testTot)
             localRmseTest.append(rmse)
@@ -204,7 +208,7 @@ def main():
     ymin = 0
     ymax = dataInput.shape[1]
     zmin = 4000
-    zmax = 8001
+    zmax = 8000
     dataInput     = dataInput[xmin:xmax, ymin:ymax, zmin:zmax]  # shrink matrix size for fast training in order to test model
     # define important sizes for network -
     x_size        = dataInput.shape[0]
@@ -252,7 +256,10 @@ def main():
     numWeights = sum(param.numel() for param in my_net.parameters())
     print('number of parameters: ', numWeights)
     my_net.optimizer = CreateOptimizer(my_net.parameters(), ot, lr, dmp, mm, eps)
-    my_net.lossCrit  = nn.NLLLoss()
+    loss_weights = np.ones(classNum)
+    loss_weights[0] = 0.001
+    w = torch.tensor(list(loss_weights), dtype=torch.float).to(device)
+    my_net.lossCrit = nn.NLLLoss(weight=w)
     my_net.maxEpochs = num_epochs
 
 
