@@ -1,6 +1,6 @@
 # mathematical imports -
 import numpy as np
-
+from matplotlib import pyplot as plt
 # pytorch imports  -
 import torch
 import torch.utils.data as data
@@ -225,11 +225,12 @@ class DataSetCnn_LSTM_BatchMode:
 
 
 class DataSetCnn_LSTM_NonZero:
-    def __init__(self, dataIn, lenSeqIn, sizeCnn):
+    def __init__(self, dataIn, lenSeqIn, sizeCnn, max_to_add):
         self.lengthX = dataIn.shape[0]
         self.lengthY = dataIn.shape[1]
         self.lengthT = dataIn.shape[2]
         self.sizeCnn = sizeCnn
+        self.max_to_add = max_to_add
         self.data = dataIn.reshape(self.lengthT, self.lengthX, self.lengthY)
         self.lenSeqIn = lenSeqIn
 
@@ -241,57 +242,45 @@ class DataSetCnn_LSTM_NonZero:
             temp[self.lenSeqIn - item:, :, :] = self.data[0:item, :, :]
         tempPadded = np.zeros(shape=(temp.shape[0], temp.shape[1]+self.sizeCnn, temp.shape[2]+self.sizeCnn))
         tempPadded[:, self.sizeCnn: self.sizeCnn + temp.shape[1],  self.sizeCnn : self.sizeCnn + temp.shape[2]] = temp
+        # full_input_matrix is of size: [seq_len, size_cnn, size_cnn, grid_x*grid_y]
+        # creating input to cnn network for each grid point -
+        full_input_matrix   = np.zeros(shape=(self.lenSeqIn, self.sizeCnn, self.sizeCnn, self.lengthX*self.lengthY))
+        actual_input_matrix = np.zeros(shape=(self.lenSeqIn, self.sizeCnn, self.sizeCnn, self.max_to_add))
         k = 0
-        # temp 2 is of size: [seq_len, size_cnn, size_cnn, grid_x*grid_y]
-        num_zero_mats = 0
-        x_index_output = []
-        y_index_output = []
-        input_matrix = []
-        x_indices = list(range(self.lengthX))
-        y_indices = list(range(self.lengthY))
-        np.random.shuffle(x_indices)
-        np.random.shuffle(y_indices)
-        max_num_indices = 30
-        for i in x_indices:
-            for j in y_indices:
-                try:
-                    mat_to_add = tempPadded[:, i:i + self.sizeCnn, j: j+self.sizeCnn]
-                    if k < max_num_indices:
-                        if np.sum(mat_to_add) != 0:  # if the sum is larger than zero than should add run no matter what
-                            input_matrix.append(mat_to_add)
-                            x_index_output.append(i)
-                            y_index_output.append(j)
-                            k += 1
-                        else:  # if the sum is zero than should add run only if within limit of max runs
-                            num_zero_mats += 1
-                            input_matrix.append(mat_to_add)
-                            x_index_output.append(i)
-                            y_index_output.append(j)
-                            k += 1
-                    else:
-                        break
-                except:
-                    print("couldnt create input for cnn ")
+        x_indices = np.zeros(shape=(self.lengthY*self.lengthX))
+        y_indices = np.zeros(shape=(self.lengthY*self.lengthX))
+        for i in range(self.lengthX):
+            for j in range(self.lengthY):
+                mat_to_add = tempPadded[:, i:i + self.sizeCnn, j: j+self.sizeCnn]
+                full_input_matrix[:, :, :, k] = mat_to_add
+                x_indices[k] = i
+                y_indices[k] = j
+                k += 1
 
-        xArr = np.array(input_matrix).reshape([self.lenSeqIn, self.sizeCnn, self.sizeCnn, len(x_index_output)])
-        tempOut = np.zeros(shape=(self.lenSeqIn, self.data.shape[1], self.data.shape[2]))
-        # tempOut is output and size is: [seq_len, size_x , size_y]
-        try:
+        # choosing most relevant cnn inputs-
+        non_zero_indices = np.where(np.sum(full_input_matrix[-1, :, :, :], axis=(0, 1)) != 0)[0]
+        zero_indices     = np.where(np.sum(full_input_matrix[-1, :, :, :], axis=(0, 1)) == 0)[0]
+        if non_zero_indices.shape[0] > self.max_to_add:
+            np.random.shuffle(non_zero_indices)
+            actual_input_matrix = full_input_matrix[:, :, :, non_zero_indices[0:self.max_to_add]]
+            x_index_output = x_indices[non_zero_indices[0:self.max_to_add]].astype(int)
+            y_index_output = y_indices[non_zero_indices[0:self.max_to_add]].astype(int)
+        else:
+            np.random.shuffle(non_zero_indices)
+            np.random.shuffle(zero_indices)
+            actual_input_matrix[:, :, :, 0:non_zero_indices.shape[0]]   = full_input_matrix[:, :, :, non_zero_indices]
+            num_zeros_to_add = self.max_to_add - non_zero_indices.shape[0]
+            actual_input_matrix[:, :, :, non_zero_indices.shape[0]:] = full_input_matrix[:, :, :, zero_indices[0:num_zeros_to_add]]
+            x_index_output = x_indices[np.concatenate([non_zero_indices[0:self.max_to_add], zero_indices[0:num_zeros_to_add]])].astype(int)
+            y_index_output = y_indices[np.concatenate([non_zero_indices[0:self.max_to_add], zero_indices[0:num_zeros_to_add]])].astype(int)
 
-            if (item + 1 <= self.data.shape[0]) and (item + 1 - self.lenSeqIn > 0):
-                tempOut = self.data[item + 1 - self.lenSeqIn: item + 1, :, :].reshape(self.lenSeqIn, self.data.shape[1], self.data.shape[2])
-            elif (item + 1 <= self.data.shape[0]) and (item + 1 - self.lenSeqIn <= 0):
-                tempOut[self.lenSeqIn - item - 1:, :, :] = self.data[0:item + 1, :, :]
-            elif (item + 1 > self.data.shape[0]) and (item + 1 - self.lenSeqIn > 0):
-                tempOut[0:self.lenSeqIn - 1, :, :] = self.data[item + 1 - self.lenSeqIn: item, :, :]  # taking the last part of the sequence
-        except:
-            print('couldnt find correct output sequence!!!')
+        xArr = actual_input_matrix
+        tempOut = np.zeros(self.max_to_add)
+        for i in range(self.max_to_add):
+            if item+1<self.lengthT:
+                tempOut[i] = self.data[item+1, x_index_output[i], y_index_output[i]]
 
-        try:
-            yArr = tempOut[-1, x_index_output, y_index_output]
-        except:
-            print("couldnt take last value of time sequence for output!!!")
-
+        yArr = tempOut
 
         if torch.cuda.is_available():
             xTensor = torch.Tensor(xArr).cuda()
@@ -306,21 +295,22 @@ class DataSetCnn_LSTM_NonZero:
 
 
 def main():
-    path = '/home/chanaby/Documents/dev/Thesis/MachineLearning/forGPU//'
+    # path = '/home/chanaby/Documents/dev/Thesis/MachineLearning/forGPU/'
+    path = '/Users/chanaross/dev/Thesis/UberData/'
     fileName  = '3D_UpdatedGrid_5min_250Grid_LimitedEventsMat_allData.p'
     dataInput = np.load(path + fileName)
     xmin = 0
     xmax = 20
     ymin = 0
     ymax = 20
-    dataInput = dataInput[xmin:xmax, ymin:ymax, :]  # shrink matrix size for fast training in order to test model
+    dataInput = dataInput[xmin:xmax, ymin:ymax, 16000:32000]  #  shrink matrix size for fast training in order to test model
     # define important sizes for network -
     x_size = dataInput.shape[0]
     y_size = dataInput.shape[1]
     dataSize = dataInput.shape[2]
     num_train = int((1 - 0.2) * dataSize)
     data_train = dataInput[:, :, 0:num_train]
-    dataset_uber = DataSetCnn_LSTM_NonZero(data_train, 5,  7)
+    dataset_uber = DataSetCnn_LSTM_NonZero(data_train, 5, 7, 40)
     dataloader_uber = data.DataLoader(dataset=dataset_uber, batch_size=300, shuffle=True)
     # a = list(iter(dataset_uber))
 
