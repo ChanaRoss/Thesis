@@ -10,8 +10,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import os
 import sys
-sys.path.insert(0, '/home/chanaby/Documents/dev/Thesis/MachineLearning/forGPU/')
-from CNN_LSTM_NeuralNet_LimitZerosV1 import Model
+sys.path.insert(0, '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/')
+from CNN_LSTM_NeuralNet_LimitZerosV2 import Model
 
 
 # matplotlib.use('Agg')  # allows it to operate on machines without graphical interface
@@ -51,8 +51,8 @@ filename = []
 # path.append('/home/chanaby/Documents/dev/Thesis/MachineLearning/forGPU/')
 # filename.append('gridSize20_epoch99_batch15_torch.pkl')
 
-path.append('/home/chanaby/Documents/dev/Thesis/MachineLearning/forGPU/limitedZero_w0p05_v2/')
-filename.append('gridSize20_epoch16_batch29_torch.pkl')
+path.append('/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/limitedZero_w0p05_v2/')
+filename.append('gridSize20_epoch99_batch4_torch.pkl')
 
 
 # sequence_size = 5  # length of sequence for lstm network

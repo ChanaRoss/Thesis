@@ -241,7 +241,8 @@ class DataSetCnn_LSTM_NonZero:
         else:
             temp[self.lenSeqIn - item:, :, :] = self.data[0:item, :, :]
         tempPadded = np.zeros(shape=(temp.shape[0], temp.shape[1]+self.sizeCnn, temp.shape[2]+self.sizeCnn))
-        tempPadded[:, self.sizeCnn: self.sizeCnn + temp.shape[1],  self.sizeCnn : self.sizeCnn + temp.shape[2]] = temp
+        padding_loc = np.floor_divide(self.sizeCnn,2)
+        tempPadded[:, padding_loc: padding_loc + temp.shape[1], padding_loc: padding_loc + temp.shape[2]] = temp
         # full_input_matrix is of size: [seq_len, size_cnn, size_cnn, grid_x*grid_y]
         # creating input to cnn network for each grid point -
         full_input_matrix   = np.zeros(shape=(self.lenSeqIn, self.sizeCnn, self.sizeCnn, self.lengthX*self.lengthY))
@@ -260,7 +261,7 @@ class DataSetCnn_LSTM_NonZero:
         # choosing most relevant cnn inputs-
         non_zero_indices = np.where(np.sum(full_input_matrix[-1, :, :, :], axis=(0, 1)) != 0)[0]
         zero_indices     = np.where(np.sum(full_input_matrix[-1, :, :, :], axis=(0, 1)) == 0)[0]
-        if non_zero_indices.shape[0] > self.max_to_add:
+        if non_zero_indices.shape[0] >= self.max_to_add:
             np.random.shuffle(non_zero_indices)
             actual_input_matrix = full_input_matrix[:, :, :, non_zero_indices[0:self.max_to_add]]
             x_index_output = x_indices[non_zero_indices[0:self.max_to_add]].astype(int)
@@ -303,14 +304,16 @@ def main():
     xmax = 20
     ymin = 0
     ymax = 20
-    dataInput = dataInput[xmin:xmax, ymin:ymax, 16000:32000]  #  shrink matrix size for fast training in order to test model
+    # dataInput = dataInput[xmin:xmax, ymin:ymax, 16000:32000]  #  shrink matrix size for fast training in order to test model
+    dataInput = dataInput[8:10, 12:14, 16000:32000].reshape((2,2,32000-16000))  # shrink matrix size for fast training in order to test model
+
     # define important sizes for network -
     x_size = dataInput.shape[0]
     y_size = dataInput.shape[1]
     dataSize = dataInput.shape[2]
     num_train = int((1 - 0.2) * dataSize)
     data_train = dataInput[:, :, 0:num_train]
-    dataset_uber = DataSetCnn_LSTM_NonZero(data_train, 5, 7, 40)
+    dataset_uber = DataSetCnn_LSTM_NonZero(data_train, 10, 7, 4)
     dataloader_uber = data.DataLoader(dataset=dataset_uber, batch_size=300, shuffle=True)
     # a = list(iter(dataset_uber))
 

@@ -72,7 +72,7 @@ def createEventDistributionUber(previousEventMatrix, my_net, eventTimeWindow, st
     netEventOut = torch.zeros([out_seq, x_size, y_size])
     for seq in range(out_seq):
         tempEventMat = previousEventMatrix
-        input = getInputMatrixToNetwork(previousEventMatrix, 7)
+        input = getInputMatrixToNetwork(previousEventMatrix, 9)
         k = 0
         for x in range(x_size):
             for y in range(y_size):  # calculate output for each grid_id
@@ -109,20 +109,20 @@ def getPreviousEventMat(dataInputReal, start_time, in_seq_len = 5):
 
 
 def main():
-    network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/'
-    network_name = '30Min_gridSize21_epoch0_batch2_torch.pkl'
+    network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/limitedZero_w0p05_v2/'
+    network_name = 'gridSize20_epoch60_batch24_torch.pkl'
     data_path    = '/Users/chanaross/dev/Thesis/UberData/'
-    data_name    = '3D_UpdatedGrid_30min_250Grid_LimitedEventsMat_allData.p'
+    data_name    = '3D_UpdatedGrid_5min_250Grid_LimitedEventsMat_allData.p'
     dataInputReal     = np.load(data_path + data_name)
 
     my_net = torch.load(network_path + network_name, map_location=lambda storage, loc: storage)
     my_net.eval()
 
     xmin = 0
-    xmax = dataInputReal.shape[0]
+    xmax = 20
     ymin = 0
-    ymax = dataInputReal.shape[1]
-    dataInputReal = dataInputReal[xmin:xmax, ymin:ymax, :]  #shrink matrix size for fast training in order to test model
+    ymax = 40
+    dataInputReal = dataInputReal[xmin:xmax, ymin:ymax, 24000:32000]  #shrink matrix size for fast training in order to test model
     # reshape input data for network format -
     lengthT = dataInputReal.shape[2]
     lengthX = dataInputReal.shape[0]
@@ -134,7 +134,7 @@ def main():
     rmse      = []
     numEventsCreated   = []
     numEventsPredicted = []
-    for i in range(10):
+    for i in range(5):
         print("run num:"+str(i))
         start_time = np.random.randint(10, dataInputReal.shape[0] - 10)
         end_time   = start_time + 0
@@ -161,6 +161,7 @@ def main():
     plt.scatter(range(len(numEventsPredicted)), np.array(numEventsPredicted), label = "num predicted")
     plt.xlabel('run number [#]')
     plt.ylabel('num events created')
+    plt.legend()
     plt.figure()
     plt.scatter(range(len(accuracy1)), 100 * np.array(accuracy1))
     print("average RMSE for 300 runs is:" + str(np.mean(np.array(rmse))))
