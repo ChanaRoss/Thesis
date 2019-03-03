@@ -123,11 +123,11 @@ class Model(nn.Module):
         return out
 
     def calcLoss(self, outputs, labels):
-        # if self.loss is None:
-        #     self.loss = self.lossCrit(outputs, labels)
-        # else:
-        #     self.loss += self.lossCrit(outputs, labels).data
-        self.loss = self.lossCrit(outputs, labels)
+        if self.loss is None:
+            self.loss = self.lossCrit(outputs, labels)
+        else:
+            self.loss += self.lossCrit(outputs, labels).data
+        # self.loss = self.lossCrit(outputs, labels)
 
     # creating backward propagation - calculating loss function result
     def backward(self):
@@ -143,7 +143,7 @@ class Model(nn.Module):
         localLossTest = []
         localAccTest = []
         localRmseTest = []
-        # self.loss = None
+        self.loss = None
         for inputs, labels in testLoader:
             inputs = inputs.to(device)
             labels = labels.to(device)
@@ -169,7 +169,7 @@ class Model(nn.Module):
                 labelsNp = labels.detach().numpy()
                 testCorr = torch.sum(labTest.long() == labels).detach().numpy() + testCorr
             testTot = labels.size(0) * labels.size(1) + testTot
-            print("labTest:"+str(labTestNp.size)+", lables:"+str(labelsNp.size))
+            # print("labTest:"+str(labTestNp.size)+", lables:"+str(labelsNp.size))
             rmse = sqrt(metrics.mean_squared_error(labTestNp.reshape(-1), labelsNp.reshape(-1)))
             localAccTest.append(100 * testCorr / testTot)
             localRmseTest.append(rmse)
@@ -231,7 +231,7 @@ def main():
     fc_after_cnn_out_size = 64
 
     # optimizer parameters -
-    lr  = 0.005
+    lr  = 0.001
     ot  = 1
     dmp = 0
     mm  = 0.9
@@ -275,7 +275,7 @@ def main():
     dataloader_uber_test  = data.DataLoader(dataset=dataset_uber_test, batch_size=batch_size, shuffle=False)
 
     for numEpoch in range(num_epochs):
-        # my_net.loss = None
+        my_net.loss = None
         # for each epoch, calculate loss for each batch -
         my_net.train()
         localLoss = [4]
@@ -283,8 +283,8 @@ def main():
         rmseTrain = [1]
         trainCorr = 0.0
         trainTot = 0.0
-        if (1+numEpoch)%20 == 0:
-            if my_net.optimizer.param_groups[0]['lr']>0.001:
+        if (1+numEpoch)%10 == 0:
+            if my_net.optimizer.param_groups[0]['lr']>0.0001:
                 my_net.optimizer.param_groups[0]['lr'] = my_net.optimizer.param_groups[0]['lr']/2
             else:
                 my_net.optimizer.param_groups[0]['lr'] = 0.001
@@ -292,7 +292,7 @@ def main():
         for i, (input, labels) in enumerate(dataloader_uber_train):
             inputD = input.to(device)
             labelsD = labels.to(device)
-            # my_net.loss = None
+            my_net.loss = None
             # create torch variables
             # input is of size [batch_size, seq_len, x_inputCnn, y_inputCnn, grid_id]
             inputVar = Variable(inputD).to(device)
@@ -307,8 +307,8 @@ def main():
                 netOut = my_net.forward(inputVar[:, :, :, :, k])
                 _, labTrain[:, k] = torch.max(torch.exp(netOut.data), 1)
                 my_net.calcLoss(netOut, labVar[:, k])
-                # backwards
-                my_net.backward()
+            # backwards
+            my_net.backward()
             # optimizer step
             my_net.optimizer.step()
             # local loss function list
@@ -333,15 +333,12 @@ def main():
                       % (numEpoch + 1, my_net.maxEpochs, i + 1,
                         dataloader_uber_train.batch_size,
                          my_net.loss.item(), accTrain[-1], rmseTrain[-1]))
-            if (accTrain[-1] > np.max(np.array(accTrain[0:-1]))) and flag_save_network:
-                pickle.dump(my_net,
-                            open("gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch) + "_batch" + str(i) + ".pkl",
-                                 'wb'))
-                my_net.saveModel(
-                    "gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch) + "_batch" + str(i) + "_torch.pkl")
-                networkStr = "gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch) + "_batch" + str(i)
-                outArray = np.stack([np.array(localLoss), np.array(accTrain)])
-                np.save(networkStr + "_oArrBatch.npy", outArray)
+                if ((localLoss[-1] > np.max(np.array(localLoss[0:-1]))) or (accTrain[-1] > np.max(np.array(accTrain[0:-1])))) and flag_save_network:
+                    pickle.dump(my_net, open("gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch) + "_batch" + str(i) + ".pkl", 'wb'))
+                    my_net.saveModel("gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch) + "_batch" + str(i) + "_torch.pkl")
+                    networkStr = "gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch) + "_batch" + str(i)
+                    outArray = np.stack([np.array(localLoss), np.array(accTrain)])
+                    np.save(networkStr + "_oArrBatch.npy", outArray)
         my_net.lossVecTrain.append(np.average(localLoss))
         my_net.accVecTrain.append(np.average(accTrain))
         my_net.rmseVecTrain.append(np.average(rmseTrain))
@@ -353,7 +350,7 @@ def main():
         if (flag_save_network):
             outArray = np.stack([np.array(my_net.lossVecTest), np.array(my_net.lossVecTrain),
                                  np.array(my_net.accVecTest), np.array(my_net.accVecTrain)])
-            np.save(networkStr + "_oArrBatch.npy", outArray)
+            np.save("gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch)  + "_oArrBatch.npy", outArray)
     my_net.finalAcc = accEpochTest
     my_net.finalLoss = lossEpochTest
     my_net.finalRmse = rmseEpochTest
