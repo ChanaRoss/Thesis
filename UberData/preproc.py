@@ -56,8 +56,11 @@ def main():
     # coordinate transformation and grid creation
     # transform picture to be straight with lat , lon (transformation angle is 36.1)
 
-    df['Lon'] = df['Lon'] * np.cos(36.1 * np.pi / 180) - df['Lat'] * np.sin(36.1 * np.pi / 180)
-    df['Lat'] = df['Lat'] * np.cos(36.1 * np.pi / 180) + df['Lon'] * np.sin(36.1 * np.pi / 180)
+    df['Fixed_Lon'] = df['Lon'] * np.cos(36.1 * np.pi / 180) - df['Lat'] * np.sin(36.1 * np.pi / 180)
+    df['Fixed_Lat'] = df['Lat'] * np.cos(36.1 * np.pi / 180) + df['Lon'] * np.sin(36.1 * np.pi / 180)
+
+    df['Lon'] = df['Fixed_Lon']
+    df['Lat'] = df['Fixed_Lat']
     # create list of tuples of long lat coordiantes
     longLatTupleList = zip(df['Lon'].tolist(), df['Lat'].tolist())
     # create list of tuples of x,y coordiantes
@@ -81,11 +84,11 @@ def main():
     df['grid_id'] = df['grid_x'] + df['grid_y']*maxXgrid
 
     # pickle data
-    df.to_pickle(dataPath.replace('.csv', 'updated_Gridpickle250.p'))
-    with open (dataPath.replace('.csv', 'updated_Gridpickle250.p'), 'wb') as op:
+    df.to_pickle(dataPath.replace('.csv', 'LatLonCorrected_Gridpickle250.p'))
+    with open (dataPath.replace('.csv', 'LatLonCorrected__Gridpickle250.p'), 'wb') as op:
         pickle.dump(df,op)
 
-    df.to_csv(dataPath.replace('.csv', 'updatedGridXY2.csv'))
+    df.to_csv(dataPath.replace('.csv', 'LatLonCorrected_GridXY2.csv'))
     return
 
 if __name__=='__main__':

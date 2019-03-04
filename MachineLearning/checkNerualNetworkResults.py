@@ -11,7 +11,7 @@ import torch
 import os
 import sys
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/')
-from CNN_LSTM_NeuralNetOrigV2 import Model
+from CNN_LSTM_NeuralNet_LimitZerosV2 import Model
 
 
 def createRealEventsUberML_network(eventMatrix, startTime, endTime):
@@ -32,7 +32,8 @@ def getInputMatrixToNetwork(previousMat, sizeCnn):
     lengthY = previousMat.shape[2]
     temp2 = np.zeros(shape=(1, lenSeqIn, sizeCnn, sizeCnn, lengthX * lengthY))
     tempPadded = np.zeros(shape=(lenSeqIn, lengthX + sizeCnn, lengthY + sizeCnn))
-    tempPadded[:, sizeCnn: sizeCnn + lengthX, sizeCnn: sizeCnn + lengthY] = previousMat
+    padding_size = np.floor_divide(sizeCnn, 2)
+    tempPadded[:, padding_size: padding_size + lengthX, padding_size: padding_size + lengthY] = previousMat
     k = 0
     for i in range(lengthX):
         for j in range(lengthY):
@@ -72,7 +73,7 @@ def createEventDistributionUber(previousEventMatrix, my_net, eventTimeWindow, st
     netEventOut = torch.zeros([out_seq, x_size, y_size])
     for seq in range(out_seq):
         tempEventMat = previousEventMatrix
-        input = getInputMatrixToNetwork(previousEventMatrix, 9)
+        input = getInputMatrixToNetwork(previousEventMatrix, my_net.cnn_input_dimension)
         k = 0
         for x in range(x_size):
             for y in range(y_size):  # calculate output for each grid_id
@@ -99,8 +100,8 @@ def createEventDistributionUber(previousEventMatrix, my_net, eventTimeWindow, st
     return eventsPos, eventsTimeWindow, netEventOut.detach().numpy()
 
 def getPreviousEventMat(dataInputReal, start_time, in_seq_len = 5):
-    lastPreviousTime = start_time - 1
-    previousEventMatrix = np.zeros(shape=(5, dataInputReal.shape[1], dataInputReal.shape[2]))
+    lastPreviousTime = start_time
+    previousEventMatrix = np.zeros(shape=(in_seq_len, dataInputReal.shape[1], dataInputReal.shape[2]))
     if lastPreviousTime - in_seq_len >= 0:  # there are enough previous events known to system
         previousEventMatrix = dataInputReal[lastPreviousTime-in_seq_len:lastPreviousTime, :, :]
     else: # need to pad results
@@ -109,8 +110,8 @@ def getPreviousEventMat(dataInputReal, start_time, in_seq_len = 5):
 
 
 def main():
-    network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/limitedZero_w0p05_v2/'
-    network_name = 'gridSize20_epoch60_batch24_torch.pkl'
+    network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/limitedZero_V3/'
+    network_name = 'gridSize20_epoch0_batch9_torch.pkl'
     data_path    = '/Users/chanaross/dev/Thesis/UberData/'
     data_name    = '3D_UpdatedGrid_5min_250Grid_LimitedEventsMat_allData.p'
     dataInputReal     = np.load(data_path + data_name)
@@ -118,11 +119,11 @@ def main():
     my_net = torch.load(network_path + network_name, map_location=lambda storage, loc: storage)
     my_net.eval()
 
-    xmin = 0
-    xmax = 20
-    ymin = 0
-    ymax = 40
-    dataInputReal = dataInputReal[xmin:xmax, ymin:ymax, 24000:32000]  #shrink matrix size for fast training in order to test model
+    xmin = 8
+    xmax = 16
+    ymin = 12
+    ymax = 20
+    dataInputReal = dataInputReal[xmin:xmax, ymin:ymax, 16000:24000]  #shrink matrix size for fast training in order to test model
     # reshape input data for network format -
     lengthT = dataInputReal.shape[2]
     lengthX = dataInputReal.shape[0]
@@ -134,12 +135,12 @@ def main():
     rmse      = []
     numEventsCreated   = []
     numEventsPredicted = []
-    for i in range(5):
+    for i in range(300):
         print("run num:"+str(i))
         start_time = np.random.randint(10, dataInputReal.shape[0] - 10)
         end_time   = start_time + 0
         realMatOut = createRealEventsUberML_network(dataInputReal, start_time, end_time)
-        previousEventMatrix = getPreviousEventMat(dataInputReal, start_time, 5)
+        previousEventMatrix = getPreviousEventMat(dataInputReal, start_time, my_net.sequence_size)
         eventsPos, eventsTimeWindow, netEventOut = createEventDistributionUber(previousEventMatrix, my_net, 3, start_time, end_time)
         rmse.append(sqrt(metrics.mean_squared_error(realMatOut.reshape(-1), netEventOut.reshape(-1))))
         accuracy.append(np.sum(realMatOut == netEventOut) / (realMatOut.shape[0] * realMatOut.shape[1] * realMatOut.shape[2]))

@@ -51,8 +51,8 @@ filename = []
 # path.append('/home/chanaby/Documents/dev/Thesis/MachineLearning/forGPU/')
 # filename.append('gridSize20_epoch99_batch15_torch.pkl')
 
-path.append('/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/limitedZero_w0p05_v2/')
-filename.append('gridSize20_epoch99_batch4_torch.pkl')
+path.append('/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/limitedZero_V3/')
+filename.append('gridSize20_epoch98_batch9_torch.pkl')
 
 
 # sequence_size = 5  # length of sequence for lstm network

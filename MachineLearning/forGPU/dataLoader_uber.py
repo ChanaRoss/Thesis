@@ -278,8 +278,8 @@ class DataSetCnn_LSTM_NonZero:
         xArr = actual_input_matrix
         tempOut = np.zeros(self.max_to_add)
         for i in range(self.max_to_add):
-            if item+1<self.lengthT:
-                tempOut[i] = self.data[item+1, x_index_output[i], y_index_output[i]]
+            if item < self.lengthT:
+                tempOut[i] = self.data[item, x_index_output[i], y_index_output[i]]
 
         yArr = tempOut
 

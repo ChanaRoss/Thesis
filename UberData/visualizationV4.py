@@ -219,7 +219,7 @@ def createFastStackPlot(df ,block=True):
         plt.show(block=False)
         # plt.savefig('FastStackPlot_' + str(wnum) + '.png')
 
-def createProbMatrix(df):
+def createProbMatrix(df, fileName):
     weekDay = 1
     dfTemp = df.copy()
     dfTemp = dfTemp[dfTemp['weekday'] == weekDay]  # use only monday
@@ -249,8 +249,8 @@ def createProbMatrix(df):
                 # normalizing numbers to be probability instead of absolute value
                 matOut[ix, iy, t, :] = matOut[ix, iy, t, :]/np.sum(matOut[ix, iy, t, :])
     matEvents = mat[:, :, :, -2:]
-    matOut.dump('4D_UpdatedGrid_5min_250Grid_LimitedProbabilityMat_' + 'wday_' + str(weekDay) + '.p')
-    matEvents.dump('4D_UpdatedGrid_5min_250Grid_LimitedEventsMat_'+'wday'+str(weekDay)+'.p')
+    matOut.dump('4D_' + fileName + '_' + 'wday_' + str(weekDay) + '.p')
+    matEvents.dump('4D_' + fileName + '_' + 'wday' + str(weekDay)+'.p')
 
     fig, ax = plt.subplots(1, 1)
     for i in range(matOut.shape[2]):
@@ -261,7 +261,7 @@ def createProbMatrix(df):
     print('hi')
     return
 
-def createProbMatrixForBenchMark(df):
+def createProbMatrixForBenchMark(df, fileName):
 
     dfTemp = df.copy()
     weekNums = dfTemp['weeknum'].unique()
@@ -293,12 +293,13 @@ def createProbMatrixForBenchMark(df):
                     matOut[ix, iy, t, nEvents] += 1
                 # normalizing numbers to be probability instead of absolute value
                 matOut[ix, iy, t, :] = matOut[ix, iy, t, :]/np.sum(matOut[ix, iy, t, :])
-    matOut.dump('4D_UpdatedGrid_5min_250Grid_LimitedProbabilityMat_allData_Benchmark.p')
+    matOut.dump('4D_ProbabilityMat_' + fileName + '.p')
+    mat.dump('4D_matPerWeek_'+fileName+'.p')
     print('hi')
     return
 
 
-def createLearningMatrix(df):
+def createLearningMatrix(df, fileName):
     dfTemp = df.copy()
     dfTemp['weekPeriod5'] = dfTemp['weekPeriod5'] - np.min(dfTemp['weekPeriod5'])
     dfTemp['grid_x'] = dfTemp['grid_x'] - np.min(dfTemp['grid_x'])
@@ -315,13 +316,13 @@ def createLearningMatrix(df):
             for ix, iy in zip(dfTemp2['grid_x'], dfTemp2['grid_y']):
                 mat[ix, iy, i] += 1
             i += 1
-    mat.dump('3D_UpdatedGrid_5min_250Grid_LimitedEventsMat_allData.p')
+    mat.dump('3D_' + fileName + '.p')
     print('hi')
     return
 
 def main():
     # path to data pickle (after preproc)
-    dataPath = '/Users/chanaross/dev/Thesis/UberData/allDataupdated_Gridpickle250.p'
+    dataPath = '/Users/chanaross/dev/Thesis/UberData/allDataLatLonCorrected_Gridpickle250.p'
     # dataPath = '/Users/chanaross/Documents/Thesis/uberAnalysis/allData.p'
     # read data
     df = pd.read_pickle(dataPath)
@@ -333,8 +334,8 @@ def main():
     maxDimX = df['grid_x'].max()
     maxDimY = df['grid_y'].max()
     # filter file to only manhattan area (get rid of sparse area)
-    df = df[(df["Lon"]>=(-83.812)) & (df['Lon']<=(-83.7668))]
-    df = df[(df["Lat"]>=-16.483) & (df['Lat']<=-16.3314)]
+    df = df[(df["Lon"]>=(-83.81)) & (df['Lon']<=(-83.7668))]
+    df = df[(df["Lat"]>=-10.725) & (df['Lat']<=-10.5)]
 
     df['weekPeriod5'] = df['weekday'] * (24 * 12) + df['hour'] * 12 + np.floor_divide(df['minute'], 5).astype(np.int64)
 
@@ -346,9 +347,10 @@ def main():
 
     # with open ('/Users/chanaross/dev/Thesis/UberData/manhattenData_250Grid_5min_pickle.p', 'wb') as op:
     #     pickle.dump(df, op)
-    # createProbMatrix(df)
-    # createLearningMatrix(df)
-    createProbMatrixForBenchMark(df)
+    fileName = 'allDataLatLonCorrected_250gridpickle_5min'
+    # createProbMatrix(df, fileName)
+    # createLearningMatrix(df, fileName)
+    createProbMatrixForBenchMark(df, fileName)
     # createFastStackPlot(df,True)
     # createScatterMaps(df,True)
     # createHeatMaps(df,False)

@@ -119,19 +119,19 @@ class Model(nn.Module):
             cnn_output[:, :, i] = out
         output, (h_n, c_n) = self.lstm(cnn_output.view(self.sequence_size, batch_size, -1))
         out = self.fc_after_lstm(h_n)
-        out = self.logSoftMax(out.view(batch_size,-1))  # after last fc out is of size: [batch_size , num_classes] and is after LogSoftMax
+        out = self.logSoftMax(out.view(batch_size, -1))  # after last fc out is of size: [batch_size , num_classes] and is after LogSoftMax
         return out
 
     def calcLoss(self, outputs, labels):
-        if self.loss is None:
-            self.loss = self.lossCrit(outputs, labels)
-        else:
-            self.loss += self.lossCrit(outputs, labels).data
-        # self.loss = self.lossCrit(outputs, labels)
+        # if self.loss is None:
+        #     self.loss = self.lossCrit(outputs, labels)
+        # else:
+        #     self.loss += self.lossCrit(outputs, labels).data
+        self.loss = self.lossCrit(outputs, labels)
 
     # creating backward propagation - calculating loss function result
     def backward(self):
-        self.loss.backward(retain_graph=True)
+        self.loss.backward()
 
         # testing network on given test set
 
@@ -176,7 +176,7 @@ class Model(nn.Module):
         accTest = np.average(localAccTest)
         lossTest = np.average(localLossTest)
         rmseTest = np.average(localRmseTest)
-        print("test accuarcy is: {0}, rmse is: {1}".format(accTest, rmseTest))
+        print("test accuarcy is: {0}, rmse is: {1}, loss is: {2}".format(accTest, rmseTest, lossTest))
         return accTest, lossTest, rmseTest
 
         # save network
@@ -208,31 +208,32 @@ def main():
     # should only take from busy time in order to learn distribution
     zmin = 16000
     zmax = 24000  # 32000
-    dataInput     = dataInput[xmin:xmax, ymin:ymax, zmin:zmax]  # shrink matrix size for fast training in order to test model
+    # dataInput     = dataInput[xmin:xmax, ymin:ymax, zmin:zmax]  # shrink matrix size for fast training in order to test model
+    dataInput     = dataInput[8:16, 12:20, zmin:zmax].reshape((8, 8, zmax-zmin))  # check if network works for single point
     # define important sizes for network -
     x_size              = dataInput.shape[0]
     y_size              = dataInput.shape[1]
     dataSize            = dataInput.shape[2]
     classNum            = (np.max(np.unique(dataInput)) + 1).astype(int)
     testSize            = 0.2
-    sequence_size       = 5  # length of sequence for lstm network
+    sequence_size       = 7  # length of sequence for lstm network
     cnn_input_size      = 1  # size of matrix in input cnn layer  - each sequence goes into different cnn network
     cnn_dimension       = 9  # size of matrix around point i for cnn network
     batch_size          = 200
-    num_epochs          = 100
+    num_epochs          = 1000
     max_dataloader_size = 50
     num_train           = int((1 - testSize) * dataSize)
     # define hyper parameters -
-    hidden_size         = 64
+    hidden_size         = 36
     kernel_size         = 3
     stride_size         = 1
-    num_cnn_features    = 128
-    num_cnn_layers      = 3
+    num_cnn_features    = 64
+    num_cnn_layers      = 5
     fc_after_cnn_out_size = 64
 
     # optimizer parameters -
     lr  = 0.001
-    ot  = 1
+    ot  = 2
     dmp = 0
     mm  = 0.9
     eps = 1e-08
@@ -257,7 +258,7 @@ def main():
     print('number of parameters: ', numWeights)
     my_net.optimizer = CreateOptimizer(my_net.parameters(), ot, lr, dmp, mm, eps)
     loss_weights = np.ones(classNum)
-    loss_weights[0] = 0.05
+    loss_weights[0] = 0.3
     w = torch.tensor(list(loss_weights), dtype=torch.float).to(device)
     my_net.lossCrit = nn.NLLLoss(weight=w)
     my_net.maxEpochs = num_epochs
@@ -307,8 +308,8 @@ def main():
                 netOut = my_net.forward(inputVar[:, :, :, :, k])
                 _, labTrain[:, k] = torch.max(torch.exp(netOut.data), 1)
                 my_net.calcLoss(netOut, labVar[:, k])
-            # backwards
-            my_net.backward()
+                # backwards
+                my_net.backward()
             # optimizer step
             my_net.optimizer.step()
             # local loss function list
@@ -333,7 +334,7 @@ def main():
                       % (numEpoch + 1, my_net.maxEpochs, i + 1,
                         dataloader_uber_train.batch_size,
                          my_net.loss.item(), accTrain[-1], rmseTrain[-1]))
-                if ((localLoss[-1] > np.max(np.array(localLoss[0:-1]))) or (accTrain[-1] > np.max(np.array(accTrain[0:-1])))) and flag_save_network:
+                if ((localLoss[-1] < np.max(np.array(localLoss[0:-1]))) or (accTrain[-1] > np.max(np.array(accTrain[0:-1])))) and flag_save_network:
                     pickle.dump(my_net, open("gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch) + "_batch" + str(i) + ".pkl", 'wb'))
                     my_net.saveModel("gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch) + "_batch" + str(i) + "_torch.pkl")
                     networkStr = "gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch) + "_batch" + str(i)
