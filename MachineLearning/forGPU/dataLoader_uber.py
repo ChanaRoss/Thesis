@@ -77,7 +77,9 @@ class DataSetCnn:
         self.lengthX = dataIn.shape[0]
         self.lengthY = dataIn.shape[1]
         self.lengthT = dataIn.shape[2]
-        self.data = dataIn.reshape(self.lengthT, self.lengthX, self.lengthY)
+        data = np.swapaxes(dataIn, 0, 1)  # swap x and y axis , now matrix size is: [y, x, t]
+        data = np.swapaxes(data, 0, 2)  # swap y and t axis , now matrix size is: [t, x, y]
+        self.data = data
         self.lenSeqIn = lenSeqIn
 
     def __getitem__(self, item):
@@ -114,7 +116,9 @@ class DataSetCnn_LSTM:
         self.lengthY = dataIn.shape[1]
         self.lengthT = dataIn.shape[2]
         self.sizeCnn = sizeCnn
-        self.data = dataIn.reshape(self.lengthT, self.lengthX, self.lengthY)
+        data = np.swapaxes(dataIn, 0, 1)  # swap x and y axis , now matrix size is: [y, x, t]
+        data = np.swapaxes(data, 0, 2)  # swap y and t axis , now matrix size is: [t, x, y]
+        self.data = data
         self.lenSeqIn = lenSeqIn
 
     def __getitem__(self, item):
@@ -171,7 +175,9 @@ class DataSetCnn_LSTM_BatchMode:
         self.lengthY = dataIn.shape[1]
         self.lengthT = dataIn.shape[2]
         self.sizeCnn = sizeCnn
-        self.data = dataIn.reshape(self.lengthT, self.lengthX, self.lengthY)
+        data = np.swapaxes(dataIn, 0, 1)  # swap x and y axis , now matrix size is: [y, x, t]
+        data = np.swapaxes(data, 0, 2)  # swap y and t axis , now matrix size is: [t, x, y]
+        self.data = data
         self.lenSeqIn = lenSeqIn
 
     def __getitem__(self, item):
@@ -231,7 +237,9 @@ class DataSetCnn_LSTM_NonZero:
         self.lengthT = dataIn.shape[2]
         self.sizeCnn = sizeCnn
         self.max_to_add = max_to_add
-        self.data = dataIn.reshape(self.lengthT, self.lengthX, self.lengthY)
+        data = np.swapaxes(dataIn, 0, 1)  # swap x and y axis , now matrix size is: [y, x, t]
+        data = np.swapaxes(data, 0, 2)  # swap y and t axis , now matrix size is: [t, x, y]
+        self.data = data
         self.lenSeqIn = lenSeqIn
 
     def __getitem__(self, item):
@@ -298,14 +306,15 @@ class DataSetCnn_LSTM_NonZero:
 def main():
     # path = '/home/chanaby/Documents/dev/Thesis/MachineLearning/forGPU/'
     path = '/Users/chanaross/dev/Thesis/UberData/'
-    fileName  = '3D_UpdatedGrid_5min_250Grid_LimitedEventsMat_allData.p'
+    fileName  = '3D_allDataLatLonCorrected_binaryClass_500gridpickle_30min.p'
     dataInput = np.load(path + fileName)
     xmin = 0
     xmax = 20
     ymin = 0
     ymax = 20
-    # dataInput = dataInput[xmin:xmax, ymin:ymax, 16000:32000]  #  shrink matrix size for fast training in order to test model
-    dataInput = dataInput[8:10, 12:14, 16000:32000].reshape((2,2,32000-16000))  # shrink matrix size for fast training in order to test model
+    zmin = 48
+    dataInput = dataInput[xmin:xmax, ymin:ymax, zmin:]  #  shrink matrix size for fast training in order to test model
+    # dataInput = dataInput[8:10, 12:14, 16000:32000].reshape((2,2,32000-16000))  # shrink matrix size for fast training in order to test model
 
     # define important sizes for network -
     x_size = dataInput.shape[0]

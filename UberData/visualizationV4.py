@@ -262,34 +262,34 @@ def createProbMatrix(df, fileName):
     return
 
 def createProbMatrixForBenchMark(df, fileName):
-
     dfTemp = df.copy()
     weekNums = dfTemp['weeknum'].unique()
-    dfTemp['weekPeriod5'] = dfTemp['weekPeriod5'] - np.min(dfTemp['weekPeriod5'])
+    dfTemp['weekPeriod30'] = dfTemp['weekPeriod30'] - np.min(dfTemp['weekPeriod30'])
     dfTemp['grid_x'] = dfTemp['grid_x'] - np.min(dfTemp['grid_x'])
     dfTemp['grid_y'] = dfTemp['grid_y'] - np.min(dfTemp['grid_y'])
     gridX = dfTemp['grid_x'].unique()
     gridY = dfTemp['grid_y'].unique()
     # mat size is : [grid x, grid y , time]
     # time runs from 0 to number of weeks * week period (t_max = weekPeriod.size * num_weeks)
-    mat = np.zeros(shape=(gridX.size, gridY.size, dfTemp['weekPeriod5'].unique().size, weekNums.size))
+    mat = np.zeros(shape=(gridX.size, gridY.size, dfTemp['weekPeriod30'].unique().size, weekNums.size))
     wnumMin = dfTemp['weeknum'].min()
     for wnum in weekNums:
         dfTemp1 = dfTemp[dfTemp['weeknum'] == wnum]
-        for t in dfTemp1['weekPeriod5'].unique():
-            dfTemp2 = dfTemp1[dfTemp1['weekPeriod5'] == t]
+        for t in dfTemp1['weekPeriod30'].unique():
+            dfTemp2 = dfTemp1[dfTemp1['weekPeriod30'] == t]
             for ix, iy in zip(dfTemp2['grid_x'], dfTemp2['grid_y']):
                 mat[ix, iy, t, wnum - wnumMin] += 1
     # maxNumEvents = np.max(mat).astype(int)
-    maxNumEvents = 10
+    maxNumEvents = 1
+    mat[mat>1] = 1
     matOut = np.zeros(shape=(gridX.size, gridY.size, mat.shape[2], maxNumEvents+1))
     for ix in range(mat.shape[0]):
         for iy in range(mat.shape[1]):
             for t in range(mat.shape[2]):
                 for nWeek in range(mat.shape[3]-2):
                     nEvents = mat[ix, iy, t, nWeek].astype(int)
-                    if nEvents > 10:
-                       nEvents = 10
+                    if nEvents >= 1:
+                       nEvents = 1
                     matOut[ix, iy, t, nEvents] += 1
                 # normalizing numbers to be probability instead of absolute value
                 matOut[ix, iy, t, :] = matOut[ix, iy, t, :]/np.sum(matOut[ix, iy, t, :])
@@ -322,7 +322,7 @@ def createLearningMatrix(df, fileName):
 
 def main():
     # path to data pickle (after preproc)
-    dataPath = '/Users/chanaross/dev/Thesis/UberData/allDataLatLonCorrected_Gridpickle250.p'
+    dataPath = '/Users/chanaross/dev/Thesis/UberData/allDataLatLonCorrected_Gridpickle500.p'
     # dataPath = '/Users/chanaross/Documents/Thesis/uberAnalysis/allData.p'
     # read data
     df = pd.read_pickle(dataPath)
@@ -336,9 +336,10 @@ def main():
     # filter file to only manhattan area (get rid of sparse area)
     df = df[(df["Lon"]>=(-83.81)) & (df['Lon']<=(-83.7668))]
     df = df[(df["Lat"]>=-10.725) & (df['Lat']<=-10.5)]
-
-    df['weekPeriod5'] = df['weekday'] * (24 * 12) + df['hour'] * 12 + np.floor_divide(df['minute'], 5).astype(np.int64)
-
+    # to create week period need to multiply weekday and hour by the number of values each one should be divided by.
+    # for example for 30 min. increments, there are 2 in an hour and 48 in a day
+    df['weekPeriod5']  = df['weekday'] * (24 * 12) + df['hour'] * 12 + np.floor_divide(df['minute'], 5).astype(np.int64)
+    df['weekPeriod30'] = df['weekday'] * (24 * 2) + df['hour'] * 2 + np.floor_divide(df['minute'], 30).astype(np.int64)
     # add single index grid id
     df['grid_x']  = df['grid_x'] - np.min(df['grid_x'])
     df['grid_y']  = df['grid_y'] - np.min(df['grid_y'])
@@ -347,7 +348,7 @@ def main():
 
     # with open ('/Users/chanaross/dev/Thesis/UberData/manhattenData_250Grid_5min_pickle.p', 'wb') as op:
     #     pickle.dump(df, op)
-    fileName = 'allDataLatLonCorrected_250gridpickle_5min'
+    fileName = 'allDataLatLonCorrected_binaryClass_500gridpickle_30min'
     # createProbMatrix(df, fileName)
     # createLearningMatrix(df, fileName)
     createProbMatrixForBenchMark(df, fileName)

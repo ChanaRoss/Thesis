@@ -123,11 +123,11 @@ class Model(nn.Module):
         return out
 
     def calcLoss(self, outputs, labels):
-        # if self.loss is None:
-        #     self.loss = self.lossCrit(outputs, labels)
-        # else:
-        #     self.loss += self.lossCrit(outputs, labels).data
-        self.loss = self.lossCrit(outputs, labels)
+        if self.loss is None:
+            self.loss = self.lossCrit(outputs, labels)
+        else:
+            self.loss += self.lossCrit(outputs, labels).data
+        # self.loss = self.lossCrit(outputs, labels)
 
     # creating backward propagation - calculating loss function result
     def backward(self):
@@ -143,8 +143,8 @@ class Model(nn.Module):
         localLossTest = []
         localAccTest = []
         localRmseTest = []
-        self.loss = None
         for inputs, labels in testLoader:
+            self.loss = None
             inputs = inputs.to(device)
             labels = labels.to(device)
             inputVar = Variable(inputs)
@@ -196,43 +196,41 @@ def main():
         path = '/home/schanaby@st.technion.ac.il/thesisML/'
     else:
         path = '/Users/chanaross/dev/Thesis/UberData/'
-    fileName = '3D_UpdatedGrid_5min_250Grid_LimitedEventsMat_allData.p'
+    fileName = '3D_allDataLatLonCorrected_binaryClass_500gridpickle_30min.p'
     dataInput = np.load(path + fileName)
 
     flag_save_network = True
 
     xmin = 0
-    xmax = 20
+    xmax = dataInput.shape[0]
     ymin = 0
-    ymax = 40
-    # should only take from busy time in order to learn distribution
-    zmin = 16000
-    zmax = 24000  # 32000
-    # dataInput     = dataInput[xmin:xmax, ymin:ymax, zmin:zmax]  # shrink matrix size for fast training in order to test model
-    dataInput     = dataInput[8:16, 12:20, zmin:zmax].reshape((8, 8, zmax-zmin))  # check if network works for single point
+    ymax = dataInput.shape[1]
+    zmin = 48
+    dataInput     = dataInput[xmin:xmax, ymin:ymax, zmin:]  # shrink matrix size for fast training in order to test model
+    # dataInput[dataInput>1] = 1  # limit all events larger than 10 to be 10
     # define important sizes for network -
     x_size              = dataInput.shape[0]
     y_size              = dataInput.shape[1]
     dataSize            = dataInput.shape[2]
     classNum            = (np.max(np.unique(dataInput)) + 1).astype(int)
     testSize            = 0.2
-    sequence_size       = 7  # length of sequence for lstm network
+    sequence_size       = 5  # length of sequence for lstm network
     cnn_input_size      = 1  # size of matrix in input cnn layer  - each sequence goes into different cnn network
     cnn_dimension       = 9  # size of matrix around point i for cnn network
     batch_size          = 200
-    num_epochs          = 1000
-    max_dataloader_size = 50
+    num_epochs          = 100
+    max_dataloader_size = x_size*y_size
     num_train           = int((1 - testSize) * dataSize)
     # define hyper parameters -
-    hidden_size         = 36
+    hidden_size         = 64
     kernel_size         = 3
     stride_size         = 1
     num_cnn_features    = 64
-    num_cnn_layers      = 5
+    num_cnn_layers      = 8
     fc_after_cnn_out_size = 64
 
     # optimizer parameters -
-    lr  = 0.001
+    lr  = 0.02
     ot  = 2
     dmp = 0
     mm  = 0.9
@@ -258,22 +256,27 @@ def main():
     print('number of parameters: ', numWeights)
     my_net.optimizer = CreateOptimizer(my_net.parameters(), ot, lr, dmp, mm, eps)
     loss_weights = np.ones(classNum)
-    loss_weights[0] = 0.3
+    loss_weights[0] = 0.25
+    loss_weights[1] = 1
     w = torch.tensor(list(loss_weights), dtype=torch.float).to(device)
     my_net.lossCrit = nn.NLLLoss(weight=w)
     my_net.maxEpochs = num_epochs
 
+
+    # network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/limitedZero_500grid/'
+    # network_name = 'gridSize11_epoch4_batch5_torch.pkl'
+    # my_net = torch.load(network_path + network_name, map_location=lambda storage, loc: storage)
 
     # load data from data loader and create train and test sets
     data_train = dataInput[:, :, 0:num_train]
     data_test  = dataInput[:, :, num_train:]
 
     dataset_uber_train = DataSetCnn_LSTM_NonZero(data_train, sequence_size, cnn_dimension, max_dataloader_size)
-    dataset_uber_test  = DataSetCnn_LSTM_NonZero(data_test, sequence_size, cnn_dimension, max_dataloader_size)
+    dataset_uber_test  = DataSetCnn_LSTM_NonZero(data_test , sequence_size, cnn_dimension, max_dataloader_size)
 
     # creating data loader
     dataloader_uber_train = data.DataLoader(dataset=dataset_uber_train, batch_size=batch_size, shuffle=True)
-    dataloader_uber_test  = data.DataLoader(dataset=dataset_uber_test, batch_size=batch_size, shuffle=False)
+    dataloader_uber_test  = data.DataLoader(dataset=dataset_uber_test , batch_size=batch_size, shuffle=False)
 
     for numEpoch in range(num_epochs):
         my_net.loss = None
@@ -284,8 +287,8 @@ def main():
         rmseTrain = [1]
         trainCorr = 0.0
         trainTot = 0.0
-        if (1+numEpoch)%10 == 0:
-            if my_net.optimizer.param_groups[0]['lr']>0.0001:
+        if (1+numEpoch)%5 == 0:
+            if my_net.optimizer.param_groups[0]['lr'] > 0.001:
                 my_net.optimizer.param_groups[0]['lr'] = my_net.optimizer.param_groups[0]['lr']/2
             else:
                 my_net.optimizer.param_groups[0]['lr'] = 0.001
@@ -308,8 +311,8 @@ def main():
                 netOut = my_net.forward(inputVar[:, :, :, :, k])
                 _, labTrain[:, k] = torch.max(torch.exp(netOut.data), 1)
                 my_net.calcLoss(netOut, labVar[:, k])
-                # backwards
-                my_net.backward()
+            # backwards
+            my_net.backward()
             # optimizer step
             my_net.optimizer.step()
             # local loss function list
@@ -318,7 +321,11 @@ def main():
             #     labTrain = labTrain.cpu()
             if isServerRun:
                 labTrainNp = labTrain.type(torch.cuda.LongTensor).cpu().detach().numpy()
+                print("number of net labels different from 0 is:" + str(np.sum(labTrainNp > 0)))
+                print("number of net labels 0 is:"+str(np.sum(labTrainNp == 0)))
                 labelsNp = labels.cpu().detach().numpy()
+                print("number of real labels different from 0 is:" + str(np.sum(labelsNp > 0)))
+                print("number of real labels 0 is:" + str(np.sum(labelsNp == 0)))
                 trainCorr = torch.sum(labTrain.type(torch.cuda.LongTensor) == labels).cpu().detach().numpy() + trainCorr
             else:
                 labTrainNp = labTrain.long().detach().numpy()
@@ -335,9 +342,9 @@ def main():
                         dataloader_uber_train.batch_size,
                          my_net.loss.item(), accTrain[-1], rmseTrain[-1]))
                 if ((localLoss[-1] < np.max(np.array(localLoss[0:-1]))) or (accTrain[-1] > np.max(np.array(accTrain[0:-1])))) and flag_save_network:
-                    pickle.dump(my_net, open("gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch) + "_batch" + str(i) + ".pkl", 'wb'))
-                    my_net.saveModel("gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch) + "_batch" + str(i) + "_torch.pkl")
-                    networkStr = "gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch) + "_batch" + str(i)
+                    pickle.dump(my_net, open("gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch+1) + "_batch" + str(i+1) + ".pkl", 'wb'))
+                    my_net.saveModel("gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch+1) + "_batch" + str(i+1) + "_torch.pkl")
+                    networkStr = "gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch+1) + "_batch" + str(i+1)
                     outArray = np.stack([np.array(localLoss), np.array(accTrain)])
                     np.save(networkStr + "_oArrBatch.npy", outArray)
         my_net.lossVecTrain.append(np.average(localLoss))
