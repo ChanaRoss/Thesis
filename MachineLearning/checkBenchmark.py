@@ -136,11 +136,11 @@ def main():
     correct_non_zeros = []
 
     timeOut = []
-    numRuns = 100
-    fileNameOut = '500grid_30min_binary_benchmark_results_random_' + numRuns
+    numRuns = 1
+    fileNameOut = '500grid_30min_binary_benchmark_results_random_' + str(numRuns)
     for i in range(numRuns):
         start_time = np.random.randint(10, dataInputReal.shape[2]-10)
-        # start_time = i
+        start_time = 11
         timeOut.append(start_time)
         realMatOut, distMatOut = getBenchmarkAccuracy(start_time, 5, dataInputReal, dataInputProb)
         sizeMat = realMatOut.shape[0] * realMatOut.shape[1]

@@ -135,7 +135,7 @@ def plotSpesificTime(dataReal, dataPred, t, fileName):
 
     sns.heatmap(dataFixed, cbar = False, center = 1, square=True, vmin = 0, vmax = 1, ax=axes[0], cmap = 'CMRmap_r', cbar_kws=dict(ticks=ticksDict))
     sns.heatmap(dataFixedPred, cbar=True, center=1, square=True, vmin=0, vmax=1, ax=axes[1], cmap='CMRmap_r',cbar_kws=dict(ticks=ticksDict))
-    axes[0].set_title('week- {0}, day- {1},time- {2}:{3}'.format(week,day,hour, minute) + ' , Real data')
+    axes[0].set_title('week- {0}, day- {1},time- {2}:{3}'.format(week, day, hour, minute) + ' , Real data')
     axes[1].set_title('Predicted data')
     # plt.title('time is -  {0}:{1}'.format(hour, minute))
     axes[0].set_xlabel('X axis')
@@ -147,8 +147,12 @@ def plotSpesificTime(dataReal, dataPred, t, fileName):
     return
 
 def main():
-    network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/limitedZero_500grid/'
-    network_name = 'gridSize11_epoch86_batch35_torch.pkl'
+    # network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/limitedZero_500grid/'
+    # network_name = 'gridSize11_epoch86_batch35_torch.pkl'
+
+    network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/limitedZero_backprob/'
+    network_name = 'gridSize11_epoch4_batch20_torch.pkl'
+
     data_path    = '/Users/chanaross/dev/Thesis/UberData/'
     data_name    = '3D_allDataLatLonCorrected_binaryClass_500gridpickle_30min.p'
 
@@ -184,13 +188,13 @@ def main():
     correct_non_zeros   = []
     correct_zeros       = []
     timeOut             = []
-    figPath = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/limitedZero_500grid/figures/'
+    figPath = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/limitedZero_backprob/figures/'
     numRuns = 10
     fileName = '500grid_30min_binary_network_results_'+str(numRuns)
     for i in range(numRuns):
         print("run num:"+str(i))
-        # start_time = i+200
-        start_time = np.random.randint(10, dataInputReal.shape[2] - 10)
+        start_time = i+200
+        # start_time = np.random.randint(10, dataInputReal.shape[0] - 10)
         timeOut.append(start_time)
         end_time   = start_time + 0
         realMatOut = createRealEventsUberML_network(dataInputReal, start_time, end_time)

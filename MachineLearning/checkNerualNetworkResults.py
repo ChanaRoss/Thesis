@@ -110,8 +110,13 @@ def getPreviousEventMat(dataInputReal, start_time, in_seq_len = 5):
 
 
 def main():
-    network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/limitedZero_500grid/'
-    network_name = 'gridSize11_epoch4_batch5_torch.pkl'
+    # has results different from 0 but was trained on wrong input -
+    # network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/limitedZero_500grid/'
+    # network_name = 'gridSize11_epoch4_batch5_torch.pkl'
+
+    network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/limitedZero_updatedCode/'
+    network_name = 'gridSize11_epoch1_batch25_torch.pkl'
+
     data_path    = '/Users/chanaross/dev/Thesis/UberData/'
     data_name    = '3D_allDataLatLonCorrected_500gridpickle_30min.p'
 
@@ -178,7 +183,7 @@ def main():
     plt.scatter(range(len(accuracy1)), 100 * np.array(accuracy1))
     print("average RMSE for 300 runs is:" + str(np.mean(np.array(rmse))))
     print("average accuracy for 300 runs is:" + str(np.mean(np.array(accuracy))))
-    print("average corrected accuracy for 300 runs is:" + str(np.mean(np.array(accuracy1))))
+    print("average corrected accuracy for 300 runs is:" + str(100*np.mean(np.array(accuracy1))))
 
     plt.show()
     return

@@ -303,6 +303,62 @@ class DataSetCnn_LSTM_NonZero:
         return self.data.shape[0]
 
 
+class DataSet_oneLSTM_allGrid:
+    def __init__(self, dataIn, lenSeqIn):
+        self.lengthX = dataIn.shape[0]
+        self.lengthY = dataIn.shape[1]
+        self.lengthT = dataIn.shape[2]
+        data = np.swapaxes(dataIn, 0, 1)  # swap x and y axis , now matrix size is: [y, x, t]
+        data = np.swapaxes(data, 0, 2)    # swap y and t axis , now matrix size is: [t, x, y]
+        self.data = data
+        self.lenSeqIn = lenSeqIn
+
+    def __getitem__(self, item):
+        temp = np.zeros(shape=(self.lenSeqIn, self.data.shape[1], self.data.shape[2]))
+        if (item - self.lenSeqIn > 0):
+            temp = self.data[item - self.lenSeqIn:item, :, :]
+        else:
+            temp[self.lenSeqIn - item:, :, :] = self.data[0:item, :, :]
+        xArr = np.zeros(shape=(self.lengthX*self.lengthY, self.lenSeqIn))
+        tempOut = np.zeros(shape=(self.lenSeqIn, self.data.shape[1], self.data.shape[2]))
+        try:
+
+            if (item + 1 <= self.data.shape[0]) and (item + 1 - self.lenSeqIn > 0):
+                tempOut = self.data[item + 1 - self.lenSeqIn: item + 1, :, :].reshape(self.lenSeqIn, self.data.shape[1], self.data.shape[2])
+            elif (item + 1 <= self.data.shape[0]) and (item + 1 - self.lenSeqIn <= 0):
+                tempOut[self.lenSeqIn - item - 1:, :, :] = self.data[0:item + 1, :, :]
+            elif (item + 1 > self.data.shape[0]) and (item + 1 - self.lenSeqIn > 0):
+                tempOut[0:self.lenSeqIn - 1, :, :] = self.data[item + 1 - self.lenSeqIn: item, :, :]  # taking the last part of the sequence
+        except:
+            print('couldnt find correct output sequence!!!')
+
+        try:
+            yArrTemp = tempOut[-1, :, :]
+        except:
+            print("couldnt take last value of time sequence for output!!!")
+
+        yArr = np.zeros(shape=(self.lengthY*self.lengthX))
+        k = 0
+        for i in range(self.lengthX):
+            for j in range(self.lengthY):
+                xArr[k, :]  = temp[:, i, j]
+                yArr[k]     = yArrTemp[i, j]
+                k += 1
+
+        if torch.cuda.is_available():
+            xTensor = torch.Tensor(xArr).cuda()
+            yTensor = torch.Tensor(yArr).type(torch.cuda.LongTensor)
+        else:
+            xTensor = torch.Tensor(xArr)
+            yTensor = torch.Tensor(yArr).type(torch.long)
+        # xTensor is of shape: [grid id, seq]
+        # yTensor is of shape: [grid id]
+        return xTensor, yTensor
+
+    def __len__(self):
+        return self.data.shape[0]
+
+
 def main():
     # path = '/home/chanaby/Documents/dev/Thesis/MachineLearning/forGPU/'
     path = '/Users/chanaross/dev/Thesis/UberData/'
@@ -322,7 +378,7 @@ def main():
     dataSize = dataInput.shape[2]
     num_train = int((1 - 0.2) * dataSize)
     data_train = dataInput[:, :, 0:num_train]
-    dataset_uber = DataSetCnn_LSTM_NonZero(data_train, 10, 7, 4)
+    dataset_uber = DataSet_oneLSTM_allGrid(data_train, 10)
     dataloader_uber = data.DataLoader(dataset=dataset_uber, batch_size=300, shuffle=True)
     # a = list(iter(dataset_uber))
 
