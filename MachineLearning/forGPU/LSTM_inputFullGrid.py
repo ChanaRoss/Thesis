@@ -184,8 +184,8 @@ def main():
     dataSize            = dataInput.shape[2]
     #classNum            = (np.max(np.unique(dataInput)) + 1).astype(int)
     testSize            = 0.2
-    sequence_size       = 5  # length of sequence for lstm network
-    batch_size          = 200
+    sequence_size       = 10  # length of sequence for lstm network
+    batch_size          = 50
     num_epochs          = 100
     num_train           = int((1 - testSize) * dataSize)
     # define hyper parameters -
@@ -194,11 +194,11 @@ def main():
 
     # optimizer parameters -
     lr  = 0.01
-    ot  = 2
+    ot  = 1
     dmp = 0
     mm  = 0.9
     eps = 1e-08
-    wd  = 2e-8
+    wd  = 2e-3
 
     # create network based on input parameter's -
     my_net = Model(grid_size, hidden_size, batch_size, sequence_size)
@@ -240,7 +240,7 @@ def main():
         rmseTrain = [1]
         trainCorr = 0.0
         trainTot = 0.0
-        if (1+numEpoch)%5 == 0:
+        if (1+numEpoch)%10 == 0:
             if my_net.optimizer.param_groups[0]['lr'] > 0.001:
                 my_net.optimizer.param_groups[0]['lr'] = my_net.optimizer.param_groups[0]['lr']/2
             else:
@@ -272,7 +272,6 @@ def main():
             else:
                 labTrain = (netOut > t).float() * 1
             my_net.calcLoss(netOut, labVar)
-            my_net.loss = my_net.loss  # normalizing loss results
             # backwards
             my_net.backward()
             # optimizer step
@@ -305,11 +304,11 @@ def main():
                          my_net.loss.item(), accTrain[-1], rmseTrain[-1]))
                 if (i+1) % 20 == 0:
                     if ((localLoss[-1] < np.max(np.array(localLoss[0:-1]))) or (accTrain[-1] > np.max(np.array(accTrain[0:-1])))) and flag_save_network:
-                        pickle.dump(my_net, open("gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch+1) + "_batch" + str(i+1) + ".pkl", 'wb'))
+                        # pickle.dump(my_net, open("gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch+1) + "_batch" + str(i+1) + ".pkl", 'wb'))
                         my_net.saveModel("gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch+1) + "_batch" + str(i+1) + "_torch.pkl")
-                        networkStr = "gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch+1) + "_batch" + str(i+1)
-                        outArray = np.stack([np.array(localLoss), np.array(accTrain)])
-                        np.save(networkStr + "_oArrBatch.npy", outArray)
+                        # networkStr = "gridSize" + str(xmax - xmin) + "_epoch" + str(numEpoch+1) + "_batch" + str(i+1)
+                        # outArray = np.stack([np.array(localLoss), np.array(accTrain)])
+                        # np.save(networkStr + "_oArrBatch.npy", outArray)
         my_net.lossVecTrain.append(np.average(localLoss))
         my_net.accVecTrain.append(np.average(accTrain))
         my_net.rmseVecTrain.append(np.average(rmseTrain))

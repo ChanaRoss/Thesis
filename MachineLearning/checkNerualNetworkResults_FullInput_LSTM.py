@@ -11,7 +11,7 @@ import torch
 import os
 import sys
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/')
-from CNN_LSTM_NeuralNet_LimitZerosV2 import Model
+from LSTM_inputFullGrid import Model
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/UtilsCode/')
 from createGif import create_gif
 
@@ -27,30 +27,23 @@ def createRealEventsUberML_network(eventMatrix, startTime, endTime):
     return realMatOut
 
 
-def getInputMatrixToNetwork(previousMat, sizeCnn):
-    # previousMat is of shape : [seq_len , size_x, size_y]
+def getInputMatrixToNetwork(previousMat):
+    # previousMat is of shape : [1, seq_len , size_x, size_y]
     lenSeqIn = previousMat.shape[0]
     lengthX = previousMat.shape[1]
     lengthY = previousMat.shape[2]
-    temp2 = np.zeros(shape=(1, lenSeqIn, sizeCnn, sizeCnn, lengthX * lengthY))
-    tempPadded = np.zeros(shape=(lenSeqIn, lengthX + sizeCnn, lengthY + sizeCnn))
-    padding_size = np.floor_divide(sizeCnn, 2)
-    tempPadded[:, padding_size: padding_size + lengthX, padding_size: padding_size + lengthY] = previousMat
+    xArr = np.zeros(shape=(1, lenSeqIn, lengthX * lengthY))
     k = 0
     for i in range(lengthX):
         for j in range(lengthY):
-            try:
-                temp2[0, :, :, :, k] = tempPadded[:, i:i + sizeCnn, j: j + sizeCnn]
-            except:
-                print("couldnt create input for cnn ")
+            xArr[0, :, k] = previousMat[:, i, j]
             k += 1
-    xArr = temp2
 
     if torch.cuda.is_available():
         xTensor = torch.Tensor(xArr).cuda()
     else:
         xTensor = torch.Tensor(xArr)
-    # xTensor is of shape: [grid id, seq, x_cnn, y_cnn]
+    # xTensor is of shape: [seq, grid_size]
     return xTensor
 
 
@@ -65,6 +58,7 @@ def createEventDistributionUber(previousEventMatrix, my_net, eventTimeWindow, st
     :return: eventPos, eventTimeWindow, outputEventMat
     """
     # previousEventMatrix is of size: [seq_len, x_size, y_size]
+
     if endTime - startTime == 0:  # should output one prediction
         out_seq = 1
     else:
@@ -74,14 +68,11 @@ def createEventDistributionUber(previousEventMatrix, my_net, eventTimeWindow, st
     netEventOut = torch.zeros([out_seq, x_size, y_size])
     for seq in range(out_seq):
         tempEventMat = previousEventMatrix
-        testOut = my_net.forward(previousEventMatrix.reshape(shape=(my_net.seq_len, x_size*y_size)))
-        input = getInputMatrixToNetwork(previousEventMatrix, my_net.cnn_input_dimension)
-        k = 0
-        for x in range(x_size):
-            for y in range(y_size):  # calculate output for each grid_id
-                testOut = my_net.forward(input[:, :, :, :, k])
-                _, netEventOut[seq, x, y]   = torch.max(torch.exp(testOut.data), 1)
-                k += 1
+        input = getInputMatrixToNetwork(previousEventMatrix)
+        testOut = my_net.forward(input)
+        t = torch.autograd.Variable(torch.Tensor([0.5]))  # threshold
+        netEventOut = (testOut > t).float() * 1
+        netEventOut = netEventOut.reshape(shape=(1, x_size, y_size))
         previousEventMatrix[0:-1, :, :]     = tempEventMat[1:, :, :]
         previousEventMatrix[-1, :, :]       = netEventOut[seq, :, :]
     # in the end netEventOut is a matrix of size [out_seq_len, size_x, size_y]
@@ -150,8 +141,8 @@ def main():
     # network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/limitedZero_500grid/'
     # network_name = 'gridSize11_epoch86_batch35_torch.pkl'
 
-    network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/limitedZero_backprob/'
-    network_name = 'gridSize11_epoch100_batch20_torch.pkl'
+    network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/gridInput_LSTM/'
+    network_name = 'gridSize11_epoch4_batch140_torch.pkl'
 
     data_path    = '/Users/chanaross/dev/Thesis/UberData/'
     data_name    = '3D_allDataLatLonCorrected_binaryClass_500gridpickle_30min.p'
@@ -189,13 +180,13 @@ def main():
     correct_non_zeros   = []
     correct_zeros       = []
     timeOut             = []
-    figPath = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/limitedZero_backprob/figures/'
+    figPath = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/gridInput_LSTM/figures/'
     numRuns = 10
     fileName = '500grid_30min_binary_network_results_'+str(numRuns)
     for i in range(numRuns):
         print("run num:"+str(i))
-        start_time = i+200
-        # start_time = np.random.randint(10, dataInputReal.shape[0] - 10)
+        # start_time = i+200
+        start_time = np.random.randint(10, dataInputReal.shape[0] - 10)
         timeOut.append(start_time)
         end_time   = start_time + 0
         realMatOut = createRealEventsUberML_network(dataInputReal, start_time, end_time)
