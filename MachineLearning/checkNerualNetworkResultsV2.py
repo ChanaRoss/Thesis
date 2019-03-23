@@ -156,6 +156,7 @@ def main():
     data_path    = '/Users/chanaross/dev/Thesis/UberData/'
     data_name    = '3D_allDataLatLonCorrected_binaryClass_500gridpickle_30min.p'
 
+
     # network_name = 'gridSize20_epoch608_batch9_torch.pkl'
     # data_path = '/Users/chanaross/dev/Thesis/UberData/'
     # data_name = '3D_allDataLatLonCorrected_500gridpickle_30min.p'

@@ -11,7 +11,7 @@ from sklearn import metrics
 from math import sqrt
 import sys
 sys.path.insert(0, '/home/schanaby@st.technion.ac.il/thesisML/')
-from dataLoader_uber import DataSetCnn_LSTM_NonZero
+from dataLoader_uber import DataSet_oneLSTM_allGrid
 
 def to_var(x):
     if torch.cuda.is_available():
@@ -42,28 +42,21 @@ def CreateOptimizer(netParams, ot, lr, dmp, mm, eps, wd):
 
 
 class Model(nn.Module):
-    def __init__(self, cnn_input_size, class_size, hidden_size, batch_size, sequence_size, kernel_size,
-                 stride_size, num_cnn_features, num_cnn_layers, fc_after_cnn_out_size, cnn_input_dimension):
+    def __init__(self, grid_size, hidden_size, batch_size, sequence_size):
         super(Model, self).__init__()
         self.sequence_size    = sequence_size
-        self.hiddenSize       = hidden_size
         self.batch_size       = batch_size
-        self.kernel_size      = kernel_size
-        self.stride_size      = stride_size
-        self.cnn_input_size   = cnn_input_size
-        self.class_size       = class_size
-        self.fc_output_size   = fc_after_cnn_out_size
-        self.num_cnn_features = num_cnn_features
-        self.num_cnn_layers   = num_cnn_layers
-        self.cnn_input_dimension = cnn_input_dimension
+        self.hiddenSize       = hidden_size
+        self.gridSize         = grid_size
 
-        self.loss       = None
-        self.lossCrit   = None
-        self.optimizer  = None
-        self.lr         = None
-        self.wd         = None
-        self.lossWeights = None
-        self.maxEpochs  = None
+        self.loss           = None
+        self.lossCrit       = None
+        self.optimizer      = None
+        self.lr             = None
+        self.wd             = None
+        self.lossWeights    = None
+        self.maxEpochs      = None
+
         # output variables (loss, acc ect.)
         self.finalAcc       = 0
         self.finalLoss      = 0
@@ -74,63 +67,34 @@ class Model(nn.Module):
         self.rmseVecTrain   = []
         self.rmseVecTest    = []
 
-
-        self.cnn            = nn.ModuleList()
-        self.fc_after_cnn   = nn.ModuleList()
         self.lstm           = None
         self.fc_after_lstm  = None
         self.logSoftMax     = nn.LogSoftmax(dim=1)
-
-
-    def create_cnn(self):
-        padding_size = int(0.5*(self.kernel_size - 1))
-        # defines cnn network
-        layers = []
-        for i in range(self.num_cnn_layers):
-            if i == 0:
-                layers += [nn.Conv2d(self.cnn_input_size, self.num_cnn_features, kernel_size=self.kernel_size, stride=self.stride_size, padding=padding_size),
-                           nn.BatchNorm2d(self.num_cnn_features),
-                           nn.ReLU(inplace=True)]
-            else:
-                layers += [nn.Conv2d(self.num_cnn_features, self.num_cnn_features, kernel_size=self.kernel_size, stride=self.stride_size, padding=padding_size),
-                           nn.BatchNorm2d(self.num_cnn_features),
-                           nn.ReLU(inplace=True)]
-        return nn.Sequential(*layers)
+        self.sigmoid        = nn.Sigmoid()
 
     def create_lstm(self, input_size):
         layer = nn.LSTM(input_size, self.hiddenSize)
-        return layer
-
-    def create_fc_after_cnn(self, input_size, output_size):
-        layer = nn.Sequential(nn.Linear(input_size, output_size), nn.BatchNorm1d(output_size), nn.ReLU())
         return layer
 
     def create_fc_after_lstm(self, input_size, output_size):
         layer = nn.Sequential(nn.Linear(input_size, output_size))
         return layer
 
-
-    def forward(self,x):
+    def forward(self, x):
         batch_size = x.size(0)
-        cnn_output = torch.zeros([batch_size, self.fc_output_size, self.sequence_size]).to(device)
-        # x is of size : [batch_size , mat_x , mat_y , sequence_size]
-        for i in range(self.sequence_size):
-            xtemp = x[:, i, :, :].view(x.size(0), 1, x.size(2), x.size(3))
-            out = self.cnn[i](xtemp)
-            out = out.view((batch_size, -1))
-            out = self.fc_after_cnn[i](out)  # after fully connected out is of size : [batch_size, fully_out_size]
-            cnn_output[:, :, i] = out
-        output, (h_n, c_n) = self.lstm(cnn_output.view(self.sequence_size, batch_size, -1))
+        # x is of size : [batch_size , sequence_size]
+        # and needs to be seq then batch therefore view is done before entering lstm
+        output, (h_n, c_n) = self.lstm(x.contiguous().view(self.sequence_size, batch_size, -1))
         out = self.fc_after_lstm(h_n)
-        out = self.logSoftMax(out.view(batch_size, -1))  # after last fc out is of size: [batch_size , num_classes] and is after LogSoftMax
+        out = self.sigmoid(out.view(batch_size, -1))  # after last fc out is of size: [batch_size , num_classes] and is after LogSoftMax
         return out
 
     def calcLoss(self, outputs, labels):
-        if self.loss is None:
-            self.loss = self.lossCrit(outputs, labels)
-        else:
-            self.loss += self.lossCrit(outputs, labels).data
-        # self.loss = self.lossCrit(outputs, labels)
+        self.loss = self.lossCrit(outputs, labels)
+        # if self.loss is None:
+        #     self.loss = self.lossCrit(outputs, labels)
+        # else:
+        #     self.loss += self.lossCrit(outputs, labels).data
 
     # creating backward propagation - calculating loss function result
     def backward(self):
@@ -155,14 +119,16 @@ class Model(nn.Module):
             # compute test result of model
             localBatchSize = labels.shape[0]
             grid_size      = labels.shape[1]
-            testOut = torch.zeros((localBatchSize, self.class_size, grid_size)).to(device)
-            labTest = torch.zeros((localBatchSize, grid_size)).to(device)
-            for k in range(grid_size):
-                testOut = self.forward(inputVar[:, :, :, :, k])
-                _, labTest[:, k] = torch.max(testOut.data, 1)
-                self.calcLoss(testOut, labVar[:, k])
-            self.loss = self.loss/(localBatchSize*grid_size)  # normalize loss to fit size of inputs
-            # self.backward(testOut, labVar)
+            testOut = self.forward(inputVar).to(device)
+            testOut = testOut.view(localBatchSize, grid_size)
+            t = Variable(torch.Tensor([0.5])).to(device)  # threshold
+            if isServerRun:
+                labTest = (testOut > t).type(torch.cuda.FloatTensor) * 1
+                labVar = labVar.type(torch.cuda.FloatTensor)
+            else:
+                labTest = (testOut > t).float() * 1
+                labVar = labVar.type(torch.FloatTensor)
+            self.calcLoss(testOut, labVar)
             localLossTest.append(self.loss.item())
             if isServerRun:
                 labTestNp = labTest.type(torch.cuda.LongTensor).cpu().detach().numpy()
@@ -203,7 +169,7 @@ def main():
     fileName = '3D_allDataLatLonCorrected_binaryClass_500gridpickle_30min.p'
     dataInput = np.load(path + fileName)
 
-    flag_save_network = False
+    flag_save_network = True
 
     xmin = 0
     xmax = dataInput.shape[0]
@@ -216,60 +182,39 @@ def main():
     x_size              = dataInput.shape[0]
     y_size              = dataInput.shape[1]
     dataSize            = dataInput.shape[2]
-    classNum            = (np.max(np.unique(dataInput)) + 1).astype(int)
+    #classNum            = (np.max(np.unique(dataInput)) + 1).astype(int)
     testSize            = 0.2
     sequence_size       = 5  # length of sequence for lstm network
-    cnn_input_size      = 1  # size of matrix in input cnn layer  - each sequence goes into different cnn network
-    cnn_dimension       = 7  # size of matrix around point i for cnn network
     batch_size          = 200
     num_epochs          = 100
-    max_dataloader_size = x_size*y_size
     num_train           = int((1 - testSize) * dataSize)
     # define hyper parameters -
     hidden_size         = 64
-    kernel_size         = 3
-    stride_size         = 1
-    num_cnn_features    = 64
-    num_cnn_layers      = 6
-    fc_after_cnn_out_size = 64
+    grid_size           = x_size*y_size
 
     # optimizer parameters -
-    lr  = 10
+    lr  = 0.01
     ot  = 2
     dmp = 0
     mm  = 0.9
     eps = 1e-08
-    wd  = 2e-5
+    wd  = 2e-8
 
     # create network based on input parameter's -
-    my_net = Model(cnn_input_size, classNum, hidden_size, batch_size, sequence_size, kernel_size,
-                   stride_size, num_cnn_features, num_cnn_layers, fc_after_cnn_out_size, cnn_dimension)
-    for i in range(sequence_size):
-        my_net.cnn.append(my_net.create_cnn())
-        my_net.fc_after_cnn.append(
-            my_net.create_fc_after_cnn(num_cnn_features * cnn_dimension * cnn_dimension, fc_after_cnn_out_size))
-    my_net.lstm = my_net.create_lstm(fc_after_cnn_out_size)
-    my_net.fc_after_lstm = my_net.create_fc_after_lstm(my_net.hiddenSize, classNum)
-    # # setup network
-    # if isServerRun:
-    #     my_net = my_net.cuda()
-    #     print("model converted to cuda mode")
+    my_net = Model(grid_size, hidden_size, batch_size, sequence_size)
+    my_net.lstm = my_net.create_lstm(grid_size)  # lstm receives all grid points and seq length of
+    my_net.fc_after_lstm = my_net.create_fc_after_lstm(my_net.hiddenSize, grid_size)
     my_net.to(device)
     print("model device is:")
     print(next(my_net.parameters()).device)
     numWeights = sum(param.numel() for param in my_net.parameters())
     print('number of parameters: ', numWeights)
-    my_net.optimizer = CreateOptimizer(my_net.parameters(), ot, lr, dmp, mm, eps, wd)
-    loss_weights = np.ones(classNum)
-    loss_weights[0] = 0.6
-    loss_weights[1] = 1
-    w               = torch.tensor(list(loss_weights), dtype=torch.float).to(device)
-    my_net.lossCrit = nn.NLLLoss(weight=w, size_average=False)
+    my_net.optimizer    = CreateOptimizer(my_net.parameters(), ot, lr, dmp, mm, eps, wd)
+    my_net.lossCrit     = nn.BCELoss(size_average=True)
 
-    my_net.maxEpochs    = num_epochs
-    my_net.lr           = lr
-    my_net.lossWeights  = loss_weights
-    my_net.wd           = wd
+    my_net.maxEpochs = num_epochs
+    my_net.lr        = lr
+    my_net.wd        = wd
 
     # network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/limitedZero_500grid/'
     # network_name = 'gridSize11_epoch4_batch5_torch.pkl'
@@ -279,8 +224,8 @@ def main():
     data_train = dataInput[:, :, 0:num_train]
     data_test  = dataInput[:, :, num_train:]
 
-    dataset_uber_train = DataSetCnn_LSTM_NonZero(data_train, sequence_size, cnn_dimension, max_dataloader_size)
-    dataset_uber_test  = DataSetCnn_LSTM_NonZero(data_test , sequence_size, cnn_dimension, max_dataloader_size)
+    dataset_uber_train = DataSet_oneLSTM_allGrid(data_train, sequence_size)
+    dataset_uber_test  = DataSet_oneLSTM_allGrid(data_test , sequence_size)
 
     # creating data loader
     dataloader_uber_train = data.DataLoader(dataset=dataset_uber_train, batch_size=batch_size, shuffle=True)
@@ -306,20 +251,28 @@ def main():
             labelsD = labels.to(device)
             my_net.loss = None
             # create torch variables
-            # input is of size [batch_size, seq_len, x_inputCnn, y_inputCnn, grid_id]
+            # input is of size [batch_size, grid_id, seq_size]
             inputVar = Variable(inputD).to(device)
-            labVar = Variable(labelsD).to(device)
+            labVar   = Variable(labelsD).to(device)
+            if isServerRun:
+                labVar   = labVar.type(torch.cuda.FloatTensor)
+            else:
+                labVar   = labVar.type(torch.FloatTensor)
             # reset gradient
             my_net.optimizer.zero_grad()
             # forward
-            labTrain = torch.tensor([]).to(device)
-            labTrain = labTrain.new_zeros(labVar.size())
-            grid_size = labels.shape[1]
-            for k in range(grid_size):
-                netOut = my_net.forward(inputVar[:, :, :, :, k])
-                _, labTrain[:, k] = torch.max(torch.exp(netOut.data), 1)
-                my_net.calcLoss(netOut, labVar[:, k])
-            my_net.loss = my_net.loss/(batch_size*grid_size)  # normalizing loss results
+            grid_size        = labels.shape[1]
+            local_batch_size = input.shape[0]
+            # input to LSTM is [seq_size, batch_size, grid_size] , will be transferred as part of the forward
+            netOut = my_net.forward(inputVar)
+            netOut = netOut.view(local_batch_size, grid_size)
+            t = Variable(torch.Tensor([0.5])).to(device)  # threshold
+            if isServerRun:
+                labTrain = (netOut > t).type(torch.cuda.FloatTensor) * 1
+            else:
+                labTrain = (netOut > t).float() * 1
+            my_net.calcLoss(netOut, labVar)
+            my_net.loss = my_net.loss  # normalizing loss results
             # backwards
             my_net.backward()
             # optimizer step
