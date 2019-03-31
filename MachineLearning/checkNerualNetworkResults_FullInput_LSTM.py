@@ -137,13 +137,30 @@ def plotSpesificTime(dataReal, dataPred, t, fileName):
     plt.close()
     return
 
+
+def plotEpochGraphs(my_net):
+    f, ax = plt.subplots(2,1)
+    ax[0].plot(range(len(my_net.accVecTrain)), np.array(my_net.accVecTrain), label = "Train accuracy")
+    ax[0].plot(range(len(my_net.accVecTest)), np.array(my_net.accVecTest), label="Test accuracy")
+    ax[0].set_xlabel('Epoch')
+    ax[0].set_ylabel('Accuracy [%]')
+
+    ax[1].plot(range(len(my_net.lossVecTrain)), np.array(my_net.lossVecTrain), label="Train Loss")
+    ax[1].plot(range(len(my_net.lossVecTest)), np.array(my_net.lossVecTest), label="Test Loss")
+    ax[1].set_xlabel('Epoch')
+    ax[1].set_ylabel('Loss')
+    plt.legend()
+    plt.show()
+    return
+
 def main():
     # network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/limitedZero_500grid/'
     # network_name = 'gridSize11_epoch86_batch35_torch.pkl'
 
-    network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/gridInput_LSTM/'
-    network_name = 'gridSize11_epoch4_batch140_torch.pkl'
-
+    network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/fullGridInput_LSTM_hyper/'
+    # network_name = 'gridSize11_epoch4_batch140_torch.pkl'
+    # network_names = [f for f in os.listdir(network_path) if f.endswith('.pkl')]
+    network_names = ['seq_10_bs_50_hs_20_lr_0.05_ot_1_torch_61Epochs.pkl']
     data_path    = '/Users/chanaross/dev/Thesis/UberData/'
     data_name    = '3D_allDataLatLonCorrected_binaryClass_500gridpickle_30min.p'
 
@@ -155,17 +172,13 @@ def main():
 
     dataInputReal     = np.load(data_path + data_name)
 
-    my_net = torch.load(network_path + network_name, map_location=lambda storage, loc: storage)
-    my_net.eval()
-
     xmin = 0
     xmax = dataInputReal.shape[0]
     ymin = 0
     ymax = dataInputReal.shape[1]
     zmin = 48
-    dataInputReal = dataInputReal[xmin:xmax, ymin:ymax, zmin:]   #shrink matrix size for fast training in order to test model
+    dataInputReal = dataInputReal[xmin:xmax, ymin:ymax, zmin:]  # shrink matrix size for fast training in order to test model
     # dataInputReal[dataInputReal > 1] = 1
-
     # reshape input data for network format -
     lengthT = dataInputReal.shape[2]
     lengthX = dataInputReal.shape[0]
@@ -173,82 +186,87 @@ def main():
     dataInputReal = np.swapaxes(dataInputReal, 0, 1)
     dataInputReal = np.swapaxes(dataInputReal, 0, 2)
     # dataInputReal       = dataInputReal.reshape(lengthT, lengthX, lengthY)
-    accuracy            = []
-    rmse                = []
-    numEventsCreated    = []
-    numEventsPredicted  = []
-    correct_non_zeros   = []
-    correct_zeros       = []
-    timeOut             = []
-    figPath = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/gridInput_LSTM/figures/'
-    numRuns = 10
-    fileName = '500grid_30min_binary_network_results_'+str(numRuns)
-    for i in range(numRuns):
-        print("run num:"+str(i))
-        # start_time = i+200
-        start_time = np.random.randint(10, dataInputReal.shape[0] - 10)
-        timeOut.append(start_time)
-        end_time   = start_time + 0
-        realMatOut = createRealEventsUberML_network(dataInputReal, start_time, end_time)
-        previousEventMatrix = getPreviousEventMat(dataInputReal, start_time, my_net.sequence_size)
-        eventsPos, eventsTimeWindow, netEventOut = createEventDistributionUber(previousEventMatrix, my_net, 3, start_time, end_time)
 
-        sizeMat = netEventOut.size
-        rmse.append(sqrt(metrics.mean_squared_error(realMatOut.reshape(-1), netEventOut.reshape(-1))))
-        accuracy.append(np.sum(realMatOut == netEventOut) / (sizeMat))
-        sizeMat_zeros = netEventOut[realMatOut == 0].size
-        sizeMat_non_zeros = netEventOut[realMatOut != 0].size
-        if (sizeMat_non_zeros>0):
-            correct_non_zeros.append(np.sum(netEventOut[realMatOut != 0] == realMatOut[realMatOut != 0]) / sizeMat_non_zeros)
-        if sizeMat_zeros>0:
-            correct_zeros.append(np.sum(netEventOut[realMatOut == 0] == realMatOut[realMatOut == 0]) / sizeMat_zeros)
-        plotSpesificTime(realMatOut, netEventOut, start_time, figPath + fileName)
-        numEventsCreated.append(np.sum(realMatOut))
-        numEventsPredicted.append(np.sum(netEventOut))
+    for network_name in network_names:
+        my_net = torch.load(network_path + network_name, map_location=lambda storage, loc: storage)
+        my_net.eval()
+        plotEpochGraphs(my_net)
+        accuracy            = []
+        rmse                = []
+        numEventsCreated    = []
+        numEventsPredicted  = []
+        correct_non_zeros   = []
+        correct_zeros       = []
+        timeOut             = []
+        figPath = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/fullGridInput_LSTM_hyper/figures/'
+        numRuns = 50
+        fileName = str(numRuns) + network_name.replace('.pkl', '')
+        for i in range(numRuns):
+            # print("run num:"+str(i))
+            start_time = i+200
+            # start_time = np.random.randint(50, dataInputReal.shape[0] - 50)
+            timeOut.append(start_time)
+            end_time   = start_time + 0
+            realMatOut = createRealEventsUberML_network(dataInputReal, start_time, end_time)
+            previousEventMatrix = getPreviousEventMat(dataInputReal, start_time, my_net.sequence_size)
+            eventsPos, eventsTimeWindow, netEventOut = createEventDistributionUber(previousEventMatrix, my_net, 3, start_time, end_time)
 
-        # realMatOut[realMatOut > 1] = 1
-        # distMatOut[distMatOut > 1] = 1
-        # accuracy1.append(np.sum(np.sum(realMatOut == distMatOut)/(realMatOut.shape[0]*realMatOut.shape[1])))
-        # if (realMatOut[realMatOut!=0].size >0):
-        #     non_zero_accuracy1.append(np.sum(np.sum(realMatOut[realMatOut != 0] == distMatOut[realMatOut != 0]))/(realMatOut[realMatOut != 0].size))
-        #
-        # if (distMatOut[distMatOut!=0].size >0):
-        #     non_zero_accuracy1_dist.append(np.sum(np.sum(realMatOut[distMatOut != 0] == distMatOut[distMatOut != 0]))/(realMatOut[distMatOut != 0].size))
+            sizeMat = netEventOut.size
+            rmse.append(sqrt(metrics.mean_squared_error(realMatOut.reshape(-1), netEventOut.reshape(-1))))
+            accuracy.append(np.sum(realMatOut == netEventOut) / (sizeMat))
+            sizeMat_zeros = netEventOut[realMatOut == 0].size
+            sizeMat_non_zeros = netEventOut[realMatOut != 0].size
+            if (sizeMat_non_zeros>0):
+                correct_non_zeros.append(np.sum(netEventOut[realMatOut != 0] == realMatOut[realMatOut != 0]) / sizeMat_non_zeros)
+            if sizeMat_zeros>0:
+                correct_zeros.append(np.sum(netEventOut[realMatOut == 0] == realMatOut[realMatOut == 0]) / sizeMat_zeros)
+            plotSpesificTime(realMatOut, netEventOut, start_time, figPath + fileName)
+            numEventsCreated.append(np.sum(realMatOut))
+            numEventsPredicted.append(np.sum(netEventOut))
 
-    listNames = [fileName + '_' + str(t) + '.png' for t in timeOut]
-    create_gif(figPath, listNames, 1, fileName)
+            # realMatOut[realMatOut > 1] = 1
+            # distMatOut[distMatOut > 1] = 1
+            # accuracy1.append(np.sum(np.sum(realMatOut == distMatOut)/(realMatOut.shape[0]*realMatOut.shape[1])))
+            # if (realMatOut[realMatOut!=0].size >0):
+            #     non_zero_accuracy1.append(np.sum(np.sum(realMatOut[realMatOut != 0] == distMatOut[realMatOut != 0]))/(realMatOut[realMatOut != 0].size))
+            #
+            # if (distMatOut[distMatOut!=0].size >0):
+            #     non_zero_accuracy1_dist.append(np.sum(np.sum(realMatOut[distMatOut != 0] == distMatOut[distMatOut != 0]))/(realMatOut[distMatOut != 0].size))
 
-    plt.scatter(range(len(accuracy)), 100 * np.array(accuracy))
-    plt.xlabel('run number [#]')
-    plt.ylabel('accuracy [%]')
-    plt.figure()
-    plt.scatter(range(len(rmse)), np.array(rmse))
-    plt.xlabel('run number [#]')
-    plt.ylabel('RMSE')
-    plt.figure()
-    plt.scatter(range(len(numEventsCreated)), np.array(numEventsCreated), label="num real events")
-    plt.scatter(range(len(numEventsPredicted)), np.array(numEventsPredicted), label="num predicted")
-    plt.xlabel('run number [#]')
-    plt.ylabel('num events created')
-    plt.legend()
-    plt.figure()
-    plt.scatter(range(len(numEventsCreated)), np.abs(np.array(numEventsCreated) - np.array(numEventsPredicted)),label="difference between prediction and real")
-    plt.xlabel('run number [#]')
-    plt.ylabel('abs. (real - pred)')
-    plt.legend()
-    plt.figure()
-    plt.scatter(range(len(correct_zeros)), 100 * np.array(correct_zeros))
-    plt.xlabel('run number [#]')
-    plt.ylabel('correct_zeros')
-    plt.figure()
-    plt.scatter(range(len(correct_non_zeros)), 100 * np.array(correct_non_zeros))
-    plt.xlabel('run number [#]')
-    plt.ylabel('correct non zeros')
+        listNames = [fileName + '_' + str(t) + '.png' for t in timeOut]
+        create_gif(figPath, listNames, 1, fileName)
 
-    print("average RMSE for " + str(numRuns) + " runs is:" + str(np.mean(np.array(rmse))))
-    print("average accuracy for " + str(numRuns) + " runs is:" + str(100 * np.mean(np.array(accuracy))))
-    print("average corrected zeros " + str(numRuns) + " runs is:" + str(100 * np.mean(np.array(correct_zeros))))
-    print("average corrected non zeros for " + str(numRuns) + " runs is:" + str(100 * np.mean(np.array(correct_non_zeros))))
+        # plt.scatter(range(len(accuracy)), 100 * np.array(accuracy))
+        # plt.xlabel('run number [#]')
+        # plt.ylabel('accuracy [%]')
+        # plt.figure()
+        # plt.scatter(range(len(rmse)), np.array(rmse))
+        # plt.xlabel('run number [#]')
+        # plt.ylabel('RMSE')
+        # plt.figure()
+        plt.scatter(range(len(numEventsCreated)), np.array(numEventsCreated), label="num real events")
+        plt.scatter(range(len(numEventsPredicted)), np.array(numEventsPredicted), label="num predicted")
+        # plt.xlabel('run number [#]')
+        # plt.ylabel('num events created')
+        # plt.legend()
+        # plt.figure()
+        # plt.scatter(range(len(numEventsCreated)), np.abs(np.array(numEventsCreated) - np.array(numEventsPredicted)),label="difference between prediction and real")
+        # plt.xlabel('run number [#]')
+        # plt.ylabel('abs. (real - pred)')
+        # plt.legend()
+        # plt.figure()
+        # plt.scatter(range(len(correct_zeros)), 100 * np.array(correct_zeros))
+        # plt.xlabel('run number [#]')
+        # plt.ylabel('correct_zeros')
+        # plt.figure()
+        # plt.scatter(range(len(correct_non_zeros)), 100 * np.array(correct_non_zeros))
+        # plt.xlabel('run number [#]')
+        # plt.ylabel('correct non zeros')
+
+        print("average RMSE for " + str(numRuns) + " runs is:" + str(np.mean(np.array(rmse))))
+        print("average accuracy for " + str(numRuns) + " runs is:" + str(100 * np.mean(np.array(accuracy))))
+        print("average corrected zeros " + str(numRuns) + " runs is:" + str(100 * np.mean(np.array(correct_zeros))))
+        print("average corrected non zeros for " + str(numRuns) + " runs is:" + str(100 * np.mean(np.array(correct_non_zeros))))
 
     plt.show()
     return
