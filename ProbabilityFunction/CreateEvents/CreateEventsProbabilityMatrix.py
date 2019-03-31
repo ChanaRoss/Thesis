@@ -10,7 +10,7 @@ sns.set()
 
 
 
-TimeProbMatrix = np.load('/Users/chanaross/dev/Thesis/UberData/4D_ProbabilityMat_allDataLatLonCorrected_binaryClass_500gridpickle_30min.p')
+TimeProbMatrix = np.load('/Users/chanaross/dev/Thesis/UberData/4D_ProbabilityMat_allDataLatLonCorrected_multiClass_500gridpickle_30min.p')
 cdf = np.zeros(TimeProbMatrix.shape[3])
 FullCdf = np.zeros(shape=(TimeProbMatrix.shape[0], TimeProbMatrix.shape[1], TimeProbMatrix.shape[2], cdf.size))
 
@@ -33,6 +33,6 @@ for t in range(TimeProbMatrix.shape[2]):
     # plt.figure()
     # plt.matshow(np.sum(TimeProbMatrix[:,:,t,:],axis = 2))
     # plt.show()
-FullCdf.dump('4D_ProbabilityMat_allDataLatLonCorrected_binaryClass_CDF_500gridpickle_30min.p')
+FullCdf.dump('4D_ProbabilityMat_allDataLatLonCorrected_multiClass_CDF_500gridpickle_30min.p')
 
 print("done!")
