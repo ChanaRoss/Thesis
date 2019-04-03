@@ -87,10 +87,10 @@ def plotSpesificTime(dataReal, dataPred, t, fileName):
     dataFixedPred = np.flipud(dataFixedPred)
 
     f, axes = plt.subplots(1, 2)
-    ticksDict = list(range(11))
+    ticksDict = list(range(21))
 
-    sns.heatmap(dataFixed, cbar = False, center = 1, square=True, vmin = 0, vmax = 10, ax=axes[0], cmap = 'CMRmap_r', cbar_kws=dict(ticks=ticksDict))
-    sns.heatmap(dataFixedPred, cbar=True, center=1, square=True, vmin=0, vmax=10, ax=axes[1], cmap='CMRmap_r',cbar_kws=dict(ticks=ticksDict))
+    sns.heatmap(dataFixed, cbar = False, center = 1, square=True, vmin = 0, vmax = 20, ax=axes[0], cmap = 'CMRmap_r', cbar_kws=dict(ticks=ticksDict))
+    sns.heatmap(dataFixedPred, cbar=True, center=1, square=True, vmin=0, vmax=20, ax=axes[1], cmap='CMRmap_r',cbar_kws=dict(ticks=ticksDict))
     axes[0].set_title('week- {0}, day- {1},time- {2}:{3}'.format(week,day,hour, minute) + ' , Real data')
     axes[1].set_title('Predicted data')
     # plt.title('time is -  {0}:{1}'.format(hour, minute))
@@ -106,9 +106,9 @@ def main():
     # data loader -
     path = '/Users/chanaross/dev/Thesis/UberData/'
     figPath = '/Users/chanaross/dev/Thesis/MachineLearning/BenchmarkFigures/'
-    fileNameReal = '3D_allDataLatLonCorrected_multiClass_500gridpickle_30min.p'
-    # fileNameReal = '4D_matPerWeek_allDataLatLonCorrected_multiClass_500gridpickle_30min.p'
-    fileNameDist = '4D_ProbabilityMat_allDataLatLonCorrected_multiClass_CDF_500gridpickle_30min.p'
+    fileNameReal = '3D_allDataLatLonCorrected_20MultiClass_500gridpickle_30min.p'
+    # fileNameReal = '4D_matPerWeek_allDataLatLonCorrected_20MultiClass_500gridpickle_30min.p'
+    fileNameDist = '4D_ProbabilityMat_allDataLatLonCorrected_20MultiClass_CDF_500gridpickle_30min.p'
     # data real values are between 0 and k (k is the maximum amount of concurrent events at each x,y,t)
     # data dist have values that are the probability of having k events at x,y,t
     dataInputReal = np.load(path + fileNameReal)  # matrix size is : [xsize , ysize, timeseq]
@@ -118,7 +118,7 @@ def main():
     # numTimes = dataInputReal.shape[2]
     # for i in range(dataInputReal.shape[3]):
     #     dataInputRealFull[:, :, i*numTimes: (i+1)*numTimes] = dataInputReal[:, :, :, i]
-    # dataInputRealFull.dump('/Users/chanaross/dev/Thesis/UberData/3D_allDataLatLonCorrected_multiClass_500gridpickle_30min.p')
+    # dataInputRealFull.dump('/Users/chanaross/dev/Thesis/UberData/3D_allDataLatLonCorrected_20MultiClass_500gridpickle_30min.p')
 
     xmin = 0
     xmax = dataInputReal.shape[0]
@@ -137,7 +137,7 @@ def main():
 
     timeOut = []
     numRuns = 10
-    fileNameOut = '500grid_30min_multi_benchmark_results_random_' + str(numRuns)
+    fileNameOut = '500grid_30min_20Multi_benchmark_results_random_' + str(numRuns)
     for i in range(numRuns):
         start_time = np.random.randint(10, dataInputReal.shape[2]-10)
         # start_time = 11

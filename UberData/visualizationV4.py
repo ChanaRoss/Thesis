@@ -279,9 +279,9 @@ def createProbMatrixForBenchMark(df, fileName):
             dfTemp2 = dfTemp1[dfTemp1['weekPeriod30'] == t]
             for ix, iy in zip(dfTemp2['grid_x'], dfTemp2['grid_y']):
                 mat[ix, iy, t, wnum - wnumMin] += 1
-    maxNumEvents = np.max(mat).astype(int)
-    # maxNumEvents = 1
-    # mat[mat>1] = 1
+    # maxNumEvents = np.max(mat).astype(int)
+    maxNumEvents = 20
+    mat[mat>maxNumEvents] = maxNumEvents
     matOut = np.zeros(shape=(gridX.size, gridY.size, mat.shape[2], maxNumEvents+1))
     for ix in range(mat.shape[0]):
         for iy in range(mat.shape[1]):
@@ -294,6 +294,7 @@ def createProbMatrixForBenchMark(df, fileName):
                 # normalizing numbers to be probability instead of absolute value
                 matOut[ix, iy, t, :] = matOut[ix, iy, t, :]/np.sum(matOut[ix, iy, t, :])
     matOut.dump('4D_ProbabilityMat_' + fileName + '.p')
+    mat = mat
     mat.dump('4D_matPerWeek_'+fileName+'.p')
     print('hi')
     return
@@ -348,7 +349,7 @@ def main():
 
     # with open ('/Users/chanaross/dev/Thesis/UberData/manhattenData_250Grid_5min_pickle.p', 'wb') as op:
     #     pickle.dump(df, op)
-    fileName = 'allDataLatLonCorrected_multiClass_500gridpickle_30min'
+    fileName = 'allDataLatLonCorrected_20MultiClass_500gridpickle_30min'
     # createProbMatrix(df, fileName)
     # createLearningMatrix(df, fileName)
     createProbMatrixForBenchMark(df, fileName)

@@ -125,15 +125,9 @@ class Model(nn.Module):
             # compute test result of model
             localBatchSize = labels.shape[0]
             grid_size      = labels.shape[1]
-            testOut = self.forward(inputVar).to(device)
-            testOut = testOut.view(localBatchSize, grid_size)
-            t = Variable(torch.Tensor([0.5])).to(device)  # threshold
-            if isServerRun:
-                labTest = (testOut > t).type(torch.cuda.FloatTensor) * 1
-                labVar = labVar.type(torch.cuda.FloatTensor)
-            else:
-                labTest = (testOut > t).float() * 1
-                labVar = labVar.type(torch.FloatTensor)
+            testOut = self.forward(inputVar)
+            testOut = testOut.view(localBatchSize, self.class_size, grid_size)
+            _, labTest = torch.max(torch.exp(testOut.data), 1)
             self.calcLoss(testOut, labVar)
             localLossTest.append(self.loss.item())
             if isServerRun:
@@ -172,7 +166,7 @@ def main():
         path = '/home/schanaby@st.technion.ac.il/thesisML/'
     else:
         path = '/Users/chanaross/dev/Thesis/UberData/'
-    fileName = '3D_allDataLatLonCorrected_multiClass_500gridpickle_30min.p'
+    fileName = '3D_allDataLatLonCorrected_20MultiClass_500gridpickle_30min.p'
     dataInput = np.load(path + fileName)
 
     flag_save_network = True
@@ -190,17 +184,17 @@ def main():
     dataSize            = dataInput.shape[2]
     class_size          = (np.max(np.unique(dataInput)) + 1).astype(int)
     testSize            = 0.2
-    sequence_sizeVec    = [10]  # [5, 10, 15]  # length of sequence for lstm network
-    batch_sizeVec       = [50]
+    sequence_sizeVec    = [5, 10, 15]  # [5, 10, 15]  # length of sequence for lstm network
+    batch_sizeVec       = [20, 50]
     num_epochs          = 100
     num_train           = int((1 - testSize) * dataSize)
     # define hyper parameters -
-    hidden_sizeVec      = [20]  # [20, 40, 64, 128]
+    hidden_sizeVec      = [20, 64, 128, 264]  # [20, 40, 64, 128]
     grid_size           = x_size*y_size
 
     # optimizer parameters -
-    lrVec  = [0.01]  # [0.1, 0.01, 0.001]
-    otVec  = [1]  # [1, 2]
+    lrVec  = [0.05, 0.1, 0.5]  # [0.1, 0.01, 0.001]
+    otVec  = [1, 2, 3]  # [1, 2]
     dmp    = 0
     mm     = 0.9
     eps    = 1e-08
@@ -279,10 +273,10 @@ def main():
                 # input is of size [batch_size, grid_id, seq_size]
                 inputVar = Variable(inputD).to(device)
                 labVar   = Variable(labelsD).to(device)
-                if isServerRun:
-                    labVar   = labVar.type(torch.cuda.FloatTensor)
-                else:
-                    labVar   = labVar.type(torch.FloatTensor)
+                # if isServerRun:
+                #     labVar   = labVar.type(torch.cuda.FloatTensor)
+                # else:
+                #     labVar   = labVar.type(torch.FloatTensor)
                 # reset gradient
                 my_net.optimizer.zero_grad()
                 # forward
@@ -290,12 +284,8 @@ def main():
                 local_batch_size = input.shape[0]
                 # input to LSTM is [seq_size, batch_size, grid_size] , will be transferred as part of the forward
                 netOut = my_net.forward(inputVar)
-                netOut = netOut.view(local_batch_size, grid_size, class_size)
-                t = Variable(torch.Tensor([0.5])).to(device)  # threshold
-                if isServerRun:
-                    labTrain = (netOut > t).type(torch.cuda.FloatTensor) * 1
-                else:
-                    labTrain = (netOut > t).float() * 1
+                netOut = netOut.view(local_batch_size, class_size, grid_size)
+                _, labTrain = torch.max(torch.exp(netOut.data), 1)
                 my_net.calcLoss(netOut, labVar)
                 # backwards
                 my_net.backward()
@@ -307,11 +297,11 @@ def main():
                 #     labTrain = labTrain.cpu()
                 if isServerRun:
                     labTrainNp = labTrain.type(torch.cuda.LongTensor).cpu().detach().numpy()
-                    print("number of net labels different from 0 is:" + str(np.sum(labTrainNp > 0)))
-                    print("number of net labels 0 is:"+str(np.sum(labTrainNp == 0)))
+                    # print("number of net labels different from 0 is:" + str(np.sum(labTrainNp > 0)))
+                    # print("number of net labels 0 is:"+str(np.sum(labTrainNp == 0)))
                     labelsNp = labels.cpu().detach().numpy()
-                    print("number of real labels different from 0 is:" + str(np.sum(labelsNp > 0)))
-                    print("number of real labels 0 is:" + str(np.sum(labelsNp == 0)))
+                    # print("number of real labels different from 0 is:" + str(np.sum(labelsNp > 0)))
+                    # print("number of real labels 0 is:" + str(np.sum(labelsNp == 0)))
                     trainCorr = torch.sum(labTrain.type(torch.cuda.LongTensor) == labels).cpu().detach().numpy() + trainCorr
                 else:
                     labTrainNp = labTrain.long().detach().numpy()
