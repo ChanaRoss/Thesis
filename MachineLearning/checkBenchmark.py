@@ -191,7 +191,8 @@ def main():
 
     timeOut = []
     numRuns = 20
-    timeIndexs = [np.random.randint(50, dataInputReal.shape[2] - 50) for i in range(numRuns)]
+    # timeIndexs = [np.random.randint(50, dataInputReal.shape[2] - 50) for i in range(numRuns)]
+    timeIndexs = np.arange(100, 120, 1).astype(int)
     print(timeIndexs)
     fileNameOut = '500grid_30min_20Multi_benchmark_results_random_' + str(numRuns)
 

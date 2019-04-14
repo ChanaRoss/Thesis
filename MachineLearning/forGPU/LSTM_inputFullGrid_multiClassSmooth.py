@@ -191,12 +191,12 @@ def main():
     testSize            = 0.2
     # define hyper parameters -
     hidden_sizeVec      = [128]  # [20, 64, 256, 512] #[20, 64, 264, 512]  # [20, 40, 64, 128]
-    sequence_sizeVec    = [30, 50]  # [5, 20, 30, 40]  # [5, 10, 15]  # length of sequence for lstm network
+    sequence_sizeVec    = [5, 10, 20]  # [5, 20, 30, 40]  # [5, 10, 15]  # length of sequence for lstm network
     batch_sizeVec       = [40]
     num_epochs          = 100
 
     # optimizer parameters -
-    lrVec   = [0.5, 0.9]  # [0.1, 0.5, 0.9] #[0.1, 0.5, 0.9]  # [0.1, 0.01, 0.001]
+    lrVec   = [0.05, 0.2, 0.5]  # [0.1, 0.5, 0.9] #[0.1, 0.5, 0.9]  # [0.1, 0.01, 0.001]
     otVec   = [1]  # [1, 2]
     dmp     = 0
     mm      = 0.9

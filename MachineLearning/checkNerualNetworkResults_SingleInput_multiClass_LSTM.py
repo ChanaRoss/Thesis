@@ -155,7 +155,7 @@ def plotEpochGraphs(my_net, filePath, fileName):
     ax[1].set_xlabel('Epoch')
     ax[1].set_ylabel('Loss')
     plt.legend()
-    plt.savefig(filePath + 'Results_' + fileName + '.png')
+    plt.savefig(filePath + 'lossResults_' + fileName + '.png')
     plt.close()
     # plt.show()
     return
@@ -317,8 +317,8 @@ def main():
             end_timeSm = start_timeSm + 0
             realMatOut   = createRealEventsUberML_network(dataInputReal, start_time, end_time)
             realMatOutSm = createRealEventsUberML_network(dataInputSmooth, start_timeSm, end_timeSm)
-            previousEventMatrix = getPreviousEventMat(dataInputReal, start_timeSm, my_net.sequence_size)
-            eventsPos, eventsTimeWindow, netEventOut = createEventDistributionUber(previousEventMatrix, my_net, 3, start_timeSm, end_timeSm)
+            previousEventMatrix = getPreviousEventMat(dataInputReal, start_time, my_net.sequence_size)
+            eventsPos, eventsTimeWindow, netEventOut = createEventDistributionUber(previousEventMatrix, my_net, 3, start_time, end_time)
 
             sizeMat = netEventOut.size
             rmse.append(sqrt(metrics.mean_squared_error(realMatOut.reshape(-1), netEventOut.reshape(-1))))
