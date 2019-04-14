@@ -154,10 +154,14 @@ class Model(nn.Module):
     def saveModel(self, path):
         torch.save(self, path)
 
-def moving_average(data_set, periods=3):
-    weights = np.ones(periods) / periods
-    convRes = np.convolve(data_set, weights, mode='valid')
-    return np.floor(convRes)
+def moving_average(data_set, periods=3, axis = 2):
+    cumsum = np.cumsum(data_set, axis = axis)
+    averageRes =  (cumsum[:, :, periods:] - cumsum[:, :, :-periods]) / float(periods)
+    return np.floor(averageRes)
+
+    # weights = np.ones(periods) / periods
+    # convRes = np.convolve(data_set, weights, mode='valid')
+    # return np.floor(convRes)
 
 
 def main():
@@ -180,41 +184,49 @@ def main():
     ymax = dataInput.shape[1]
     zmin = 48
     dataInput     = dataInput[xmin:xmax, ymin:ymax, zmin:]  # shrink matrix size for fast training in order to test model
+    dataInput     = dataInput[5:6, 10:11, :]
+    smoothParam   = [10]  #[10, 15, 30]
 
-    # dataInput[dataInput>1] = 1  # limit all events larger than 10 to be 10
-    # define important sizes for network -
-    x_size              = dataInput.shape[0]
-    y_size              = dataInput.shape[1]
-    dataSize            = dataInput.shape[2]
-    class_size          = (np.max(np.unique(dataInput)) + 1).astype(int)
     testSize            = 0.2
-    sequence_sizeVec    = [60]  # [5, 10, 15]  # length of sequence for lstm network
-    batch_sizeVec       = [100]
-    num_epochs          = 50
-    num_train           = int((1 - testSize) * dataSize)
     # define hyper parameters -
-    hidden_sizeVec      = [550] #[20, 64, 264, 512]  # [20, 40, 64, 128]
-    grid_size           = x_size*y_size
+    hidden_sizeVec      = [128]  # [20, 64, 256, 512] #[20, 64, 264, 512]  # [20, 40, 64, 128]
+    sequence_sizeVec    = [50]  # [5, 20, 30, 40]  # [5, 10, 15]  # length of sequence for lstm network
+    batch_sizeVec       = [40]
+    num_epochs          = 20
 
     # optimizer parameters -
-    lrVec  = [0.5] #[0.1, 0.5, 0.9]  # [0.1, 0.01, 0.001]
-    otVec  = [1]  # [1, 2]
-    dmp    = 0
-    mm     = 0.9
-    eps    = 1e-08
-    wdVec  = [2e-3]
+    lrVec   = [0.5, 0.9]  # [0.1, 0.5, 0.9] #[0.1, 0.5, 0.9]  # [0.1, 0.01, 0.001]
+    otVec   = [1]  # [1, 2]
+    dmp     = 0
+    mm      = 0.9
+    eps     = 1e-08
+    wdVec   = [2e-3]
+
     # create case vectors
     networksDict = {}
-    itr = itertools.product(sequence_sizeVec, batch_sizeVec, hidden_sizeVec, lrVec, otVec, wdVec)
+    itr = itertools.product(smoothParam, sequence_sizeVec, batch_sizeVec, hidden_sizeVec, lrVec, otVec, wdVec)
     for i in itr:
-        networkStr = 'seq_{0}_bs_{1}_hs_{2}_lr_{3}_ot_{4}_wd_{5}'.format(i[0], i[1], i[2], i[3], i[4], i[5])
-        networksDict[networkStr] = {'seq': i[0], 'bs': i[1], 'hs': i[2], 'lr': i[3], 'ot': i[4], 'wd': i[5]}
-
-    # output file
-    outFile = open('LSTM_networksOutput.csv', 'w')
-    outFile.write('Name;finalAcc;finalLoss;trainTime;numWeights;NumEpochs\n')
+        networkStr = 'smooth_{0}_seq_{1}_bs_{2}_hs_{3}_lr_{4}_ot_{5}_wd_{6}'.format(i[0], i[1], i[2], i[3], i[4], i[5], i[6])
+        networksDict[networkStr] = {'seq': i[1], 'bs': i[2], 'hs': i[3], 'lr': i[4], 'ot': i[5], 'wd': i[6], 'sm': i[0]}
 
     for netConfig in networksDict:
+        dataInputSmooth = moving_average(dataInput, networksDict[netConfig]['sm'])  # smoothing data so that results are more clear to network
+
+        # dataInput[dataInput>1] = 1  # limit all events larger than 10 to be 10
+        # define important sizes for network -
+        x_size              = dataInputSmooth.shape[0]
+        y_size              = dataInputSmooth.shape[1]
+        dataSize            = dataInputSmooth.shape[2]
+        class_size          = (np.max(np.unique(dataInputSmooth)) + 1).astype(int)
+
+        num_train = int((1 - testSize) * dataSize)
+        grid_size = x_size * y_size
+
+        # output file
+        outFile = open('LSTM_networksOutput.csv', 'w')
+        outFile.write('Name;finalAcc;finalLoss;trainTime;numWeights;NumEpochs\n')
+
+
         print('Net Parameters: ' + netConfig)
 
         # create network based on input parameter's -
@@ -245,14 +257,14 @@ def main():
         # my_net = torch.load(network_path + network_name, map_location=lambda storage, loc: storage)
 
         # load data from data loader and create train and test sets
-        data_train = dataInput[:, :, 0:num_train]
-        data_test  = dataInput[:, :, num_train:]
+        data_train = dataInputSmooth[:, :, 0:num_train]
+        data_test  = dataInputSmooth[:, :, num_train:]
 
         dataset_uber_train = DataSet_oneLSTM_allGrid(data_train, sequence_size)
         dataset_uber_test  = DataSet_oneLSTM_allGrid(data_test , sequence_size)
 
         # creating data loader
-        dataloader_uber_train = data.DataLoader(dataset=dataset_uber_train, batch_size=batch_size, shuffle=True)
+        dataloader_uber_train = data.DataLoader(dataset=dataset_uber_train, batch_size=batch_size, shuffle=False)
         dataloader_uber_test  = data.DataLoader(dataset=dataset_uber_test , batch_size=batch_size, shuffle=False)
 
         for numEpoch in range(num_epochs):
@@ -264,7 +276,7 @@ def main():
             rmseTrain = [1]
             trainCorr = 0.0
             trainTot = 0.0
-            if (1+numEpoch)%5 == 0:
+            if (1+numEpoch)%20 == 0:
                 if my_net.optimizer.param_groups[0]['lr'] > 0.001:
                     my_net.optimizer.param_groups[0]['lr'] = my_net.optimizer.param_groups[0]['lr']/2
                 else:

@@ -3,12 +3,15 @@ from matplotlib import  pyplot as plt
 from sklearn import metrics
 from math import sqrt
 import seaborn as sns
-sns.set(rc={'figure.figsize':(10, 11)})
+sns.set(rc={'figure.figsize':(14, 9)})
 
+from sklearn.metrics import confusion_matrix
+from sklearn.utils.multiclass import unique_labels
 import sys
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/UtilsCode/')
 from createGif import create_gif
 
+np.random.seed(1)
 
 def createEventDistributionUber(simStartTime, startTime, endTime, probabilityMatrix,eventTimeWindow,simTime):
     eventPos = []
@@ -102,6 +105,57 @@ def plotSpesificTime(dataReal, dataPred, t, fileName):
     plt.close()
     return
 
+def plot_confusion_matrix(y_true, y_pred, classes,
+                          t, fileLoc, fileName,
+                          normalize=False,
+                          title=None,
+                          cmap=plt.cm.Blues):
+    """
+    This function prints and plots the confusion matrix.
+    Normalization can be applied by setting `normalize=True`.
+    """
+
+    day = np.floor_divide(t, 2 * 24) + 1  # sunday is 1
+    week = np.floor_divide(t, 2 * 24 * 7) + 14  # first week is week 14 of the year
+    hour, temp = np.divmod(t, 2)
+    hour += 8  # data starts from 98 but was normalized to 0
+    _, hour = np.divmod(hour, 24)
+    minute = temp * 30
+    title = 'week- {0}, day- {1},time- {2}:{3}'.format(week, day, hour, minute) + ' , Confusion matrix'
+    if not title:
+        if normalize:
+            title = 'Normalized confusion matrix'
+        else:
+            title = 'Confusion matrix, without normalization'
+
+    # Compute confusion matrix
+    cm = confusion_matrix(y_true, y_pred, labels=classes)
+    # Only use the labels that appear in the data
+    #classes = classes[unique_labels(y_true, y_pred)]
+    if normalize:
+        cm = np.round(cm.astype('float') / cm.sum(axis=1)[:, np.newaxis], 2)
+        cm = np.nan_to_num(cm)
+        print("Normalized confusion matrix")
+    else:
+        print('Confusion matrix, without normalization')
+
+    num_ticks = len(classes)
+    # the index of the position of yticks
+    yticks = np.linspace(0, len(classes) - 1, num_ticks, dtype=np.int)
+    # the content of labels of these yticks
+    yticklabels = [classes[idx].astype(int) for idx in yticks]
+    ax = sns.heatmap(cm, cmap=cmap, annot=True, yticklabels=yticklabels, xticklabels= yticklabels)
+    ax.set_yticks(yticks+0.5)
+    ax.set_xticks(yticks+0.5)
+    ax.set_title(title)
+    ax.set_xlabel('Real Classification')
+    ax.set_ylabel('Predicted Classification')
+    plt.savefig(fileLoc + 'ConfMat_'+fileName + '_' + str(t) +'.png')
+    plt.close()
+    return
+
+
+
 def main():
     # data loader -
     path = '/Users/chanaross/dev/Thesis/UberData/'
@@ -136,11 +190,14 @@ def main():
     correct_non_zeros = []
 
     timeOut = []
-    numRuns = 10
+    numRuns = 20
+    timeIndexs = [np.random.randint(50, dataInputReal.shape[2] - 50) for i in range(numRuns)]
+    print(timeIndexs)
     fileNameOut = '500grid_30min_20Multi_benchmark_results_random_' + str(numRuns)
-    for i in range(numRuns):
-        start_time = np.random.randint(10, dataInputReal.shape[2]-10)
-        # start_time = 11
+
+    for t in timeIndexs:
+        # start_time = np.random.randint(10, dataInputReal.shape[2]-10)
+        start_time = t
         timeOut.append(start_time)
         realMatOut, distMatOut = getBenchmarkAccuracy(start_time, 5, dataInputReal, dataInputProb)
         sizeMat = realMatOut.shape[0] * realMatOut.shape[1]
@@ -155,7 +212,10 @@ def main():
         plotSpesificTime(realMatOut, distMatOut, start_time, figPath + fileNameOut)
         numEventsCreated.append(np.sum(realMatOut))
         numEventsPredicted.append(np.sum(distMatOut))
-
+        y_true = realMatOut.reshape(-1)
+        y_pred = distMatOut.reshape(-1)
+        labels = np.unique([y_true, y_pred])
+        plot_confusion_matrix(y_true, y_pred, classes=labels, t=start_time,fileLoc=figPath, fileName=fileNameOut, normalize=True)
         # realMatOut[realMatOut > 1] = 1
         # distMatOut[distMatOut > 1] = 1
         # accuracy1.append(np.sum(np.sum(realMatOut == distMatOut)/(realMatOut.shape[0]*realMatOut.shape[1])))
@@ -168,6 +228,9 @@ def main():
 
     listNames = [fileNameOut + '_' + str(t) + '.png' for t in timeOut]
     create_gif(figPath, listNames, 1, fileNameOut)
+
+    listNames = ['ConfMat_'+fileNameOut + '_' + str(t) + '.png' for t in timeOut]
+    create_gif(figPath, listNames, 1, 'ContMat_' + fileNameOut)
 
     plt.scatter(range(len(accuracy)), 100*np.array(accuracy))
     plt.xlabel('run number [#]')
