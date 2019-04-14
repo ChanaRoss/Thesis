@@ -60,6 +60,7 @@ class Model(nn.Module):
         self.wd             = None
         self.lossWeights    = None
         self.maxEpochs      = None
+        self.smoothingParam = None
 
         # output variables (loss, acc ect.)
         self.finalAcc       = 0
@@ -185,14 +186,14 @@ def main():
     zmin = 48
     dataInput     = dataInput[xmin:xmax, ymin:ymax, zmin:]  # shrink matrix size for fast training in order to test model
     dataInput     = dataInput[5:6, 10:11, :]
-    smoothParam   = [10]  #[10, 15, 30]
+    smoothParam   = [10, 20, 30, 40]  #[10, 15, 30]
 
     testSize            = 0.2
     # define hyper parameters -
     hidden_sizeVec      = [128]  # [20, 64, 256, 512] #[20, 64, 264, 512]  # [20, 40, 64, 128]
-    sequence_sizeVec    = [50]  # [5, 20, 30, 40]  # [5, 10, 15]  # length of sequence for lstm network
+    sequence_sizeVec    = [30, 50]  # [5, 20, 30, 40]  # [5, 10, 15]  # length of sequence for lstm network
     batch_sizeVec       = [40]
-    num_epochs          = 20
+    num_epochs          = 100
 
     # optimizer parameters -
     lrVec   = [0.5, 0.9]  # [0.1, 0.5, 0.9] #[0.1, 0.5, 0.9]  # [0.1, 0.01, 0.001]
@@ -251,6 +252,7 @@ def main():
         my_net.maxEpochs = num_epochs
         my_net.lr        = lr
         my_net.wd        = wd
+        my_net.smoothingParam = networksDict[netConfig]['sm']
 
         # network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/limitedZero_500grid/'
         # network_name = 'gridSize11_epoch4_batch5_torch.pkl'

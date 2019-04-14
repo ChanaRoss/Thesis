@@ -11,7 +11,7 @@ import torch
 import os
 import sys
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/')
-from LSTM_inputFullGrid_multiClassSmooth import Model
+from LSTM_inputFullGrid_multiClass import Model
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/UtilsCode/')
 from createGif import create_gif
 import pandas as pd
@@ -103,7 +103,7 @@ def getPreviousEventMat(dataInputReal, start_time, in_seq_len = 5):
     if lastPreviousTime - in_seq_len >= 0:  # there are enough previous events known to system
         previousEventMatrix = dataInputReal[lastPreviousTime-in_seq_len:lastPreviousTime, :, :]
     else: # need to pad results
-        previousEventMatrix[in_seq_len-lastPreviousTime:, :, :] = dataInputReal[:lastPreviousTime, :, :]
+        previousEventMatrix[in_seq_len-lastPreviousTime:, :, :] = dataInputReal
     return previousEventMatrix
 
 
@@ -209,27 +209,15 @@ def plot_confusion_matrix(y_true, y_pred, classes,
     plt.close()
     return
 
-def moving_average(data_set, periods=3, axis = 2):
-    cumsum = np.cumsum(data_set, axis = axis)
-    averageRes =  (cumsum[:, :, periods:] - cumsum[:, :, :-periods]) / float(periods)
-    return np.floor(averageRes)
-
-    # weights = np.ones(periods) / periods
-    # convRes = np.convolve(data_set, weights, mode='valid')
-    # return np.floor(convRes)
-
 def main():
     # network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/limitedZero_500grid/'
     # network_name = 'gridSize11_epoch86_batch35_torch.pkl'
 
     # network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/FullGridInput_multiClass/'
-    # network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/smoothFullGridMultiClass/'
+    network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/smoothFullGridMultiClass/'
     # network_name = 'gridSize11_epoch4_batch140_torch.pkl'
     # network_names = [f for f in os.listdir(network_path) if (f.endswith('.pkl') and f.startswith('smooth_'))]
-    # network_names = ['smooth_15_seq_5_bs_40_hs_20_lr_0.5_ot_1_wd_0.002_torch.pkl']
-
-    network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/singleGridId_multiClassSmooth/'
-    network_names = [f for f in os.listdir(network_path) if (f.endswith('.pkl'))]
+    network_names = ['smooth_15_seq_5_bs_40_hs_20_lr_0.5_ot_1_wd_0.002_torch.pkl']
     data_path    = '/Users/chanaross/dev/Thesis/UberData/'
     data_name    = '3D_allDataLatLonCorrected_20MultiClass_500gridpickle_30min.p'
 
@@ -253,16 +241,11 @@ def main():
     ymax = dataInputReal.shape[1]
     zmin = 48
     dataInputReal = dataInputReal[xmin:xmax, ymin:ymax, zmin:]  # shrink matrix size for fast training in order to test model
-    # numRuns = 20
-    # timeIndexs = [np.random.randint(50, dataInputReal.shape[2] - 50) for i in range(numRuns)]
-    # print(timeIndexs)
-    timeIndexs = np.arange(100, 500, 1).astype(int)
-
-    numRuns = timeIndexs.size
+    numRuns = 20
+    timeIndexs = [np.random.randint(50, dataInputReal.shape[2] - 50) for i in range(numRuns)]
+    print(timeIndexs)
     for network_name in network_names:
         print("network:" + network_name.replace('.pkl', ''))
-        my_net = torch.load(network_path + network_name, map_location=lambda storage, loc: storage)
-        my_net.eval()
         dataInputReal = np.load(data_path + data_name)
         xmin = 0
         xmax = dataInputReal.shape[0]
@@ -270,14 +253,6 @@ def main():
         ymax = dataInputReal.shape[1]
         zmin = 48
         dataInputReal = dataInputReal[xmin:xmax, ymin:ymax, zmin:]  # shrink matrix size for fast training in order to test model
-        dataInputReal = dataInputReal[5:6, 10:11, :]
-        try:
-            smoothParam = my_net.smoothingParam
-        except:
-            print("no smoothing param, using default 15")
-            smoothParam = 15
-        dataInputSmooth = moving_average(dataInputReal, smoothParam)  # smoothing data so that results are more clear to network
-
         # dataInputReal[dataInputReal > 1] = 1
         # reshape input data for network format -
         lengthT = dataInputReal.shape[2]
@@ -285,10 +260,8 @@ def main():
         lengthY = dataInputReal.shape[1]
         dataInputReal = np.swapaxes(dataInputReal, 0, 1)
         dataInputReal = np.swapaxes(dataInputReal, 0, 2)
-        dataInputSmooth = np.swapaxes(dataInputSmooth, 0, 1)
-        dataInputSmooth = np.swapaxes(dataInputSmooth, 0, 2)
-
-
+        my_net = torch.load(network_path + network_name, map_location=lambda storage, loc: storage)
+        my_net.eval()
         accuracy            = []
         rmse                = []
         numEventsCreated    = []
@@ -296,67 +269,50 @@ def main():
         correct_non_zeros   = []
         correct_zeros       = []
         timeOut             = []
-        accuracySm          = []
-        correct_non_zerosSm = []
-        correct_zerosSm     = []
-        numEventsCreatedSm  = []
-        rmseSm              = []
         figPath = network_path + 'figures/'
         fileName = str(numRuns) + network_name.replace('.pkl', '')
         plotEpochGraphs(my_net, figPath, fileName)
-        y_pred = []
-        y_true = []
-        y_trueSm = []
         for i in timeIndexs:
             # print("run num:"+str(i))
             # start_time = i+2000
             start_time = i
-            start_timeSm = i+smoothParam
             timeOut.append(start_time)
             end_time   = start_time + 0
-            end_timeSm = start_timeSm + 0
-            realMatOut   = createRealEventsUberML_network(dataInputReal, start_time, end_time)
-            realMatOutSm = createRealEventsUberML_network(dataInputSmooth, start_timeSm, end_timeSm)
-            previousEventMatrix = getPreviousEventMat(dataInputReal, start_timeSm, my_net.sequence_size)
-            eventsPos, eventsTimeWindow, netEventOut = createEventDistributionUber(previousEventMatrix, my_net, 3, start_timeSm, end_timeSm)
+            realMatOut = createRealEventsUberML_network(dataInputReal, start_time, end_time)
+            previousEventMatrix = getPreviousEventMat(dataInputReal, start_time, my_net.sequence_size)
+            eventsPos, eventsTimeWindow, netEventOut = createEventDistributionUber(previousEventMatrix, my_net, 3, start_time, end_time)
 
             sizeMat = netEventOut.size
             rmse.append(sqrt(metrics.mean_squared_error(realMatOut.reshape(-1), netEventOut.reshape(-1))))
-            rmseSm.append(sqrt(metrics.mean_squared_error(realMatOutSm.reshape(-1), netEventOut.reshape(-1))))
             accuracy.append(np.sum(realMatOut == netEventOut) / (sizeMat))
-            accuracySm.append(np.sum(realMatOutSm == netEventOut)/ sizeMat)
             sizeMat_zeros = netEventOut[realMatOut == 0].size
             sizeMat_non_zeros = netEventOut[realMatOut != 0].size
-            sizeMat_non_zerosSm = netEventOut[realMatOutSm != 0].size
-            sizeMat_zerosSm = netEventOut[realMatOutSm == 0].size
             if (sizeMat_non_zeros>0):
                 correct_non_zeros.append(np.sum(netEventOut[realMatOut != 0] == realMatOut[realMatOut != 0]) / sizeMat_non_zeros)
             if sizeMat_zeros>0:
                 correct_zeros.append(np.sum(netEventOut[realMatOut == 0] == realMatOut[realMatOut == 0]) / sizeMat_zeros)
-
-            if (sizeMat_non_zerosSm>0):
-                correct_non_zerosSm.append(np.sum(netEventOut[realMatOutSm != 0] == realMatOutSm[realMatOutSm != 0]) / sizeMat_non_zerosSm)
-            if sizeMat_zerosSm>0:
-                correct_zerosSm.append(np.sum(netEventOut[realMatOutSm == 0] == realMatOutSm[realMatOutSm == 0]) / sizeMat_zerosSm)
+            plotSpesificTime(realMatOut, netEventOut, start_time, figPath + fileName)
             numEventsCreated.append(np.sum(realMatOut))
             numEventsPredicted.append(np.sum(netEventOut))
-            numEventsCreatedSm.append(np.sum(realMatOutSm))
+            y_true = realMatOut.reshape(-1)
+            y_pred = netEventOut.reshape(-1)
+            labels = np.unique([y_true, y_pred])
+            plot_confusion_matrix(y_true, y_pred, classes=labels, t=start_time, fileLoc=figPath, fileName=fileName,normalize=True)
+            # realMatOut[realMatOut > 1] = 1
+            # distMatOut[distMatOut > 1] = 1
+            # accuracy1.append(np.sum(np.sum(realMatOut == distMatOut)/(realMatOut.shape[0]*realMatOut.shape[1])))
+            # if (realMatOut[realMatOut!=0].size >0):
+            #     non_zero_accuracy1.append(np.sum(np.sum(realMatOut[realMatOut != 0] == distMatOut[realMatOut != 0]))/(realMatOut[realMatOut != 0].size))
+            #
+            # if (distMatOut[distMatOut!=0].size >0):
+            #     non_zero_accuracy1_dist.append(np.sum(np.sum(realMatOut[distMatOut != 0] == distMatOut[distMatOut != 0]))/(realMatOut[distMatOut != 0].size))
 
-            y_true.append(realMatOut.reshape(-1))
-            y_pred.append(netEventOut.reshape(-1))
-            y_trueSm.append(realMatOutSm.reshape(-1))
+        listNames = [fileName + '_' + str(t) + '.png' for t in timeOut]
+        create_gif(figPath, listNames, 1, fileName)
 
-        y_trueAr = np.array(y_true)
-        y_predAr = np.array(y_pred)
-        y_trueSmAr = np.array(y_trueSm)
-        plt.plot(timeIndexs, y_trueAr, label='true output', linewidth=2, color = 'b')
-        plt.plot(timeIndexs, y_trueSmAr, label='true smooth output', linewidth=2, color ='r')
-        plt.plot(timeIndexs, y_predAr, label='predicted output', linewidth=2, color = 'k')
-        plt.legend()
-        plt.xlabel('Time')
-        plt.ylabel('num events')
-        plt.savefig(figPath + 'Results_' + fileName + '.png')
-        plt.close()
+        listNames = ['ConfMat_' + fileName + '_' + str(t) + '.png' for t in timeOut]
+        create_gif(figPath, listNames, 1, 'ContMat_' + fileName)
+
         # plt.scatter(range(len(accuracy)), 100 * np.array(accuracy))
         # plt.xlabel('run number [#]')
         # plt.ylabel('accuracy [%]')
@@ -388,13 +344,6 @@ def main():
         print("average accuracy for " + str(numRuns) + " runs is:" + str(100 * np.mean(np.array(accuracy))))
         print("average corrected zeros " + str(numRuns) + " runs is:" + str(100 * np.mean(np.array(correct_zeros))))
         print("average corrected non zeros for " + str(numRuns) + " runs is:" + str(100 * np.mean(np.array(correct_non_zeros))))
-
-        print("smooth average RMSE for " + str(numRuns) + " runs is:" + str(np.mean(np.array(rmseSm))))
-        print("smooth average accuracy for " + str(numRuns) + " runs is:" + str(100 * np.mean(np.array(accuracySm))))
-        print("smooth average corrected zeros " + str(numRuns) + " runs is:" + str(100 * np.mean(np.array(correct_zerosSm))))
-        print("smooth average corrected non zeros for " + str(numRuns) + " runs is:" + str(100 * np.mean(np.array(correct_non_zerosSm))))
-
-
         results['networkName'].append(network_name.replace('.pkl', ''))
         results['mean RMSE'].append(np.mean(np.array(rmse)))
         results['mean accuracy'].append(100 * np.mean(np.array(accuracy)))
