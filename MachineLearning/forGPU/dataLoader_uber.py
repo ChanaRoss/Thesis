@@ -358,16 +358,90 @@ class DataSet_oneLSTM_allGrid:
     def __len__(self):
         return self.data.shape[0]
 
+def createDescentLabels(data):
+    data_out = np.zeros_like(data)
+    data_out[1:, :, :] = np.sign(np.diff(data, axis=0))
+    for x in range(data.shape[1]):
+        for y in range(data.shape[2]):
+            try:
+                index_dir = np.where(np.abs(data_out[:, x, y]) == 1)[0][0]
+                descent_direction = data_out[index_dir, x, y]
+            except:
+                descent_direction = 1
+            for t in range(data.shape[0]):
+                if data_out[t, x, y] == 0:
+                    data_out[t, x, y] = descent_direction
+                else:
+                    descent_direction = data_out[t, x, y]
+    data_out[np.where(data_out == -1)] = 0
+    return data_out
+
+class DataSet_oneLSTM_allGrid_descentLabel:
+    def __init__(self, dataIn, lenSeqIn):
+        self.lengthX = dataIn.shape[0]
+        self.lengthY = dataIn.shape[1]
+        self.lengthT = dataIn.shape[2]
+        data = np.swapaxes(dataIn, 0, 1)  # swap x and y axis , now matrix size is: [y, x, t]
+        data = np.swapaxes(data, 0, 2)    # swap y and t axis , now matrix size is: [t, x, y]
+        self.data = data
+        self.dataLabel = createDescentLabels(self.data)
+        self.lenSeqIn = lenSeqIn
+
+    def __getitem__(self, item):
+        temp = np.zeros(shape=(self.lenSeqIn, self.data.shape[1], self.data.shape[2]))
+        if (item - self.lenSeqIn > 0):
+            temp = self.dataLabel[item - self.lenSeqIn:item, :, :]
+        else:
+            temp[self.lenSeqIn - item:, :, :] = self.dataLabel[0:item, :, :]
+        xArr = np.zeros(shape=(self.lengthX*self.lengthY, self.lenSeqIn))
+        tempOut = np.zeros(shape=(self.lenSeqIn, self.data.shape[1], self.data.shape[2]))
+        try:
+
+            if (item + 1 <= self.data.shape[0]) and (item + 1 - self.lenSeqIn > 0):
+                tempOut = self.dataLabel[item + 1 - self.lenSeqIn: item + 1, :, :].reshape(self.lenSeqIn, self.data.shape[1], self.data.shape[2])
+            elif (item + 1 <= self.data.shape[0]) and (item + 1 - self.lenSeqIn <= 0):
+                tempOut[self.lenSeqIn - item - 1:, :, :] = self.dataLabel[0:item + 1, :, :]
+            elif (item + 1 > self.data.shape[0]) and (item + 1 - self.lenSeqIn > 0):
+                tempOut[0:self.lenSeqIn - 1, :, :] = self.dataLabel[item + 1 - self.lenSeqIn: item, :, :]  # taking the last part of the sequence
+        except:
+            print('couldnt find correct output sequence!!!')
+
+        try:
+            yArrTemp = tempOut[-1, :, :]
+        except:
+            print("couldnt take last value of time sequence for output!!!")
+
+        yArr = np.zeros(shape=(self.lengthY*self.lengthX))
+        k = 0
+        for i in range(self.lengthX):
+            for j in range(self.lengthY):
+                xArr[k, :]  = temp[:, i, j]
+                yArr[k]     = yArrTemp[i, j]
+                k += 1
+
+        if torch.cuda.is_available():
+            xTensor = torch.Tensor(xArr).cuda()
+            yTensor = torch.Tensor(yArr).type(torch.cuda.LongTensor)
+        else:
+            xTensor = torch.Tensor(xArr)
+            yTensor = torch.Tensor(yArr).type(torch.long)
+        # xTensor is of shape: [grid id, seq]
+        # yTensor is of shape: [grid id]
+        return xTensor, yTensor
+
+    def __len__(self):
+        return self.data.shape[0]
+
 
 def main():
     # path = '/home/chanaby/Documents/dev/Thesis/MachineLearning/forGPU/'
     path = '/Users/chanaross/dev/Thesis/UberData/'
-    fileName  = '3D_allDataLatLonCorrected_binaryClass_500gridpickle_30min.p'
+    fileName  = '3D_allDataLatLonCorrected_20MultiClass_500gridpickle_30min.p'
     dataInput = np.load(path + fileName)
     xmin = 0
-    xmax = 20
+    xmax = 6
     ymin = 0
-    ymax = 20
+    ymax = 11
     zmin = 48
     dataInput = dataInput[xmin:xmax, ymin:ymax, zmin:]  #  shrink matrix size for fast training in order to test model
     # dataInput = dataInput[8:10, 12:14, 16000:32000].reshape((2,2,32000-16000))  # shrink matrix size for fast training in order to test model
@@ -378,7 +452,7 @@ def main():
     dataSize = dataInput.shape[2]
     num_train = int((1 - 0.2) * dataSize)
     data_train = dataInput[:, :, 0:num_train]
-    dataset_uber = DataSet_oneLSTM_allGrid(data_train, 10)
+    dataset_uber = DataSet_oneLSTM_allGrid_descentLabel(data_train, 10)
     dataloader_uber = data.DataLoader(dataset=dataset_uber, batch_size=300, shuffle=True)
     # a = list(iter(dataset_uber))
 

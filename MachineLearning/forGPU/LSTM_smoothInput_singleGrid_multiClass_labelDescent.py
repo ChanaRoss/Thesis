@@ -14,7 +14,7 @@ if torch.cuda.is_available():
     sys.path.insert(0, '/home/schanaby@st.technion.ac.il/thesisML/')
 else:
     sys.path.insert(0, '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/')
-from dataLoader_uber import DataSet_oneLSTM_allGrid
+from dataLoader_uber import DataSet_oneLSTM_allGrid_descentLabel, createDescentLabels
 
 def to_var(x):
     if torch.cuda.is_available():
@@ -78,7 +78,7 @@ class Model(nn.Module):
         self.sigmoid        = nn.Sigmoid()
 
     def create_lstm(self, input_size):
-        layer = nn.LSTM(input_size, self.hiddenSize, num_layers=1)
+        layer = nn.LSTM(input_size, self.hiddenSize, num_layers=2)
         return layer
 
     def create_fc_after_lstm(self, input_size, output_size):
@@ -91,7 +91,6 @@ class Model(nn.Module):
         # and needs to be seq then batch therefore view is done before entering lstm
         output, (h_n, c_n) = self.lstm(x.contiguous().view(self.sequence_size, batch_size, -1))
         out = self.fc_after_lstm(h_n[-1, :, :])
-        # out = self.fc_after_lstm(c_n[-1, :, :])
         out = out.view(batch_size, self.gridSize, self.class_size)
         out = self.logSoftMax(out)  # after last fc out is of size: [batch_size , grid_size, num_classes]
         # out = self.sigmoid(out.view(batch_size, -1))  # after last fc out is of size: [batch_size , num_classes] and is after LogSoftMax
@@ -185,20 +184,19 @@ def main():
     ymin = 0
     ymax = dataInput.shape[1]
     zmin = 48
-    zmax = np.floor(dataInput.shape[2]*0.7).astype(int)
-    dataInput     = dataInput[xmin:xmax, ymin:ymax, zmin:zmax]  # shrink matrix size for fast training in order to test model
+    dataInput     = dataInput[xmin:xmax, ymin:ymax, zmin:]  # shrink matrix size for fast training in order to test model
     dataInput     = dataInput[5:6, 10:11, :]
-    smoothParam   = [20]  #[10, 20, 30, 40]  #[10, 15, 30]
+    smoothParam   = [30]  #[10, 20, 30, 40]  #[10, 15, 30]
 
     testSize            = 0.2
     # define hyper parameters -
     hidden_sizeVec      = [128]  # [20, 64, 256, 512] #[20, 64, 264, 512]  # [20, 40, 64, 128]
-    sequence_sizeVec    = [50]  #[5, 10, 20]  # [5, 20, 30, 40]  # [5, 10, 15]  # length of sequence for lstm network
+    sequence_sizeVec    = [30] #[5, 10, 20]  # [5, 20, 30, 40]  # [5, 10, 15]  # length of sequence for lstm network
     batch_sizeVec       = [40]
-    num_epochs          = 30
+    num_epochs          = 100
 
     # optimizer parameters -
-    lrVec   = [0.5]  #[0.05, 0.2, 0.5]  # [0.1, 0.5, 0.9] #[0.1, 0.5, 0.9]  # [0.1, 0.01, 0.001]
+    lrVec   = [1.5, 0.5]  # [0.1, 0.5, 0.9] #[0.1, 0.5, 0.9]  # [0.1, 0.01, 0.001]
     otVec   = [1]  # [1, 2]
     dmp     = 0
     mm      = 0.9
@@ -209,7 +207,7 @@ def main():
     networksDict = {}
     itr = itertools.product(smoothParam, sequence_sizeVec, batch_sizeVec, hidden_sizeVec, lrVec, otVec, wdVec)
     for i in itr:
-        networkStr = 'smooth_{0}_seq_{1}_bs_{2}_hs_{3}_lr_{4}_ot_{5}_wd_{6}'.format(i[0], i[1], i[2], i[3], i[4], i[5], i[6])
+        networkStr = 'smoothDescent_{0}_seq_{1}_bs_{2}_hs_{3}_lr_{4}_ot_{5}_wd_{6}'.format(i[0], i[1], i[2], i[3], i[4], i[5], i[6])
         networksDict[networkStr] = {'seq': i[1], 'bs': i[2], 'hs': i[3], 'lr': i[4], 'ot': i[5], 'wd': i[6], 'sm': i[0]}
 
     for netConfig in networksDict:
@@ -220,7 +218,7 @@ def main():
         x_size              = dataInputSmooth.shape[0]
         y_size              = dataInputSmooth.shape[1]
         dataSize            = dataInputSmooth.shape[2]
-        class_size          = (np.max(np.unique(dataInputSmooth)) + 1).astype(int)
+        class_size          = 2  # (np.max(np.unique(dataInputSmooth)) + 1).astype(int)
 
         num_train = int((1 - testSize) * dataSize)
         grid_size = x_size * y_size
@@ -264,8 +262,8 @@ def main():
         data_train = dataInputSmooth[:, :, 0:num_train]
         data_test  = dataInputSmooth[:, :, num_train:]
 
-        dataset_uber_train = DataSet_oneLSTM_allGrid(data_train, sequence_size)
-        dataset_uber_test  = DataSet_oneLSTM_allGrid(data_test , sequence_size)
+        dataset_uber_train = DataSet_oneLSTM_allGrid_descentLabel(data_train, sequence_size)
+        dataset_uber_test  = DataSet_oneLSTM_allGrid_descentLabel(data_test , sequence_size)
 
         # creating data loader
         dataloader_uber_train = data.DataLoader(dataset=dataset_uber_train, batch_size=batch_size, shuffle=False)
