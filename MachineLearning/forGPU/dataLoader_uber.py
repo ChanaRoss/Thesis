@@ -322,7 +322,6 @@ class DataSet_oneLSTM_allGrid:
         xArr = np.zeros(shape=(self.lengthX*self.lengthY, self.lenSeqIn))
         tempOut = np.zeros(shape=(self.lenSeqIn, self.data.shape[1], self.data.shape[2]))
         try:
-
             if (item + 1 <= self.data.shape[0]) and (item + 1 - self.lenSeqIn > 0):
                 tempOut = self.data[item + 1 - self.lenSeqIn: item + 1, :, :].reshape(self.lenSeqIn, self.data.shape[1], self.data.shape[2])
             elif (item + 1 <= self.data.shape[0]) and (item + 1 - self.lenSeqIn <= 0):

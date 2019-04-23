@@ -268,13 +268,10 @@ def main():
 
         # creating data loader
         dataloader_uber = data.DataLoader(dataset=dataset_uber, batch_size=200, shuffle=False)
-
-
         dataInputReal = np.swapaxes(dataInputReal, 0, 1)
         dataInputReal = np.swapaxes(dataInputReal, 0, 2)
         dataInputSmooth = np.swapaxes(dataInputSmooth, 0, 1)
         dataInputSmooth = np.swapaxes(dataInputSmooth, 0, 2)
-
 
         accuracy            = []
         rmse                = []
@@ -350,10 +347,10 @@ def main():
         y_trueSmAr = np.array(y_trueSm)
         y_predSmAr = np.array(y_predSm)
 
-        # for t in range(timeIndexs.size):
-        #     plotSpesificTime(realOut[t, :, :].reshape([1, lengthX, lengthY]), predOut[t, :, :].reshape([1, lengthX, lengthY]), timeIndexs[t], figPath + fileName)
-        # listNames = [fileName + '_' + str(t) + '.png' for t in timeIndexs]
-        # create_gif(figPath, listNames, 1, fileName)
+        for t in range(timeIndexs.size):
+            plotSpesificTime(realOut[t, :, :].reshape([1, lengthX, lengthY]), predOut[t, :, :].reshape([1, lengthX, lengthY]), timeIndexs[t], figPath + fileName)
+        listNames = [fileName + '_' + str(t) + '.png' for t in timeIndexs]
+        create_gif(figPath, listNames, 1, fileName)
         k = 0
         for x in range(lengthX):
             for y in range(lengthY):

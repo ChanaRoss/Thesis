@@ -1,2 +1,0 @@
-Name;finalAcc;finalLoss;trainTime;numWeights;NumEpochs
-smooth_20_seq_50_bs_40_hs_128_lr_0.5_ot_1_wd_0.002;50.87626937970106;1.223355120047927;69136;30

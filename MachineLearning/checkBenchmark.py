@@ -190,11 +190,10 @@ def main():
     correct_non_zeros = []
 
     timeOut = []
-    numRuns = 20
-    # timeIndexs = [np.random.randint(50, dataInputReal.shape[2] - 50) for i in range(numRuns)]
-    timeIndexs = np.arange(100, 120, 1).astype(int)
+    timeIndexs = np.arange(1100, 1200, 1).astype(int)
+    numRuns = timeIndexs.size
     print(timeIndexs)
-    fileNameOut = '500grid_30min_20Multi_benchmark_results_random_' + str(numRuns)
+    fileNameOut = '500grid_30min_20Multi_benchmark_results_' + str(numRuns)
 
     for t in timeIndexs:
         # start_time = np.random.randint(10, dataInputReal.shape[2]-10)
@@ -216,7 +215,7 @@ def main():
         y_true = realMatOut.reshape(-1)
         y_pred = distMatOut.reshape(-1)
         labels = np.unique([y_true, y_pred])
-        plot_confusion_matrix(y_true, y_pred, classes=labels, t=start_time,fileLoc=figPath, fileName=fileNameOut, normalize=True)
+        # plot_confusion_matrix(y_true, y_pred, classes=labels, t=start_time,fileLoc=figPath, fileName=fileNameOut, normalize=True)
         # realMatOut[realMatOut > 1] = 1
         # distMatOut[distMatOut > 1] = 1
         # accuracy1.append(np.sum(np.sum(realMatOut == distMatOut)/(realMatOut.shape[0]*realMatOut.shape[1])))
@@ -230,8 +229,8 @@ def main():
     listNames = [fileNameOut + '_' + str(t) + '.png' for t in timeOut]
     create_gif(figPath, listNames, 1, fileNameOut)
 
-    listNames = ['ConfMat_'+fileNameOut + '_' + str(t) + '.png' for t in timeOut]
-    create_gif(figPath, listNames, 1, 'ContMat_' + fileNameOut)
+    # listNames = ['ConfMat_'+fileNameOut + '_' + str(t) + '.png' for t in timeOut]
+    # create_gif(figPath, listNames, 1, 'ContMat_' + fileNameOut)
 
     plt.scatter(range(len(accuracy)), 100*np.array(accuracy))
     plt.xlabel('run number [#]')

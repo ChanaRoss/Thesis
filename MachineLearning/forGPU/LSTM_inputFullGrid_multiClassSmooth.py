@@ -157,13 +157,24 @@ class Model(nn.Module):
         torch.save(self, path)
 
 def moving_average(data_set, periods=3, axis = 2):
-    cumsum = np.cumsum(data_set, axis = axis)
-    averageRes =  (cumsum[:, :, periods:] - cumsum[:, :, :-periods]) / float(periods)
+    cumsum = np.cumsum(data_set, axis=axis)
+    averageRes = np.zeros_like(data_set)
+    if axis == 0:
+        averageRes[periods:, :, :] = (cumsum[periods:, :, :] - cumsum[:-periods, :, :]) / float(periods)
+    elif axis == 1:
+        averageRes[:, periods:, :] = (cumsum[:, periods:, :] - cumsum[:, :-periods, :]) / float(periods)
+    else:
+        averageRes[:, :, periods:] = (cumsum[:, :, periods:] - cumsum[:, :, :-periods]) / float(periods)
     return np.floor(averageRes)
 
     # weights = np.ones(periods) / periods
     # convRes = np.convolve(data_set, weights, mode='valid')
     # return np.floor(convRes)
+
+
+def saveFile(file, fileName):
+    with open(fileName+'.pkl', 'wb') as handle:
+        pickle.dump(file, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
 def main():
@@ -188,17 +199,17 @@ def main():
     zmax = np.floor(dataInput.shape[2]*0.7).astype(int)
     dataInput     = dataInput[xmin:xmax, ymin:ymax, zmin:zmax]  # shrink matrix size for fast training in order to test model
     dataInput     = dataInput[5:6, 10:11, :]
-    smoothParam   = [20]  #[10, 20, 30, 40]  #[10, 15, 30]
+    smoothParam   = [1, 10]  #[10, 20, 30, 40]  #[10, 15, 30]
 
     testSize            = 0.2
     # define hyper parameters -
     hidden_sizeVec      = [128]  # [20, 64, 256, 512] #[20, 64, 264, 512]  # [20, 40, 64, 128]
-    sequence_sizeVec    = [50]  #[5, 10, 20]  # [5, 20, 30, 40]  # [5, 10, 15]  # length of sequence for lstm network
+    sequence_sizeVec    = [5]  #[5, 10, 20]  # [5, 20, 30, 40]  # [5, 10, 15]  # length of sequence for lstm network
     batch_sizeVec       = [40]
-    num_epochs          = 30
+    num_epochs          = 200
 
     # optimizer parameters -
-    lrVec   = [0.5]  #[0.05, 0.2, 0.5]  # [0.1, 0.5, 0.9] #[0.1, 0.5, 0.9]  # [0.1, 0.01, 0.001]
+    lrVec   = [0.05]  #[0.05, 0.2, 0.5]  # [0.1, 0.5, 0.9] #[0.1, 0.5, 0.9]  # [0.1, 0.01, 0.001]
     otVec   = [1]  # [1, 2]
     dmp     = 0
     mm      = 0.9
@@ -270,7 +281,8 @@ def main():
         # creating data loader
         dataloader_uber_train = data.DataLoader(dataset=dataset_uber_train, batch_size=batch_size, shuffle=False)
         dataloader_uber_test  = data.DataLoader(dataset=dataset_uber_test , batch_size=batch_size, shuffle=False)
-
+        netOutDict = {}
+        labelsOutDict = {}
         for numEpoch in range(num_epochs):
             my_net.loss = None
             # for each epoch, calculate loss for each batch -
@@ -286,6 +298,8 @@ def main():
                 else:
                     my_net.optimizer.param_groups[0]['lr'] = 0.001
             print('lr is: %.6f' % my_net.optimizer.param_groups[0]['lr'])
+            netOutList   = []
+            labelOutList = []
             for i, (input, labels) in enumerate(dataloader_uber_train):
                 inputD = input.to(device)
                 labelsD = labels.to(device)
@@ -328,6 +342,8 @@ def main():
                     labTrainNp = labTrain.long().detach().numpy()
                     labelsNp = labels.detach().numpy()
                     trainCorr = torch.sum(labTrain.long() == labels).detach().numpy() + trainCorr
+                netOutList.append(labTrainNp)
+                labelOutList.append(labelsNp)
                 trainTot = labels.size(0) * labels.size(1) + trainTot
                 rmse = sqrt(metrics.mean_squared_error(labTrainNp.reshape(-1), labelsNp.reshape(-1)))
                 accTrain.append(100 * trainCorr / trainTot)
@@ -353,6 +369,8 @@ def main():
             my_net.accVecTest.append(accEpochTest)
             my_net.lossVecTest.append(lossEpochTest)
             my_net.rmseVecTest.append(rmseEpochTest)
+            netOutDict[numEpoch] = netOutList
+            labelsOutDict[numEpoch] = labelOutList
             if (flag_save_network):
                 my_net.saveModel(netConfig + "_torch.pkl")
                 # outArray = np.stack([np.array(my_net.lossVecTest), np.array(my_net.lossVecTrain),
@@ -363,6 +381,8 @@ def main():
         my_net.finalRmse = rmseEpochTest
         # name, HyperPerams, accur, num total weights
         # err vs epoch, loss vs epoch,
+        saveFile(netOutDict, 'netDict')
+        saveFile(labelsOutDict, 'labelsDict')
         strWrite = '{0};{1};{2};{3};{4}\n'.format(netConfig, my_net.finalAcc, my_net.finalLoss, numWeights, my_net.maxEpochs)
         outFile.write(strWrite)
 
