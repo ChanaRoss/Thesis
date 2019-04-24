@@ -18,10 +18,7 @@ import imageio
 sns.set()
 # my files
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/MixedIntegerOptimization/')
-from offlineOptimizationProblemMaxFlow import runMaxFlowOpt,plotResults
-sys.path.insert(0, '/Users/chanaross/dev/Thesis/MixedIntegerOptimization/')
-from offlineOptimizationProblem_TimeWindow import runMaxFlowOpt as runMaxFlowOptTimeWindow
-from offlineOptimizationProblem_TimeWindow import plotResults as plotResultsTimeWindow
+from offlineOptimizationProblem_TimeWindow import runMaxFlowOpt,plotResults
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/UtilsCode/')
 from createGif import create_gif
 
@@ -662,15 +659,11 @@ def anticipatorySimulation(initState, nStochastic, gs, tPred, eTimeWindow, simSt
                         eventsStartTime = np.array(eventsStartTime)
                         eventsEndTime = np.array(eventsEndTime)
                         stime = time.process_time()
-                        m, obj = runMaxFlowOpt(0, carsPos, eventsPos, eventsEndTime,
+                        m, obj = runMaxFlowOpt(0, carsPos, eventsPos, eventsStartTime, eventsEndTime,
                                                tempState.closeReward, tempState.cancelPenalty,
-                                               tempState.openedNotCommitedPenalty)
+                                               tempState.openedNotCommitedPenalty, 0)
                         etime = time.process_time()
                         runTime = etime - stime
-                        # print('run '+str(j) + ' of '+str(len(stochasticEventsDict)))
-                        # print('num Events:'+str(eventsStartTime.size))
-                        # print('num cars:'+str(carsPos.shape[0]))
-                        # print('run time for single run is:'+str(runTime))
                         try:
                             stochasticCost[j] = -obj.getValue()
                         except:
@@ -803,38 +796,37 @@ def optimizedSimulation(initialState, fileLoc, fileName, gridSize):
         eventsStartTime.append(deepcopy(initialState.events.getObject(k).startTime))
         eventsEndTime.append(deepcopy(initialState.events.getObject(k).endTime))
 
-    m, obj = runMaxFlowOpt(0, carsPos, np.array(eventsPos), np.array(eventsEndTime),
-                                     initialState.closeReward,initialState.cancelPenalty,
-                                     initialState.openedNotCommitedPenalty)
-    dataOut = plotResultsTimeWindow(m, carsPos, np.array(eventsPos), np.array(eventsStartTime), np.array(eventsEndTime), plotFigures, fileLoc ,fileName, gridSize)
+    m, obj = runMaxFlowOpt(0, carsPos, np.array(eventsPos), np.array(eventsStartTime), np.array(eventsEndTime),
+                           initialState.closeReward,initialState.cancelPenalty, initialState.openedNotCommitedPenalty, 0)
+    dataOut = plotResults(m, carsPos, np.array(eventsPos), np.array(eventsStartTime), np.array(eventsEndTime), plotFigures, fileLoc
+                ,fileName, gridSize)
 
     dataOut['cost'] = -obj.getValue()
     return dataOut
 
 def main():
     # loading probability matrix from uber data. matrix is: x,y,h where x,y are the grid size and h is the time (0-24 hours)
-    probFileLoc         = '/Users/chanaross/dev/Thesis/ProbabilityFunction/CreateEvents/'
-    probFileName        = '4D_UpdatedGrid_5min_250grid_LimitedProbability_CDFMat_wday_1.p'
-    probabilityMatrix   = np.load(probFileLoc + probFileName)
+    probFileName        = '/Users/chanaross/dev/Thesis/ProbabilityFunction/CreateEvents/4D_UpdatedGrid_5min_250grid_LimitedProbability_CDFMat_wday_1.p'
+    probabilityMatrix   = np.load(probFileName)
     xLim                = [0,  20]
-    yLim                = [10, 70]
+    yLim                = [40, 70]
     probabilityMatrix   = probabilityMatrix[xLim[0]:xLim[1], yLim[0]:yLim[1], :, :]
     eventsFileName      = '/Users/chanaross/dev/Thesis/UberData/4D_UpdatedGrid_5min_250Grid_LimitedEventsMat_wday1.p'
     eventsMatrix        = np.load(eventsFileName)
     eventsMatrix        = eventsMatrix[xLim[0]:xLim[1], yLim[0]:yLim[1], :, 1]
 
     np.random.seed(50)
-    shouldRunAnticipatory = 0
-    shouldRunGreedy       = 0
+    shouldRunAnticipatory = 1
+    shouldRunGreedy       = 1
     shouldRunOptimization = 1
-    loadFromPickle        = 1
-    shouldPrint         = True
+    loadFromPickle        = 0
+    shouldPrint         = False
     # params
     epsilon             = 0.001  # distance between locations to be considered same location
     simStartTime        = 0
-    lengthSim           = 24*2    # one hour, each time step is 5 min. of real time
+    lengthSim           = 24*2     # one hour, each time step is 5 min. of real time
     numStochasticRuns   = 100
-    lengthPrediction    = 4
+    lengthPrediction    = 6
     deltaTimeForCommit  = 10
     closeReward         = 80
     cancelPenalty            = 140
@@ -843,7 +835,7 @@ def main():
 
     gridSize            = [probabilityMatrix.shape[0], probabilityMatrix.shape[1]]
     deltaOpenTime       = 3
-    numCars             = 15
+    numCars             = 10
     carPosX             = np.random.randint(0, gridSize[0], numCars)
     carPosY             = np.random.randint(0, gridSize[1], numCars)
     carPos              = np.column_stack((carPosX, carPosY)).reshape(numCars, 2)
@@ -890,10 +882,10 @@ def main():
 
 
         dataAnticipatory = postAnalysis(pAnticipatory)
-        anticipatoryFileName = 'SimAnticipatory_SingleTime_randomChoice_MioFinalResults_'+fileName
+        anticipatoryFileName = 'SimAnticipatory_randomChoice_MioFinalResults_'+fileName
         greedyFileName       = 'SimGreedyFinalResults_'+fileName
         # Anticipatory output:
-        with open('SimAnticipatory_SingleTime_randomChoice_MioFinalResults_' + fileName+'.p', 'wb') as out:
+        with open('SimAnticipatory_randomChoice_MioFinalResults_' + fileName+'.p', 'wb') as out:
             pickle.dump({'runTime'          : runTimeA,
                          'pathresults'      : pAnticipatory,
                          'time'             : dataAnticipatory['timeVector'],
@@ -957,19 +949,19 @@ def main():
 
     if shouldRunOptimization:
         if loadFromPickle:
-            pickleName = 'SimAnticipatory_SingleTime_randomChoice_MioFinalResults_4lpred_0startTime_20gridX_60gridY_451numEvents_100nStochastic_15numCars_uberData'
+            pickleName = 'SimAnticipatory_randomChoice_MioFinalResults_7lpred_0startTime_20gridX_30gridY_63numEvents_100nStochastic_4numCars_uberData'
             pathName = '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/PickleFiles/'
             dataPickle = pickle.load(open(pathName + pickleName + '.p', 'rb'))
             initState = dataPickle['pathresults'][0]
             gridSize  = dataPickle['gs']
-            fileName  = '4lpred_0startTime_20gridX_60gridY_451numEvents_100nStochastic_15numCars_uberData'
+            fileName  = '7lpred_0startTime_20gridX_30gridY_63numEvents_100nStochastic_4numCars_uberData'
             numEvents = initState.events.length()
             numCars   = initState.cars.length()
 
         dataOptimization = optimizedSimulation(initState, fileLoc, fileName, gridSize)
 
         # optimization output:
-        with open('SimOptimizationFinalResultsMaxFlow_' + fileName + '.p', 'wb') as out:
+        with open('SimOptimizationFinalResults_' + fileName + '.p', 'wb') as out:
             pickle.dump({'time'             : dataOptimization['time'],
                          'gs'               : gridSize,
                          'OpenedEvents'     : dataOptimization['openedEvents'],

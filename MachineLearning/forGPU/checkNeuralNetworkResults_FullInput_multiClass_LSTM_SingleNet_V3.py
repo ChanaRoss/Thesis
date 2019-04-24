@@ -15,7 +15,7 @@ import torch.utils.data as data
 # my file imports
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/')
 from LSTM_inputFullGrid_multiClassSmooth import Model, moving_average
-from dataLoader_uber import DataSet_oneLSTM_allGrid, createDescentLabels
+from dataLoader_uber import DataSet_oneLSTM_allGrid
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/UtilsCode/')
 from createGif import create_gif
 
@@ -47,9 +47,9 @@ def checkNetwork(data_net, data_labels, data_real, timeIndexs, xIndexs, yIndexs,
             ax.set_ylabel('Num Events')
             ax.set_title(fileName + ', (x,y):(' + str(x) + ',' + str(y) + ')')
             plt.legend()
-            plt.show()
-            # plt.savefig(filePath + 'timeResults_' + fileName + str(x) + 'x_' + str(y) + 'y_' + '.png')
-            # plt.close()
+            # plt.show()
+            plt.savefig(filePath + 'timeResults_' + fileName + str(x) + 'x_' + str(y) + 'y_' + '.png')
+            plt.close()
     return
 
 
@@ -120,10 +120,10 @@ def plotSpesificTime_allData(data_net, data_net_smooth, data_smooth, data_real, 
     f, axes = plt.subplots(1, 4)
     ticksDict = list(range(maxTick+1))
 
-    sns.heatmap(dataFixedPred, cbar=True, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[0],cmap='CMRmap_r')
+    sns.heatmap(dataFixedPred, cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[0],cmap='CMRmap_r')
     sns.heatmap(dataFixed,     cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[1], cmap='CMRmap_r')
-    sns.heatmap(dataFixedSmooth, cbar=True, center=1, square=True, vmin=0, vmax=np.max(ticksDict),  ax=axes[2], cmap='CMRmap_r')
-    sns.heatmap(dataFixedPred, cbar=True, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[3],cmap='CMRmap_r', cbar_kws=dict(ticks=ticksDict))
+    sns.heatmap(dataFixedSmooth, cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict),  ax=axes[2], cmap='CMRmap_r')
+    sns.heatmap(dataFixedPredSmooth, cbar=True, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[3],cmap='CMRmap_r', cbar_kws=dict(ticks=ticksDict))
 
     f.suptitle('week- {0}, day- {1},time- {2}:{3}'.format(week, day, hour, minute), fontsize=16)
     axes[0].set_title('net-real data')
@@ -133,11 +133,8 @@ def plotSpesificTime_allData(data_net, data_net_smooth, data_smooth, data_real, 
     axes[0].set_xlabel('X axis')
     axes[0].set_ylabel('Y axis')
     axes[1].set_xlabel('X axis')
-    axes[1].set_ylabel('Y axis')
     axes[2].set_xlabel('X axis')
-    axes[2].set_ylabel('Y axis')
     axes[3].set_xlabel('X axis')
-    axes[3].set_ylabel('Y axis')
     plt.savefig(pathName + dataType + '_' + fileName + '_' + str(t) +'.png')
     plt.close()
     return
@@ -419,8 +416,6 @@ def main():
     net_path     = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/'
     data_path    = '/Users/chanaross/dev/Thesis/UberData/'
     data_name    = '3D_allDataLatLonCorrected_20MultiClass_500gridpickle_30min.p'
-
-
     ####################################################################################################################
     # this is for checking the actual output from the network during training (need to save results during training)
     # netName     = 'netDict'
@@ -434,9 +429,9 @@ def main():
     network_names     = ['smooth_10_seq_5_bs_40_hs_128_lr_0.05_ot_1_wd_0.002_torch.pkl']
     # network_names   = [f for f in os.listdir(network_path) if (f.endswith('.pkl'))]
 
-    plot_graph_vs_time = False
-    plot_time_gif      = True
-    plot_loss_accuracy = False
+    plot_graph_vs_time = True
+    plot_time_gif      = False
+    plot_loss_accuracy = True
 
     # create dictionary for storing result for each network tested
     results = {'networkName'            : [],
@@ -451,14 +446,14 @@ def main():
 
     dataInputReal = np.load(data_path + data_name)
     # use only data wanted (x, y, time)
-    xmin = 0    # 5
-    xmax = dataInputReal.shape[0]  # 6
-    ymin = 0   # 10
-    ymax = dataInputReal.shape[1]  # 11
-    # xmin = 5
-    # xmax = 6
-    # ymin = 10
-    # ymax = 11
+    # xmin = 0    # 5
+    # xmax = dataInputReal.shape[0]  # 6
+    # ymin = 0   # 10
+    # ymax = dataInputReal.shape[1]  # 11
+    xmin = 5
+    xmax = 6
+    ymin = 10
+    ymax = 11
     zmin = 48  # np.floor(dataInputReal.shape[2]*0.7).astype(int)
     zmax = dataInputReal.shape[2]
     dataInputReal = dataInputReal[xmin:xmax, ymin:ymax, zmin:zmax]  # shrink matrix size for fast training in order to test model
@@ -472,7 +467,7 @@ def main():
     dataInputReal = np.swapaxes(dataInputReal, 0, 2)
     # create results index's -
     tmin = 1100
-    tmax = 1200
+    tmax = 4000
     timeIndexs = np.arange(tmin, tmax, 1).astype(int)
     xIndexs    = np.arange(xmin, xmax, 1).astype(int)
     yIndexs    = np.arange(ymin, ymax, 1).astype(int)
@@ -481,7 +476,10 @@ def main():
         print("network:" + network_name.replace('.pkl', ''))
         figPath     = network_path + 'figures/'
         fileName    = str(numRuns) + network_name.replace('.pkl', '')
-        my_net      = torch.load(network_path + network_name, map_location=lambda storage, loc: storage)
+        if "descent" in network_name:
+            my_net = torch.load(network_path + network_name, map_location=lambda storage, loc: storage)
+        else:
+            my_net = torch.load(network_path + network_name, map_location=lambda storage, loc: storage)
         my_net.eval()
         if plot_loss_accuracy:
             plotEpochGraphs(my_net, figPath, fileName)

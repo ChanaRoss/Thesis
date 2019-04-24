@@ -170,8 +170,14 @@ class Model(nn.Module):
         torch.save(self, path)
 
 def moving_average(data_set, periods=3, axis = 2):
-    cumsum = np.cumsum(data_set, axis = axis)
-    averageRes =  (cumsum[:, :, periods:] - cumsum[:, :, :-periods]) / float(periods)
+    cumsum = np.cumsum(data_set, axis=axis)
+    averageRes = np.zeros_like(data_set)
+    if axis == 0:
+        averageRes[periods:, :, :] = (cumsum[periods:, :, :] - cumsum[:-periods, :, :]) / float(periods)
+    elif axis == 1:
+        averageRes[:, periods:, :] = (cumsum[:, periods:, :] - cumsum[:, :-periods, :]) / float(periods)
+    else:
+        averageRes[:, :, periods:] = (cumsum[:, :, periods:] - cumsum[:, :, :-periods]) / float(periods)
     return np.floor(averageRes)
 
     # weights = np.ones(periods) / periods

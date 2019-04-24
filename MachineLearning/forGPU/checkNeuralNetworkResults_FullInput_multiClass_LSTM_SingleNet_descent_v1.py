@@ -14,7 +14,7 @@ import torch
 import torch.utils.data as data
 # my file imports
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/')
-from LSTM_inputFullGrid_multiClassSmooth import Model, moving_average
+from LSTM_smoothInput_singleGrid_multiClass_labelDescentBinaryLoss import Model, moving_average
 from dataLoader_uber import DataSet_oneLSTM_allGrid, createDescentLabels
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/UtilsCode/')
 from createGif import create_gif
@@ -40,7 +40,7 @@ def checkNetwork(data_net, data_labels, data_real, timeIndexs, xIndexs, yIndexs,
     for i, x in enumerate(xIndexs):
         for j, y in enumerate(yIndexs):
             fig, ax = plt.subplots(1, 1)
-            # ax.plot(timeIndex, data_labels[:, i, j], color='g', marker='.', linestyle='-.', label=dataType + ' label output')
+            ax.plot(timeIndexs, data_labels[:, i, j], color='g', marker='.', linestyle='-.', label=dataType + ' label output')
             ax.plot(timeIndexs, data_real[:, i, j],   color='m', marker='o', linestyle='-', label=dataType + ' output')
             ax.plot(timeIndexs, data_net[:, i, j],    color='k', marker='*', linestyle='--',  label='net output')
             ax.set_xlabel('Time')
@@ -120,10 +120,10 @@ def plotSpesificTime_allData(data_net, data_net_smooth, data_smooth, data_real, 
     f, axes = plt.subplots(1, 4)
     ticksDict = list(range(maxTick+1))
 
-    sns.heatmap(dataFixedPred, cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[0], cmap='CMRmap_r')
-    sns.heatmap(dataFixed, cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[1], cmap='CMRmap_r')
-    sns.heatmap(dataFixedSmooth, cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[2], cmap='CMRmap_r')
-    sns.heatmap(dataFixedPredSmooth, cbar=True, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[3], cmap='CMRmap_r', cbar_kws=dict(ticks=ticksDict))
+    sns.heatmap(dataFixedPred, cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[0],cmap='CMRmap_r')
+    sns.heatmap(dataFixed,     cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[1], cmap='CMRmap_r')
+    sns.heatmap(dataFixedSmooth, cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict),  ax=axes[2], cmap='CMRmap_r')
+    sns.heatmap(dataFixedPred, cbar=True, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[3],cmap='CMRmap_r', cbar_kws=dict(ticks=ticksDict))
 
     f.suptitle('week- {0}, day- {1},time- {2}:{3}'.format(week, day, hour, minute), fontsize=16)
     axes[0].set_title('net-real data')
@@ -135,7 +135,7 @@ def plotSpesificTime_allData(data_net, data_net_smooth, data_smooth, data_real, 
     axes[1].set_xlabel('X axis')
     axes[2].set_xlabel('X axis')
     axes[3].set_xlabel('X axis')
-    plt.savefig(pathName + dataType + '_' + fileName + '_' + str(t) + '.png')
+    plt.savefig(pathName + dataType + '_' + fileName + '_' + str(t) +'.png')
     plt.close()
     return
 
@@ -226,6 +226,7 @@ def create_net_input_allGrid(data, t_index, seq_len, createLabel = True):
 
 
 def create_net_input(data, t_index, seq_len, createLabel = True):
+    data = createDescentLabels(data)
     # in this case we assume that the batches are the different grid points
     t_size = data.shape[0]
     x_size = data.shape[1]
@@ -319,6 +320,10 @@ def calc_netOutput_fromData(data_in, my_net, timeIndexs):
 
     net_output      = np.zeros((time_size, x_size, y_size))
     label_output    = np.zeros((time_size, x_size, y_size))
+
+    net_output_actual = np.zeros((time_size, x_size, y_size))
+    label_output_actual = np.zeros((time_size, x_size, y_size))
+
     # testOutTemp = []
     # netlabelTemp = []
     # inputTemp    = []
@@ -331,8 +336,9 @@ def calc_netOutput_fromData(data_in, my_net, timeIndexs):
                 # input size is: [1, grid_id, seq_len]
                 # label size is: [1, grid_id]
                 testOut = my_net.forward(input)
-                testOut = testOut.view(1, my_net.class_size, 1)
-                _, net_labels = torch.max(torch.exp(testOut.data), 1)
+
+                threshold = torch.Tensor([0.5])  # threshold
+                net_labels = (testOut > threshold).float() * 1
                 net_labelsNp = net_labels.long().detach().numpy()
                 # testOutTemp.append(testOut.detach().numpy())
                 # netlabelTemp.append(net_labelsNp)
@@ -350,9 +356,21 @@ def calc_netOutput_fromData(data_in, my_net, timeIndexs):
                     correct_zeros.append(np.sum(net_labelsNp[labelsNp == 0] == labelsNp[labelsNp == 0]) / sizeMat_zeros)
                 numEventsCreated.append(np.sum(labelsNp))
                 numEventsPredicted.append(np.sum(net_labelsNp))
-                net_output[i, x, y] = net_labelsNp
-                label_output[i, x, y] = labelsNp
+                if (i>0):
+                    if net_labelsNp == 0:
+                        net_output[i, x, y]   = net_output[i-1, x, y] - 1
+                    else:
+                        net_output[i, x, y]   = net_output[i-1, x, y] + 1
 
+                    if labelsNp == 0:
+                        label_output[i, x, y] = label_output[i-1, x, y] - 1
+                    else:
+                        label_output[i, x, y] = label_output[i-1, x, y] + 1
+                else:
+                    net_output[i, x, y]   = data_in[t, x, y]
+                    label_output[i, x, y] = data_in[t, x, y]
+                net_output_actual[i, x, y]   = net_labelsNp
+                label_output_actual[i, x, y] = labelsNp
 
     # for i, t in enumerate(timeIndexs):
     #     input, label = create_net_input_allGrid(data_in, t, my_net.sequence_size)
@@ -389,7 +407,7 @@ def calc_netOutput_fromData(data_in, my_net, timeIndexs):
                'numPredicted'       : numEventsPredicted,
                'correctedZeros'     : correct_zeros,
                'correctedNonZeros'  : correct_non_zeros}
-    return net_output, label_output, results
+    return net_output, label_output, results, net_output_actual, label_output_actual
 
 
 def plotEpochGraphs(my_net, filePath, fileName):
@@ -411,13 +429,9 @@ def plotEpochGraphs(my_net, filePath, fileName):
 
 
 def main():
-    epochs   = 'last'
-    net_name     = 'smooth_20_seq_50_bs_40_hs_128_lr_0.5_ot_1_wd_0.002_torch.pkl'
     net_path     = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/'
     data_path    = '/Users/chanaross/dev/Thesis/UberData/'
     data_name    = '3D_allDataLatLonCorrected_20MultiClass_500gridpickle_30min.p'
-
-
     ####################################################################################################################
     # this is for checking the actual output from the network during training (need to save results during training)
     # netName     = 'netDict'
@@ -427,13 +441,13 @@ def main():
     # checkNetwork(data_net, data_labels, 'last')
     ####################################################################################################################
 
-    network_path      = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/singleGridId_multiClassSmooth/'  # GPU_results/singleGridId_multiClassSmooth/'
-    network_names     = ['smooth_10_seq_5_bs_40_hs_128_lr_0.05_ot_1_wd_0.002_torch.pkl']
+    network_path      = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/singleGrid_DescentSmoothLSTM/'  # GPU_results/singleGridId_multiClassSmooth/'
+    network_names     = ['binarySmoothDescent_40_seq_30_bs_40_hs_128_lr_0.01_ot_1_wd_0.002_torch.pkl']
     # network_names   = [f for f in os.listdir(network_path) if (f.endswith('.pkl'))]
 
-    plot_graph_vs_time = False
-    plot_time_gif      = True
-    plot_loss_accuracy = False
+    plot_graph_vs_time = True
+    plot_time_gif      = False
+    plot_loss_accuracy = True
 
     # create dictionary for storing result for each network tested
     results = {'networkName'            : [],
@@ -448,14 +462,14 @@ def main():
 
     dataInputReal = np.load(data_path + data_name)
     # use only data wanted (x, y, time)
-    xmin = 0    # 5
-    xmax = dataInputReal.shape[0]  # 6
-    ymin = 0   # 10
-    ymax = dataInputReal.shape[1]  # 11
-    # xmin = 5
-    # xmax = 6
-    # ymin = 10
-    # ymax = 11
+    # xmin = 0    # 5
+    # xmax = dataInputReal.shape[0]  # 6
+    # ymin = 0   # 10
+    # ymax = dataInputReal.shape[1]  # 11
+    xmin = 5
+    xmax = 6
+    ymin = 10
+    ymax = 11
     zmin = 48  # np.floor(dataInputReal.shape[2]*0.7).astype(int)
     zmax = dataInputReal.shape[2]
     dataInputReal = dataInputReal[xmin:xmax, ymin:ymax, zmin:zmax]  # shrink matrix size for fast training in order to test model
@@ -469,7 +483,7 @@ def main():
     dataInputReal = np.swapaxes(dataInputReal, 0, 2)
     # create results index's -
     tmin = 1100
-    tmax = 1200
+    tmax = 2100
     timeIndexs = np.arange(tmin, tmax, 1).astype(int)
     xIndexs    = np.arange(xmin, xmax, 1).astype(int)
     yIndexs    = np.arange(ymin, ymax, 1).astype(int)
@@ -478,7 +492,10 @@ def main():
         print("network:" + network_name.replace('.pkl', ''))
         figPath     = network_path + 'figures/'
         fileName    = str(numRuns) + network_name.replace('.pkl', '')
-        my_net      = torch.load(network_path + network_name, map_location=lambda storage, loc: storage)
+        if "descent" in network_name:
+            my_net = torch.load(network_path + network_name, map_location=lambda storage, loc: storage)
+        else:
+            my_net = torch.load(network_path + network_name, map_location=lambda storage, loc: storage)
         my_net.eval()
         if plot_loss_accuracy:
             plotEpochGraphs(my_net, figPath, fileName)
@@ -493,9 +510,9 @@ def main():
 
         # calc network output
         # real data -
-        net_output_fromData, label_output_fromData, net_results = calc_netOutput_fromData(dataInputReal, my_net, timeIndexs)
+        net_output_fromData, label_output_fromData, net_results, outAc, labAc = calc_netOutput_fromData(dataInputReal, my_net, timeIndexs)
         # smooth data -
-        net_output_fromSmoothData, label_output_fromSmoothData, net_resultsSmooth = calc_netOutput_fromData(dataInputSmooth, my_net, timeIndexs)
+        net_output_fromSmoothData, label_output_fromSmoothData, net_resultsSmooth, outAcS, labAcS = calc_netOutput_fromData(dataInputSmooth, my_net, timeIndexs)
 
         # plot each grid point vs. time
         if plot_graph_vs_time:

@@ -199,14 +199,14 @@ def main():
     zmax = np.floor(dataInput.shape[2]*0.7).astype(int)
     dataInput     = dataInput[xmin:xmax, ymin:ymax, zmin:zmax]  # shrink matrix size for fast training in order to test model
     dataInput     = dataInput[5:6, 10:11, :]
-    smoothParam   = [1, 10]  #[10, 20, 30, 40]  #[10, 15, 30]
+    smoothParam   = [2, 4, 6, 8, 10]  #[10, 20, 30, 40]  #[10, 15, 30]
 
     testSize            = 0.2
     # define hyper parameters -
     hidden_sizeVec      = [128]  # [20, 64, 256, 512] #[20, 64, 264, 512]  # [20, 40, 64, 128]
     sequence_sizeVec    = [5]  #[5, 10, 20]  # [5, 20, 30, 40]  # [5, 10, 15]  # length of sequence for lstm network
     batch_sizeVec       = [40]
-    num_epochs          = 200
+    num_epochs          = 5000
 
     # optimizer parameters -
     lrVec   = [0.05]  #[0.05, 0.2, 0.5]  # [0.1, 0.5, 0.9] #[0.1, 0.5, 0.9]  # [0.1, 0.01, 0.001]
@@ -292,7 +292,7 @@ def main():
             rmseTrain = [1]
             trainCorr = 0.0
             trainTot = 0.0
-            if (1+numEpoch)%20 == 0:
+            if (1+numEpoch)%40 == 0:
                 if my_net.optimizer.param_groups[0]['lr'] > 0.001:
                     my_net.optimizer.param_groups[0]['lr'] = my_net.optimizer.param_groups[0]['lr']/2
                 else:
