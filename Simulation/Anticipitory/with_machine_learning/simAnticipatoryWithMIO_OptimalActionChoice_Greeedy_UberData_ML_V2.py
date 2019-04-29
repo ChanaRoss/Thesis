@@ -1,34 +1,35 @@
-# system imports -
-import time, sys, pickle
+# for stats on running time
+import time,sys,pickle
 from enum import Enum
 from copy import deepcopy
 import os
-import itertools
-# mathematical and statistical imports -
+# for mathematical calculations and statistical distributions
 from scipy.optimize import linear_sum_assignment
 from scipy.stats import truncnorm
 from scipy.spatial.distance import cdist
+from scipy.special import comb
+import math
+import itertools
 import numpy as np
-# graphical imports -
+# for graphics
 import seaborn as sns
 from matplotlib import pyplot as plt
-# pytorch imports -
+# pytorch imports-
 import torch
-
 sns.set()
 # my files
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/')
 from calculateOptimalActions import runActionOpt, getActions
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/MixedIntegerOptimization/')
-from offlineOptimizationProblem import runMaxFlowOpt,plotResults
-sys.path.insert(0, '/Users/chanaross/dev/Thesis/MixedIntegerOptimization/')
-from offlineOptimizationProblem_TimeWindow import runMaxFlowOpt as runMaxFlowOptTimeWindow
-from offlineOptimizationProblem_TimeWindow import plotResults as plotResultsTimeWindow
+from offlineOptimizationProblem_TimeWindow import runMaxFlowOpt,plotResults
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/MachineLearning/finalNetwork/')
 from LSTM_inputFullGrid_multiClassSmooth import Model
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/UtilsCode/')
 from createGif import create_gif
 
+
+
+# from simAnticipatoryWithMIO_V1 import Status
 
 class Status(Enum):
     PREOPENED           = 0
@@ -386,7 +387,6 @@ class State:
         matrix = cdist(carPositions, evePositions, metric="cityblock")
         return matrix
 
-
     def updateCost(self, counter, move):
         cost = 0
         cost += np.sum(abs(move))
@@ -499,6 +499,8 @@ def spesificDescendantGenerator(state, possibleMoves):
     return tempState
 
 
+
+
 def poissonRandomEvents(startTime,endSimTime,lam):
     """
     creates time line assuming poisson distribution
@@ -518,6 +520,51 @@ def poissonRandomEvents(startTime,endSimTime,lam):
     return np.array(eventTime)
 
 
+def createEventDistributionUber(simStartTime, startTime, endTime, probabilityMatrix,eventTimeWindow,simTime):
+    eventPos = []
+    eventTimes = []
+    firstTime = startTime + simTime + simStartTime  # each time is a 5 min
+    numTimeSteps = endTime - startTime
+    for t in range(numTimeSteps):
+        for x in range(probabilityMatrix.shape[0]):
+            for y in range(probabilityMatrix.shape[1]):
+                randNum = np.random.uniform(0, 1)
+                cdfNumEvents = probabilityMatrix[x, y, t + firstTime, :]
+                # find how many events are happening at the same time
+                numEvents = np.searchsorted(cdfNumEvents, randNum, side='left')
+                numEvents = np.floor(numEvents).astype(int)
+                # print('at loc:' + str(x) + ',' + str(y) + ' num events:' + str(numEvents))
+                #for n in range(numEvents):
+                if numEvents > 0:
+                    eventPos.append(np.array([x, y]))
+                    eventTimes.append(t + startTime)
+    eventsPos  = np.array(eventPos)
+    eventTimes = np.array(eventTimes)
+    eventsTimeWindow = np.column_stack([eventTimes, eventTimes + eventTimeWindow])
+    print('number of events created:'+str(eventsPos.shape[0]))
+    return eventsPos, eventsTimeWindow
+
+def createRealEventsDistributionUber(simStartTime, startTime, endTime, eventsMatrix,eventTimeWindow,simTime):
+    eventPos = []
+    eventTimes = []
+    firstTime = startTime + simTime + simStartTime  # each time is a 5 min
+    numTimeSteps = endTime - startTime
+    for t in range(numTimeSteps):
+        for x in range(eventsMatrix.shape[0]):
+            for y in range(eventsMatrix.shape[1]):
+                randNum = np.random.uniform(0, 1)
+                numEvents = eventsMatrix[x, y, t + firstTime]
+                # print('at loc:' + str(x) + ',' + str(y) + ' num events:' + str(numEvents))
+                # for n in range(numEvents):
+                if numEvents > 0:
+                    eventPos.append(np.array([x, y]))
+                    eventTimes.append(t + startTime)
+    eventsPos = np.array(eventPos)
+    eventTimes = np.array(eventTimes)
+    eventsTimeWindow = np.column_stack([eventTimes, eventTimes + eventTimeWindow])
+    print('number of events created:' + str(eventsPos.shape[0]))
+    return eventsPos, eventsTimeWindow
+
 def createEventsDistribution(gridSize, startTime, endTime, lam, eventTimeWindow):
     locX        = gridSize / 2
     scaleX      = gridSize / 3
@@ -533,7 +580,6 @@ def createEventsDistribution(gridSize, startTime, endTime, lam, eventTimeWindow)
     eventsPos           = np.column_stack([eventPosX,eventPosY])
     eventsTimeWindow    = np.column_stack([eventTimes,eventTimes+eventTimeWindow])
     return eventsPos,eventsTimeWindow
-
 
 
 def createEventDistributionMl(simstartTime, startTime, endTime, previousMat, eventTimeWindow, simTime, my_net):
@@ -585,62 +631,6 @@ def createEventDistributionMl(simstartTime, startTime, endTime, previousMat, eve
     return eventsPos, eventsTimeWindow
 
 
-def createEventDistributionUber(simStartTime, startTime, endTime, probabilityMatrix, eventTimeWindow, simTime):
-    eventPos = []
-    eventTimes = []
-    firstTime = startTime + simTime + simStartTime  # each time is a 30 min
-    numTimeSteps = endTime - startTime
-    for t in range(numTimeSteps):
-        for x in range(probabilityMatrix.shape[0]):
-            for y in range(probabilityMatrix.shape[1]):
-                randNum = np.random.uniform(0, 1)
-                cdfNumEvents = probabilityMatrix[x, y, t + firstTime, :]
-                # find how many events are happening at the same time
-                numEvents = np.searchsorted(cdfNumEvents, randNum, side='left')
-                numEvents = np.floor(numEvents).astype(int)
-                # print('at loc:' + str(x) + ',' + str(y) + ' num events:' + str(numEvents))
-                #for n in range(numEvents):
-                if numEvents > 0:
-                    eventPos.append(np.array([x, y]))
-                    eventTimes.append(t + startTime)
-    eventsPos  = np.array(eventPos)
-    eventTimes = np.array(eventTimes)
-    eventsTimeWindow = np.column_stack([eventTimes, eventTimes + eventTimeWindow])
-    #print('number of events created:'+str(eventsPos.shape[0]))
-    return eventsPos, eventsTimeWindow
-
-
-def createRealEventsDistributionUber(simStartTime, startTime, endTime, eventsMatrix, eventTimeWindow, simTime):
-    """
-    find the real distribution of events, used in order to create events at the beginning of the simulation
-    :param simStartTime: time from which to start looking at data
-    :param startTime: time at which to start simulation (virtual time, always 0)
-    :param endTime:  number of time steps to look at
-    :param eventsMatrix:  matrix with real events in uber
-    :param eventTimeWindow:  amount of time each event is considered opened
-    :param simTime: sim starting time (this is the time that runs in the simulation from 0 to sim length)
-    :return:
-    """
-    eventPos = []
-    eventTimes = []
-    firstTime = startTime + simTime + simStartTime  # each time is a 30 min
-    numTimeSteps = endTime - startTime
-    for t in range(numTimeSteps):
-        for x in range(eventsMatrix.shape[0]):
-            for y in range(eventsMatrix.shape[1]):
-                numEvents = eventsMatrix[x, y, t + firstTime]
-                # print('at loc:' + str(x) + ',' + str(y) + ' num events:' + str(numEvents))
-                # for n in range(numEvents):
-                if numEvents > 0:
-                    eventPos.append(np.array([x, y]))
-                    eventTimes.append(t + startTime)
-    eventsPos   = np.array(eventPos)
-    eventTimes  = np.array(eventTimes)
-    eventsTimeWindow = np.column_stack([eventTimes, eventTimes + eventTimeWindow])
-    print('number of events created:' + str(eventsPos.shape[0]))
-    return eventsPos, eventsTimeWindow
-
-
 def createStochasticEvents(simStartTime, numStochasticRuns, startTime, endTime, probabilityMatrix, my_net,
                            eventsTimeWindow, simTime, distMethod, previousEventMat):
     """
@@ -682,6 +672,7 @@ def getPreviousEventMat(state, seqLen, gridSize):
 
 def anticipatorySimulation(initState, nStochastic, gs, tPred, eTimeWindow, simStartTime,
                            probabilityMatrix, my_net, distMethod, shouldPrint=False):
+
     """
     this function is the anticipatory simulation
     :param initState: initial state of the system (cars and events)
@@ -704,7 +695,8 @@ def anticipatorySimulation(initState, nStochastic, gs, tPred, eTimeWindow, simSt
     while not isGoal:
         currentTime = current.time
         if distMethod == 'NN':
-            previousEventMat = getPreviousEventMat(current, my_net.sequence_size, gs)  # get number of events previously created
+            previousEventMat = getPreviousEventMat(current, my_net.sequence_size,
+                                                   gs)  # get number of events previously created
         else:
             previousEventMat = []
         stochasticEventsDict = createStochasticEvents(simStartTime, nStochastic, 1, 1 + tPred,
@@ -762,9 +754,9 @@ def anticipatorySimulation(initState, nStochastic, gs, tPred, eTimeWindow, simSt
                         eventsStartTime     = np.array(eventsStartTime)
                         eventsEndTime       = np.array(eventsEndTime)
                         stime               = time.process_time()
-                        m, obj              = runMaxFlowOpt(0, carsPos, eventsPos, eventsEndTime,
+                        m, obj              = runMaxFlowOpt(0, carsPos, eventsPos, eventsStartTime, eventsEndTime,
                                             tempOptionalState.closeReward, tempOptionalState.cancelPenalty,
-                                            tempOptionalState.openedNotCommitedPenalty)
+                                            tempOptionalState.openedNotCommitedPenalty, 0)
                         etime   = time.process_time()
                         runTime = etime - stime
                         try:
@@ -886,6 +878,7 @@ def greedySimulation(initState, shouldPrint):
     return current.path()
 
 
+
 def optimizedSimulation(initialState, fileLoc, fileName, gridSize):
     plotFigures     = False
     carsPos         = np.zeros(shape=(initialState.cars.length(), 2))
@@ -900,11 +893,10 @@ def optimizedSimulation(initialState, fileLoc, fileName, gridSize):
         eventsStartTime.append(deepcopy(initialState.events.getObject(k).startTime))
         eventsEndTime.append(deepcopy(initialState.events.getObject(k).endTime))
 
-    m, obj = runMaxFlowOptTimeWindow(0, carsPos, np.array(eventsPos), np.array(eventsStartTime),
-                                     np.array(eventsEndTime), initialState.closeReward,
-                                     initialState.cancelPenalty, initialState.openedNotCommitedPenalty, 0)
-    dataOut = plotResultsTimeWindow(m, carsPos, np.array(eventsPos), np.array(eventsStartTime), np.array(eventsEndTime),
-                                    plotFigures, fileLoc, fileName, gridSize)
+    m, obj = runMaxFlowOpt(0, carsPos, np.array(eventsPos), np.array(eventsStartTime), np.array(eventsEndTime),
+                           initialState.closeReward,initialState.cancelPenalty, initialState.openedNotCommitedPenalty, 0)
+    dataOut = plotResults(m, carsPos, np.array(eventsPos), np.array(eventsStartTime), np.array(eventsEndTime), plotFigures, fileLoc
+                ,fileName, gridSize)
 
     dataOut['cost'] = -obj.getValue()
     return dataOut
@@ -924,7 +916,7 @@ def main():
     probabilityMatrix = np.load(dataPath + fileNameDist)  # matrix size is : [xsize , ysize, timeseq, probability for k events]
     # NN : use neural network
     # Bm : use probability benchmark
-    distMethod        = 'NN'  # 'NN'
+    distMethod        = 'Bm'  # 'NN'
     my_net            = torch.load(netPath + fileNameNetwork, map_location=lambda storage, loc: storage)
 
     # x limits are : (0 , 11)
@@ -947,7 +939,7 @@ def main():
     epsilon                     = 0.001  # distance between locations to be considered same location
     simStartTime                = 50     # time from which to start looking at the data
     lengthSim                   = 24     # 12 hours, each time step is 30 min. of real time
-    numStochasticRuns           = 1
+    numStochasticRuns           = 20
     lengthPrediction            = 4      # how many time steps should it use for prediction
     deltaTimeForCommit          = 10     # not useful for now
     closeReward                 = 80     # reward for closing an event
@@ -998,8 +990,9 @@ def main():
         # run anticipatory:
         stime           = time.process_time()
         pAnticipatory   = anticipatorySimulation(initState, numStochasticRuns, gridSize, lengthPrediction,
-                                                 deltaOpenTime, simStartTime, probabilityMatrix, my_net, distMethod,
-                                                 shouldPrint=shouldPrint)
+                               deltaOpenTime, simStartTime, probabilityMatrix, my_net, distMethod,
+                               shouldPrint=shouldPrint)
+
         etime           = time.process_time()
         runTimeA        = etime - stime
         print('Anticipatory cost is:' + str(pAnticipatory[-1].gval))
@@ -1007,10 +1000,10 @@ def main():
 
 
         dataAnticipatory = postAnalysis(pAnticipatory)
-        anticipatoryFileName = 'SimAnticipatory_SingleTime_OptimalActionChoice_MioFinalResults_'+fileName
+        anticipatoryFileName = 'SimAnticipatory_OptimalActionChoice_MioFinalResults_'+fileName
         greedyFileName       = 'SimGreedyFinalResults_'+fileName
         # Anticipatory output:
-        with open(fileLoc + 'SimAnticipatory_SingleTime_OptimalActionChoice_MioFinalResults_' + fileName+'.p', 'wb') as out:
+        with open('SimAnticipatory_OptimalActionChoice_MioFinalResults_' + fileName+'.p', 'wb') as out:
             pickle.dump({'runTime'          : runTimeA,
                          'pathresults'      : pAnticipatory,
                          'time'             : dataAnticipatory['timeVector'],
@@ -1049,7 +1042,7 @@ def main():
         print('run time is: ' + str(runTimeG))
         dataGreedy = postAnalysis(pGreedy)
         # Greedy output:
-        with open(fileLoc + 'SimGreedyFinalResults_' + fileName + '.p', 'wb') as out:
+        with open('SimGreedyFinalResults_' + fileName + '.p', 'wb') as out:
             pickle.dump({'runTime'          : runTimeG,
                          'pathresults'      : pGreedy,
                          'time'             : dataGreedy['timeVector'],
@@ -1086,7 +1079,7 @@ def main():
         dataOptimization = optimizedSimulation(initState, fileLoc, fileName, gridSize)
 
         # optimization output:
-        with open(fileLoc + 'SimOptimizationFinalResults_' + fileName + '.p', 'wb') as out:
+        with open('SimOptimizationFinalResults_' + fileName + '.p', 'wb') as out:
             pickle.dump({'time'             : dataOptimization['time'],
                          'gs'               : gridSize,
                          'OpenedEvents'     : dataOptimization['openedEvents'],

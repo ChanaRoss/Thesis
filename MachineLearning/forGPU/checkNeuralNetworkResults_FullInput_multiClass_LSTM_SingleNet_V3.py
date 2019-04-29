@@ -47,9 +47,9 @@ def checkNetwork(data_net, data_labels, data_real, timeIndexs, xIndexs, yIndexs,
             ax.set_ylabel('Num Events')
             ax.set_title(fileName + ', (x,y):(' + str(x) + ',' + str(y) + ')')
             plt.legend()
-            # plt.show()
-            plt.savefig(filePath + 'timeResults_' + fileName + str(x) + 'x_' + str(y) + 'y_' + '.png')
-            plt.close()
+            plt.show()
+            # plt.savefig(filePath + 'timeResults_' + fileName + str(x) + 'x_' + str(y) + 'y_' + '.png')
+            # plt.close()
     return
 
 
@@ -445,6 +445,7 @@ def main():
                'mean smooth nonZeros accuracy'  : []}
 
     dataInputReal = np.load(data_path + data_name)
+    # dataInputReal[dataInputReal > 1] = 1
     # use only data wanted (x, y, time)
     # xmin = 0    # 5
     # xmax = dataInputReal.shape[0]  # 6
