@@ -20,7 +20,7 @@ sns.set()
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/')
 from calculateOptimalActions import runActionOpt, getActions
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/MixedIntegerOptimization/')
-from offlineOptimizationProblem import runMaxFlowOpt,plotResults
+from offlineOptimizationProblemMaxFlow import runMaxFlowOpt,plotResults
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/MixedIntegerOptimization/')
 from offlineOptimizationProblem_TimeWindow import runMaxFlowOpt as runMaxFlowOptTimeWindow
 from offlineOptimizationProblem_TimeWindow import plotResults as plotResultsTimeWindow
@@ -886,7 +886,7 @@ def greedySimulation(initState, shouldPrint):
     return current.path()
 
 
-def optimizedSimulation(initialState, fileLoc, fileName, gridSize):
+def optimizedSimulation(initialState, fileLoc, fileName, gridSize, shouldRunMaxFlow):
     plotFigures     = False
     carsPos         = np.zeros(shape=(initialState.cars.length(), 2))
     eventsPos       = []
@@ -899,13 +899,16 @@ def optimizedSimulation(initialState, fileLoc, fileName, gridSize):
         eventsPos.append(deepcopy(initialState.events.getObject(k).position))
         eventsStartTime.append(deepcopy(initialState.events.getObject(k).startTime))
         eventsEndTime.append(deepcopy(initialState.events.getObject(k).endTime))
-
-    m, obj = runMaxFlowOptTimeWindow(0, carsPos, np.array(eventsPos), np.array(eventsStartTime),
-                                     np.array(eventsEndTime), initialState.closeReward,
-                                     initialState.cancelPenalty, initialState.openedNotCommitedPenalty, 0)
-    dataOut = plotResultsTimeWindow(m, carsPos, np.array(eventsPos), np.array(eventsStartTime), np.array(eventsEndTime),
-                                    plotFigures, fileLoc, fileName, gridSize)
-
+    if shouldRunMaxFlow:
+        m, obj = runMaxFlowOptTimeWindow(0, carsPos, np.array(eventsPos), np.array(eventsStartTime),
+                                         np.array(eventsEndTime), initialState.closeReward,
+                                         initialState.cancelPenalty, initialState.openedNotCommitedPenalty, 0)
+        dataOut = plotResultsTimeWindow(m, carsPos, np.array(eventsPos), np.array(eventsStartTime), np.array(eventsEndTime),
+                                        plotFigures, fileLoc, fileName, gridSize)
+    else:
+        m, obj = runMaxFlowOpt(0, carsPos, np.array(eventsPos), np.array(eventsEndTime), initialState.closeReward,
+                               initialState.cancelPenalty, initialState.openedNotCommitedPenalty)
+        dataOut = plotResults(m, carsPos, np.array(eventsPos), np.array(eventsStartTime), np.array(eventsEndTime), plotFigures)
     dataOut['cost'] = -obj.getValue()
     return dataOut
 
@@ -924,7 +927,7 @@ def main():
     probabilityMatrix = np.load(dataPath + fileNameDist)  # matrix size is : [xsize , ysize, timeseq, probability for k events]
     # NN : use neural network
     # Bm : use probability benchmark
-    distMethod        = 'NN'  # 'NN'
+    distMethod        = 'Bm'  # 'NN'
     my_net            = torch.load(netPath + fileNameNetwork, map_location=lambda storage, loc: storage)
 
     # x limits are : (0 , 11)
@@ -966,9 +969,9 @@ def main():
     eventStartTime      = eventTimes[:, 0]
     eventEndTime        = eventTimes[:, 1]
 
-
+    #
     # plt.scatter(eventPos[:,0],eventPos[:,1],  c= 'r')
-    # plt.scatter(carPos[:,0],carPos[:,1], c='k')
+    # plt.scatter(carPos[:,0], carPos[:,1], c='k')
     # plt.show()
 
     uncommitedCarDict   = {}
@@ -1082,11 +1085,11 @@ def main():
             fileName  = '7lpred_0startTime_20gridX_30gridY_63numEvents_100nStochastic_4numCars_uberData'
             numEvents = initState.events.length()
             numCars   = initState.cars.length()
-
-        dataOptimization = optimizedSimulation(initState, fileLoc, fileName, gridSize)
+        shouldRunMaxFlow = False
+        dataOptimization = optimizedSimulation(initState, fileLoc, fileName, gridSize, shouldRunMaxFlow)
 
         # optimization output:
-        with open(fileLoc + 'SimOptimizationFinalResults_' + fileName + '.p', 'wb') as out:
+        with open(fileLoc + 'SimOptimization_timeWindow_FinalResults_' + fileName + '.p', 'wb') as out:
             pickle.dump({'time'             : dataOptimization['time'],
                          'gs'               : gridSize,
                          'OpenedEvents'     : dataOptimization['openedEvents'],
@@ -1094,6 +1097,20 @@ def main():
                          'canceledEvents'   : dataOptimization['canceledEvents'],
                          'cost'             : dataOptimization['cost'],
                          'allEvents'        : dataOptimization['allEvents']}, out)
+        shouldRunMaxFlow = True
+        dataOptimization = optimizedSimulation(initState, fileLoc, fileName, gridSize, shouldRunMaxFlow)
+
+        # optimization output for max flow (no time window):
+        with open(fileLoc + 'SimOptimizationFinalResults_' + fileName + '.p', 'wb') as out:
+            pickle.dump({'time': dataOptimization['time'],
+                         'gs': gridSize,
+                         'OpenedEvents': dataOptimization['openedEvents'],
+                         'closedEvents': dataOptimization['closedEvents'],
+                         'canceledEvents': dataOptimization['canceledEvents'],
+                         'cost': dataOptimization['cost'],
+                         'allEvents': dataOptimization['allEvents']}, out)
+
+
 
     return
 

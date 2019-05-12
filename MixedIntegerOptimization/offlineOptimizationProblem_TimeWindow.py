@@ -106,19 +106,19 @@ def runMaxFlowOpt(tStart, carPos, eventPos , eventOpenTime, eventCloseTime,close
             pEventsOpened -= openedPenalty*(t[j]-eventOpenTime[j])*x[i,j]
 
         for j in range(nCars):
-            rCars += rewardCarsToEvents[j,i]*y[j,i]
+            rCars += rewardCarsToEvents[j, i]*y[j, i]
             pEventsOpened -= openedPenalty*(t[i] - eventOpenTime[i])*y[j,i]
         pEvents -= cancelPenalty*(1-p[i])
 
     obj = rEvents + rCars + pEvents + pEventsOpened
     m.setObjective(obj, GRB.MAXIMIZE)
     m.setParam('OutputFlag', outputFlag)
-    m.setParam('LogFile',"")
+    m.setParam('LogFile', "")
     m.optimize()
     return m, obj
 
 
-def poissonRandomEvents(startTime,endSimTime,lam):
+def poissonRandomEvents(startTime, endSimTime,lam):
     """
     creates time line assuming poisson distribution
     :param startTime: start time wanted for timeline
@@ -135,6 +135,7 @@ def poissonRandomEvents(startTime,endSimTime,lam):
             for num in range(nTime):
                 eventTime.append(i+startTime)
     return np.array(eventTime)
+
 
 def createEventsDistribution(gridSize, startTime, endTime, lam, eventTimeWindow):
     locX        = gridSize / 3

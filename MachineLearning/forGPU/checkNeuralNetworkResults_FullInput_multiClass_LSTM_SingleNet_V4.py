@@ -352,37 +352,6 @@ def calc_netOutput_fromData(data_in, my_net, timeIndexs):
                 numEventsPredicted.append(np.sum(net_labelsNp))
                 net_output[i, x, y] = net_labelsNp
                 label_output[i, x, y] = labelsNp
-
-
-    # for i, t in enumerate(timeIndexs):
-    #     input, label = create_net_input_allGrid(data_in, t, my_net.sequence_size)
-    #     # input size is: [1, grid_id, seq_len]
-    #     # label size is: [1, grid_id]
-    #     testOut         = my_net.forward(input)
-    #     testOut         = testOut.view(grid_size, my_net.class_size, 1)
-    #     _, net_labels   = torch.max(torch.exp(testOut.data), 1)
-    #     net_labelsNp    = net_labels.long().detach().numpy()
-    #     labelsNp        = label.detach().numpy()
-    #     sizeMat         = net_labelsNp.size
-    #     net_rmse.append(np.sqrt(metrics.mean_squared_error(labelsNp.reshape(-1), net_labelsNp.reshape(-1))))
-    #     net_accuracy.append(np.sum(labelsNp == net_labelsNp) / sizeMat)
-    #     sizeMat_zeros       = net_labelsNp[labelsNp == 0].size
-    #     sizeMat_non_zeros   = net_labelsNp[labelsNp != 0].size
-    #     if (sizeMat_non_zeros > 0):
-    #         correct_non_zeros.append(
-    #             np.sum(net_labelsNp[labelsNp != 0] == labelsNp[labelsNp != 0]) / sizeMat_non_zeros)
-    #     if sizeMat_zeros > 0:
-    #         correct_zeros.append(
-    #             np.sum(net_labelsNp[labelsNp == 0] == labelsNp[labelsNp == 0]) / sizeMat_zeros)
-    #     numEventsCreated.append(np.sum(labelsNp))
-    #     numEventsPredicted.append(np.sum(net_labelsNp))
-    #     k = 0
-    #     # save the output to matrix for each grid id -
-    #     for x in range(x_size):
-    #         for y in range(y_size):
-    #             net_output[i, x, y] = net_labelsNp[k]
-    #             label_output[i, x, y] = labelsNp[k]
-    #             k += 1
     results = {'accuracy'           : net_accuracy,
                'rmse'               : net_rmse,
                'numCreated'         : numEventsCreated,
@@ -392,7 +361,68 @@ def calc_netOutput_fromData(data_in, my_net, timeIndexs):
     return net_output, label_output, results
 
 
+def calc_netOutput_fromData_probability(data_in, my_net, timeIndexs):
+    time_size       = timeIndexs.size
+    x_size          = data_in.shape[1]
+    y_size          = data_in.shape[2]
+    grid_size       = x_size*y_size
 
+    net_accuracy        = []
+    net_rmse            = []
+    correct_non_zeros   = []
+    correct_zeros       = []
+    numEventsCreated    = []
+    numEventsPredicted  = []
+
+    net_output      = np.zeros((time_size, x_size, y_size))
+    label_output    = np.zeros((time_size, x_size, y_size))
+    # testOutTemp = []
+    # netlabelTemp = []
+    # inputTemp    = []
+    cdf             = np.zeros(my_net.class_size)
+    for i, t in enumerate(timeIndexs):
+        print("t:" + str(i) + " out of:" + str(timeIndexs.size))
+        for x in range(x_size):
+            for y in range(y_size):
+                # print("t:" + str(i) + ",x:"+str(x)+", y:"+str(y))
+                input, label = create_net_input(data_in[:, x, y].reshape([-1, 1, 1]), t, my_net.sequence_size)
+                # input size is: [1, grid_id, seq_len]
+                # label size is: [1, grid_id]
+                testOut = my_net.forward(input)
+                testOut = testOut.view(1, my_net.class_size, 1)
+                temp_probOut = torch.exp(testOut.data).view(-1).detach().numpy()
+                for j in range(temp_probOut.size):
+                    cdf[j] = np.sum(temp_probOut[0:j + 1])
+                randNum = np.random.uniform(0, 1)
+                # find how many events are happening at the same time
+                numEvents = np.searchsorted(cdf, randNum, side='left')
+                numEvents = np.floor(numEvents).astype(int)
+                net_labelsNp = np.array([numEvents]).reshape([1, 1])
+                # testOutTemp.append(testOut.detach().numpy())
+                # netlabelTemp.append(net_labelsNp)
+                # inputTemp.append(input)
+                labelsNp = label.detach().numpy()
+                sizeMat = net_labelsNp.size
+                net_rmse.append(np.sqrt(metrics.mean_squared_error(labelsNp.reshape(-1), net_labelsNp.reshape(-1))))
+                net_accuracy.append(np.sum(labelsNp == net_labelsNp) / sizeMat)
+                sizeMat_zeros = net_labelsNp[labelsNp == 0].size
+                sizeMat_non_zeros = net_labelsNp[labelsNp != 0].size
+                if (sizeMat_non_zeros > 0):
+                    correct_non_zeros.append(np.sum(net_labelsNp[labelsNp != 0] == labelsNp[labelsNp != 0]) / sizeMat_non_zeros)
+                if sizeMat_zeros > 0:
+                    correct_zeros.append(np.sum(net_labelsNp[labelsNp == 0] == labelsNp[labelsNp == 0]) / sizeMat_zeros)
+                numEventsCreated.append(np.sum(labelsNp))
+                numEventsPredicted.append(np.sum(net_labelsNp))
+                net_output[i, x, y] = net_labelsNp
+                label_output[i, x, y] = labelsNp
+
+    results = {'accuracy'           : net_accuracy,
+               'rmse'               : net_rmse,
+               'numCreated'         : numEventsCreated,
+               'numPredicted'       : numEventsPredicted,
+               'correctedZeros'     : correct_zeros,
+               'correctedNonZeros'  : correct_non_zeros}
+    return net_output, label_output, results
 
 
 def plotEpochGraphs(my_net, filePath, fileName):
@@ -434,7 +464,7 @@ def main():
 
     plot_graph_vs_time = True
     plot_time_gif      = False
-    plot_loss_accuracy = True
+    plot_loss_accuracy = False
 
     # create dictionary for storing result for each network tested
     results = {'networkName'            : [],
@@ -450,14 +480,14 @@ def main():
     dataInputReal = np.load(data_path + data_name)
     # dataInputReal[dataInputReal > 1] = 1
     # use only data wanted (x, y, time)
-    # xmin = 0    # 5
+    # xmin = 0
     # xmax = dataInputReal.shape[0]  # 6
     # ymin = 0   # 10
     # ymax = dataInputReal.shape[1]  # 11
     xmin = 5
     xmax = 6
-    ymin = 10
-    ymax = 11
+    ymin = 40
+    ymax = 41
     zmin = 48  # np.floor(dataInputReal.shape[2]*0.7).astype(int)
     zmax = dataInputReal.shape[2]
     dataInputReal = dataInputReal[xmin:xmax, ymin:ymax, zmin:zmax]  # shrink matrix size for fast training in order to test model
@@ -471,7 +501,7 @@ def main():
     dataInputReal = np.swapaxes(dataInputReal, 0, 2)
     # create results index's -
     tmin = 1100
-    tmax = 4000
+    tmax = 1400
     timeIndexs = np.arange(tmin, tmax, 1).astype(int)
     xIndexs    = np.arange(xmin, xmax, 1).astype(int)
     yIndexs    = np.arange(ymin, ymax, 1).astype(int)
@@ -479,7 +509,7 @@ def main():
     for network_name in network_names:
         print("network:" + network_name.replace('.pkl', ''))
         figPath     = network_path + 'figures/'
-        fileName    = str(numRuns) + network_name.replace('.pkl', '')
+        fileName    = "probability" + str(numRuns) + network_name.replace('.pkl', '')
         if "descent" in network_name:
             my_net = torch.load(network_path + network_name, map_location=lambda storage, loc: storage)
         else:

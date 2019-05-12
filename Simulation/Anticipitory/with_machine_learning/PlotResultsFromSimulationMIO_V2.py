@@ -32,9 +32,19 @@ pickleNames = []
 #
 
 
-pickleNames.append('SimGreedyFinalResults_7lpred_1000startTime_10gridX_15gridY_98numEvents_1nStochastic_4numCars_NN')
-# pickleNames.append('SimOptimizationFinalResults_4lpred_50startTime_10gridX_20gridY_42numEvents_1nStochastic_4numCars_NN')
-pickleNames.append('SimAnticipatory_bruteForce_MioFinalResults_7lpred_1000startTime_10gridX_15gridY_98numEvents_1nStochastic_4numCars_NN')
+pickleNames.append('SimGreedy_7lpred_1000startTime_10gridX_20gridY_52numEvents_10nStochastic_4numCars_NN')
+# pickleNames.append('SimAnticipatoryMio_RandomChoice_7lpred_1000startTime_10gridX_20gridY_52numEvents_10nStochastic_4numCars_NN')
+pickleNames.append('SimAnticipatoryMio_RandomChoice_7lpred_1000startTime_10gridX_20gridY_52numEvents_10nStochastic_4numCars_Bm_MaxFlow')
+# pickleNames.append('SimAnticipatoryMio_RandomChoice_4lpred_1000startTime_10gridX_20gridY_52numEvents_20nStochastic_4numCars_NN_MaxFlow')
+pickleNames.append('SimAnticipatoryMio_RandomChoice_4lpred_1000startTime_10gridX_20gridY_52numEvents_20nStochastic_4numCars_Bm_MaxFlow')
+pickleNames.append('SimOptimization_MaxFlow_7lpred_1000startTime_10gridX_20gridY_52numEvents_10nStochastic_4numCars_NN')
+pickleNames.append('SimOptimization_TimeWindow_7lpred_1000startTime_10gridX_20gridY_52numEvents_10nStochastic_4numCars_NN')
+
+
+
+# pickleNames.append('SimGreedyFinalResults_7lpred_1000startTime_10gridX_15gridY_98numEvents_1nStochastic_4numCars_NN')
+# pickleNames.append('SimOptimizationFinalResults_7lpred_1000startTime_10gridX_15gridY_98numEvents_1nStochastic_4numCars_NN')
+# pickleNames.append('SimAnticipatory_bruteForce_MioFinalResults_7lpred_1000startTime_10gridX_15gridY_98numEvents_1nStochastic_4numCars_NN')
 
 
 def filterEvents(eventDict, currentTime,lg):
@@ -130,15 +140,18 @@ def plotBasicStatisticsOfEvents(gridSize,lg,pickleName,simTime):
         labelStr = 'Anticipatory Algorithm based on Benchmark'
         lineStyle = '-'
         plotAllEvents = True
-    elif 'Optimization' in pickleName:
-        labelStr = 'determinsitc MIO results'
+    elif 'Optimization' in pickleName and 'TimeWindow' in pickleName:
+        labelStr = 'determinsitc MIO results with time window'
+        lineStyle = ':'
+    elif 'Optimization' in pickleName and 'MaxFlow' in pickleName:
+        labelStr = 'determinsitc MIO results - max flow'
         lineStyle = ':'
     if 'SimAnticipatory' in pickleName or 'Greedy' in pickleName or 'Optimization' in pickleName:
         plt.figure(2)
         if plotAllEvents:
             plt.scatter(lg['time'], lg['allEvents'], c='r', label='Num Created events')
             plotAllEvents = False
-        plt.plot(lg['time'], lg['closedEvents'], linestyle=lineStyle,linewidth = 2, label='Num Closed for :' + labelStr)
+        plt.plot(lg['time'], lg['closedEvents'], linestyle=lineStyle,linewidth = 2, marker ='o', label='Num Closed for :' + labelStr)
         # plt.plot(lg['time'], lg['canceledEvents'], c='y', linestyle=lineStyle, label='canceled')
         plt.legend()
         plt.grid(True)
