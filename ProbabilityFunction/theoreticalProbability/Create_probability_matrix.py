@@ -1,6 +1,6 @@
 # mathematical imports -
 import numpy as np
-import scipy
+import scipy.stats as stats
 # graphical imports -
 from matplotlib import pyplot as plt
 import seaborn as sns
@@ -76,23 +76,34 @@ def calcAverageResults(cdf_mat, timeIndexs):
 
 
 def main():
-    num_ticks_per_day = 24*3
+    np.random.seed(101)
+    num_ticks_per_day = 24*4
     num_days  = 7
-    num_weeks = 1
+    num_weeks = 5
     y_out     = np.zeros([num_ticks_per_day, num_days, num_weeks])
-    mu        = 6
+    color_plt = np.random.rand(3, 7)
     sigma     = 2
-    m         = ['*', '.', 'o']
+    start_mu  = 4
+    m         = ['*', '.', 'o', 's', '<']
     time_axes = np.arange(0, num_ticks_per_day)
     for nweek in range(num_weeks):
-        amp_per_day = np.random.normal(mu, sigma, num_days)
+        min_val = 1
+        max_val = 5 + (nweek+1)*1.5
+        mu = start_mu + (nweek+1)*1.5
+        dist        = stats.truncnorm((min_val - mu) / sigma, (max_val - mu) / sigma, loc=mu, scale=sigma)
+        amp_per_day = dist.rvs(num_days)  # np.random.normal(mu, sigma, num_days)
         for i in range(num_days):
             for j in range(num_ticks_per_day):
                 if j<num_ticks_per_day*0.5:
                     y_out[j, i, nweek] = np.floor(np.abs(amp_per_day[i]*np.sin(2*np.pi*j/num_ticks_per_day)))
                 else:
                     y_out[j, i, nweek] = np.floor(0.5*np.abs(amp_per_day[i] * np.sin(2 * np.pi * j / num_ticks_per_day)))
-            plt.plot(time_axes + num_ticks_per_day*i + nweek*num_ticks_per_day*num_days, y_out[:, i, nweek], marker = m[nweek], label = 'wday - '+str(i))
+            if nweek == 0:
+                plt.plot(time_axes + num_ticks_per_day*i + nweek*num_ticks_per_day*num_days, y_out[:, i, nweek],
+                         marker = m[nweek], label='wday - '+str(i), color=color_plt[:, i])
+            else:
+                plt.plot(time_axes + num_ticks_per_day * i + nweek * num_ticks_per_day * num_days, y_out[:, i, nweek],
+                         marker=m[nweek], color=color_plt[:, i])
     plt.grid()
     plt.legend()
     plt.xlabel('Time')
