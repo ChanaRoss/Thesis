@@ -5,6 +5,9 @@ import scipy.stats as stats
 from matplotlib import pyplot as plt
 import seaborn as sns
 
+import os,sys
+sys.path.insert(0, '/Users/chanaross/dev/Thesis/UtilsCode/')
+from createGif import create_gif
 
 def createProbabilityMatrix(inputMat):
     """
@@ -40,75 +43,102 @@ def calcAverageResults(cdf_mat, timeIndexs):
     return y_out
 
 
-# def main():
-#     sigma       = 1.2
-#     num_ticks   = 24*7
-#     num_cases   = 10
-#
-#     mu          = 3
-#     y_out       = np.zeros([num_cases, num_ticks, 1])
-#     t = np.arange(0, num_ticks, 1).reshape(num_ticks, 1)
-#     fig, ax = plt.subplots(1, 1)
-#     fig1, ax1 = plt.subplots(1, 1)
-#     for i in range(num_cases):
-#         amp = np.random.normal(mu, sigma, 1)[0]
-#         y     = np.abs(np.floor(amp*(np.sin(np.pi*t/(24)))))   # + 4*amp*(np.sin(2*t*np.pi/(24*7)))))
-#         for j in range(num_ticks):
-#             val = np.random.normal(y[j], sigma, 1)[0]
-#             y_out[i, j, :] = y[j]
-#         # ax.plot(t+(t[-1])*i, y, marker='.')
-#         ax.plot(t+(t[-1])*i, y_out[i, :, :], marker='.')
-#         ax1.plot(t, y_out[i, :, :])
-#     ax.grid()
-#     ax1.grid()
-#     y_average = np.mean(y_out, 0).reshape(num_ticks, 1)
-#     probMat, cdfMat = createProbabilityMatrix(y_out)
-#     y_prob_out = calcAverageResults(cdfMat, t)
-#     # ax1.plot(t, y_average, color='k', linewidth=2, linestyle='-')
-#     ax1.plot(t, y_prob_out, color='k', linewidth=2, linestyle='--')
-#     # for i in range(num_cases):
-#         # ax.plot(t + (t[-1] * i), y_average, color='k', linewidth=2)
-#         # ax.plot(t + (t[-1] * i), y_prob_out, color='k', linewidth=2)
-#
-#     plt.show()
-#     return
+def create_gif_plot(mat, nweek_plot, num_days, num_ticks_per_day, pathName, fileName):
+    # dataFixed = np.zeros_like(mat)
+    # dataFixed = np.swapaxes(mat, 1, 0)
+    # dataFixed = np.flipud(dataFixed)
+    dataFixed = mat
+    max_ticks = np.max(dataFixed).astype(int)
+    ticksDict = list(range(max_ticks + 1))
+    fig, axes = plt.subplots(1, 1)
+    t = 0
+
+    for nday in range(num_days):
+        for nticks in range(num_ticks_per_day):
+            mat_plot = dataFixed[:, :, nticks, nday, nweek_plot]
+            try:
+                sns.heatmap(mat_plot, cbar=True, center=1, square=True, vmin=0, vmax=np.max(ticksDict),
+                            cmap='CMRmap_r', cbar_kws=dict(ticks=ticksDict))
+            except:
+                print("hi")
+            plt.suptitle('week- {0}, day- {1},time- {2}:00'.format(nweek_plot, nday, t), fontsize=16)
+            plt.title('num events')
+            plt.xlabel('X axis')
+            plt.ylabel('Y axis')
+            plt.savefig(pathName + fileName + '_' + str(t) + '.png')
+            plt.close()
+            t += 1
+
+    timeIndexs = list(range(t))
+    listNames = [fileName + '_' + str(t) + '.png' for t in timeIndexs]
+    create_gif(pathName, listNames, 1, fileName)
+    for fileName in listNames:
+        os.remove(pathName + fileName)
 
 
 
 def main():
     np.random.seed(101)
-    num_ticks_per_day = 24*4
+    inner_prob = 7
+    outer_prob = 3
+    num_x     = inner_prob + 2*outer_prob  # size of y axis
+    num_y     = inner_prob + 2*outer_prob  # size of x axis
+
+    x_plot    = 0
+    y_plot    = 0
+    nweek_plot= 0
+
+    num_ticks_per_day = 24*1
     num_days  = 7
-    num_weeks = 5
-    y_out     = np.zeros([num_ticks_per_day, num_days, num_weeks])
+    num_weeks = 1
+    y_out     = np.zeros([num_x, num_y, num_ticks_per_day, num_days, num_weeks])
     color_plt = np.random.rand(3, 7)
-    sigma     = 2
-    start_mu  = 4
+    sigma     = 3
+    start_mu  = 8
+    small_coef = 0.2
+    large_coef = 0.8
+    fig_path = '/Users/chanaross/dev/Thesis/ProbabilityFunction/theoreticalProbability/figures/'
+    fig_name = 'gif_theoretical_dist'
     m         = ['*', '.', 'o', 's', '<']
     time_axes = np.arange(0, num_ticks_per_day)
-    for nweek in range(num_weeks):
-        min_val = 1
-        max_val = 5 + (nweek+1)*1.5
-        mu = start_mu + (nweek+1)*1.5
-        dist        = stats.truncnorm((min_val - mu) / sigma, (max_val - mu) / sigma, loc=mu, scale=sigma)
-        amp_per_day = dist.rvs(num_days)  # np.random.normal(mu, sigma, num_days)
-        for i in range(num_days):
-            for j in range(num_ticks_per_day):
-                if j<num_ticks_per_day*0.5:
-                    y_out[j, i, nweek] = np.floor(np.abs(amp_per_day[i]*np.sin(2*np.pi*j/num_ticks_per_day)))
-                else:
-                    y_out[j, i, nweek] = np.floor(0.5*np.abs(amp_per_day[i] * np.sin(2 * np.pi * j / num_ticks_per_day)))
-            if nweek == 0:
-                plt.plot(time_axes + num_ticks_per_day*i + nweek*num_ticks_per_day*num_days, y_out[:, i, nweek],
-                         marker = m[nweek], label='wday - '+str(i), color=color_plt[:, i])
+    for x in range(num_x):
+        for y in range(num_y):
+            if (outer_prob <= x < outer_prob + inner_prob) and (outer_prob <= y < outer_prob + inner_prob):
+                # in inner area, therefore taxi's are needed in the morning
+                coef_a = small_coef
+                coef_b = large_coef
             else:
-                plt.plot(time_axes + num_ticks_per_day * i + nweek * num_ticks_per_day * num_days, y_out[:, i, nweek],
-                         marker=m[nweek], color=color_plt[:, i])
+                # in inner area, taxi's are needed in the evening
+                coef_a = large_coef
+                coef_b = small_coef
+
+            for nweek in range(num_weeks):
+                min_val = 1
+                max_val = 5 + (nweek+1)*1.5
+                mu = start_mu + (nweek+1)*1.5
+                dist        = stats.truncnorm((min_val - mu) / sigma, (max_val - mu) / sigma, loc=mu, scale=sigma)
+                amp_per_day = dist.rvs(num_days)  # np.random.normal(mu, sigma, num_days)
+                for i in range(num_days):
+                    for j in range(num_ticks_per_day):
+                        if j<num_ticks_per_day*0.5:
+                            y_out[x, y, j, i, nweek] = np.floor(coef_a*np.abs(amp_per_day[i]*np.sin(2*np.pi*j/num_ticks_per_day)))
+                        else:
+                            y_out[x, y, j, i, nweek] = np.floor(coef_b*np.abs(amp_per_day[i] * np.sin(2 * np.pi * j / num_ticks_per_day)))
+                    if nweek == 0 and x == x_plot and y == y_plot:
+                        plt.plot(time_axes + num_ticks_per_day*i + nweek*num_ticks_per_day*num_days, y_out[x, y, :, i, nweek],
+                                 marker = m[nweek], label='wday - '+str(i), color=color_plt[:, i])
+                    elif x == x_plot and y == y_plot:
+                        plt.plot(time_axes + num_ticks_per_day * i + nweek * num_ticks_per_day * num_days, y_out[x, y, :, i, nweek],
+                                 marker=m[nweek], color=color_plt[:, i])
     plt.grid()
     plt.legend()
     plt.xlabel('Time')
     plt.ylabel('Num Events')
-    plt.show()
+    # plt.show()
+    plt.close()
+
+    create_gif_plot(y_out, nweek_plot, num_days, num_ticks_per_day, fig_path, fig_name)
+
 
 
 
