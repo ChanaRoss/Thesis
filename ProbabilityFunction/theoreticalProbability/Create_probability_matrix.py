@@ -12,22 +12,24 @@ from createGif import create_gif
 def createProbabilityMatrix(inputMat):
     """
 
-    :param inputMat: shape is [num_cases, num_time_steps, 1]
+    :param inputMat: shape is [grid_x, grid_y, num_times_per_week, num_week]
     :return:
     """
     num_events  = np.max(inputMat).astype(int)
-    mat         = np.zeros([inputMat.shape[1], num_events+1])
+    mat         = np.zeros([inputMat.shape[0], inputMat.shape[1], inputMat.shape[2], num_events+1])
     mat_out     = np.zeros_like(mat)
     cdf         = np.zeros(num_events+1)
     cdf_out     = np.zeros_like(mat_out)
-    for t in range(inputMat.shape[1]):
-        for i in range(inputMat.shape[0]):  # going through all the cases for time t
-            temp          = inputMat[i, t, 0].astype(int)
-            mat[t, temp] += 1
-        mat_out[t, :] = mat[t, :]/np.sum(mat[t, :])
-        for j in range(num_events+1):
-            cdf[j] = np.sum(mat_out[t, 0:j + 1])
-        cdf_out[t, :] = cdf
+    for x in range(inputMat.shape[0]):
+        for y in range(inputMat.shape[1]):
+            for t in range(inputMat.shape[2]):
+                for n_week in range(inputMat.shape[3]):
+                    temp          = inputMat[x, y, t, n_week].astype(int)
+                    mat[x, y, t, temp] += 1
+                mat_out[x, y, t, :] = mat[x, y, t, :]/np.sum(mat[x, y, t, :])
+                for j in range(num_events+1):
+                    cdf[j] = np.sum(mat_out[x, y, t, 0:j + 1])
+                cdf_out[x, y, t, :] = cdf
     return mat_out, cdf_out
 
 
@@ -78,9 +80,9 @@ def create_gif_plot(mat, nweek_plot, num_days, num_ticks_per_day, pathName, file
 
 
 def main():
-    np.random.seed(101)
-    inner_prob = 7
-    outer_prob = 3
+    np.random.seed(111)
+    inner_prob = 3
+    outer_prob = 1
     num_x     = inner_prob + 2*outer_prob  # size of y axis
     num_y     = inner_prob + 2*outer_prob  # size of x axis
 
@@ -90,19 +92,22 @@ def main():
 
     num_ticks_per_day = 24*1
     num_days  = 7
-    num_weeks = 1
+    num_weeks = 50
     y_out     = np.zeros([num_x, num_y, num_ticks_per_day, num_days, num_weeks])
-    color_plt = np.random.rand(3, 7)
+    mat_out   = np.zeros([num_x, num_y, num_ticks_per_day*num_days*num_weeks])
+    y_for_prob = np.zeros([num_x, num_y, num_ticks_per_day*num_days, num_weeks])
+    color_plt = np.random.rand(3, 20)
     sigma     = 3
-    start_mu  = 8
-    small_coef = 0.2
-    large_coef = 0.8
+    start_mu  = 2
+    small_coef = 0.1
+    large_coef = 0.9
     fig_path = '/Users/chanaross/dev/Thesis/ProbabilityFunction/theoreticalProbability/figures/'
     fig_name = 'gif_theoretical_dist'
-    m         = ['*', '.', 'o', 's', '<']
+    m        = ['*', '.', 'o', 's', '<']
     time_axes = np.arange(0, num_ticks_per_day)
     for x in range(num_x):
         for y in range(num_y):
+            k = 0
             if (outer_prob <= x < outer_prob + inner_prob) and (outer_prob <= y < outer_prob + inner_prob):
                 # in inner area, therefore taxi's are needed in the morning
                 coef_a = small_coef
@@ -113,9 +118,10 @@ def main():
                 coef_b = small_coef
 
             for nweek in range(num_weeks):
+                k_prob  = 0
                 min_val = 1
-                max_val = 5 + (nweek+1)*1.5
-                mu = start_mu + (nweek+1)*1.5
+                max_val = 5 + (nweek*0.1)*1.1
+                mu = start_mu + (nweek*0.1)*1.1
                 dist        = stats.truncnorm((min_val - mu) / sigma, (max_val - mu) / sigma, loc=mu, scale=sigma)
                 amp_per_day = dist.rvs(num_days)  # np.random.normal(mu, sigma, num_days)
                 for i in range(num_days):
@@ -124,20 +130,29 @@ def main():
                             y_out[x, y, j, i, nweek] = np.floor(coef_a*np.abs(amp_per_day[i]*np.sin(2*np.pi*j/num_ticks_per_day)))
                         else:
                             y_out[x, y, j, i, nweek] = np.floor(coef_b*np.abs(amp_per_day[i] * np.sin(2 * np.pi * j / num_ticks_per_day)))
+                        mat_out[x, y, k] = y_out[x, y, j, i, nweek]
+                        y_for_prob[x, y, k_prob] = y_out[x, y, j, i, nweek]
+                        k += 1
+                        k_prob += 1
                     if nweek == 0 and x == x_plot and y == y_plot:
                         plt.plot(time_axes + num_ticks_per_day*i + nweek*num_ticks_per_day*num_days, y_out[x, y, :, i, nweek],
                                  marker = m[nweek], label='wday - '+str(i), color=color_plt[:, i])
                     elif x == x_plot and y == y_plot:
                         plt.plot(time_axes + num_ticks_per_day * i + nweek * num_ticks_per_day * num_days, y_out[x, y, :, i, nweek],
-                                 marker=m[nweek], color=color_plt[:, i])
+                                 marker=m[nweek%4], color=color_plt[:, i])
+    mat_prob, cdf_prob = createProbabilityMatrix(y_for_prob)
+    mat_prob.dump('Probablity_4Dmat_theoreticalData_' +str(start_mu)+'_mu_'+str(sigma) +'_sigma'  + str(small_coef)+'_smallCoeff'+ '.p')
+    cdf_prob.dump('CDF_4Dmat_theoreticalData_' +str(start_mu)+'_mu_'+str(sigma) +'_sigma' + str(small_coef)+'_smallCoeff' + '.p')
+    mat_out.dump('3Dmat_theoreticalData_' +str(start_mu)+'_mu_'+str(sigma) +'_sigma_' + str(small_coef)+'_smallCoeff'+ '.p')
+
     plt.grid()
     plt.legend()
     plt.xlabel('Time')
     plt.ylabel('Num Events')
-    # plt.show()
-    plt.close()
-
-    create_gif_plot(y_out, nweek_plot, num_days, num_ticks_per_day, fig_path, fig_name)
+    plt.show()
+    # plt.close()
+    #
+    # create_gif_plot(y_out, nweek_plot, num_days, num_ticks_per_day, fig_path, fig_name)
 
 
 
