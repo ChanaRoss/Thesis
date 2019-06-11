@@ -141,9 +141,9 @@ def main():
                         plt.plot(time_axes + num_ticks_per_day * i + nweek * num_ticks_per_day * num_days, y_out[x, y, :, i, nweek],
                                  marker=m[nweek%4], color=color_plt[:, i])
     mat_prob, cdf_prob = createProbabilityMatrix(y_for_prob)
-    mat_prob.dump('Probablity_4Dmat_theoreticalData_' +str(start_mu)+'_mu_'+str(sigma) +'_sigma'  + str(small_coef)+'_smallCoeff'+ '.p')
-    cdf_prob.dump('CDF_4Dmat_theoreticalData_' +str(start_mu)+'_mu_'+str(sigma) +'_sigma' + str(small_coef)+'_smallCoeff' + '.p')
-    mat_out.dump('3Dmat_theoreticalData_' +str(start_mu)+'_mu_'+str(sigma) +'_sigma_' + str(small_coef)+'_smallCoeff'+ '.p')
+    # mat_prob.dump('Probablity_4Dmat_theoreticalData_' +str(start_mu)+'_mu_'+str(sigma) +'_sigma'  + str(small_coef)+'_smallCoeff'+ '.p')
+    # cdf_prob.dump('CDF_4Dmat_theoreticalData_' +str(start_mu)+'_mu_'+str(sigma) +'_sigma' + str(small_coef)+'_smallCoeff' + '.p')
+    # mat_out.dump('3Dmat_theoreticalData_' +str(start_mu)+'_mu_'+str(sigma) +'_sigma_' + str(small_coef)+'_smallCoeff'+ '.p')
 
     plt.grid()
     plt.legend()

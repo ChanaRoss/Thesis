@@ -430,8 +430,8 @@ def main():
     net_name     = 'theoretical_seq_10_bs_80_hs_64_lr_0.005_ot_2_wd_0.002_torch.pkl'
     net_path     = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/'
     data_path    = '/Users/chanaross/dev/Thesis/ProbabilityFunction/theoreticalProbability/'
-    # data_name    = 'Test_3Dmat_theoreticalData_8_mu_3_sigma.p' # this is what the network trained on
-    data_name    = 'Test_3Dmat_theoreticalData_2_mu_3_sigma.p'
+    data_name    = 'Test_3Dmat_theoreticalData_8_mu_3_sigma.p' # this is what the network trained on
+    # data_name    = 'Test_3Dmat_theoreticalData_2_mu_3_sigma.p'
     ####################################################################################################################
     # this is for checking the actual output from the network during training (need to save results during training)
     # netName     = 'netDict'
@@ -443,6 +443,7 @@ def main():
 
     network_path      = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/theoreticalResults/'
     network_names     = ['theoretical_seq_20_bs_20_hs_64_lr_0.01_ot_2_wd_0.001_torch.pkl']
+    # network_names = ['theoretical_seq_5_bs_20_hs_64_lr_0.1_ot_1_wd_0.001_torch.pkl']
     # network_names   = [f for f in os.listdir(network_path) if (f.endswith('.pkl'))]
 
     plot_graph_vs_time = True
@@ -476,8 +477,8 @@ def main():
     dataInputReal = np.swapaxes(dataInputReal, 0, 1)
     dataInputReal = np.swapaxes(dataInputReal, 0, 2)
     # create results index's -
-    tmin = 500
-    tmax = 1200
+    tmin = 100
+    tmax = 400
     timeIndexs = np.arange(tmin, tmax, 1).astype(int)
     xIndexs    = np.arange(xmin, xmax, 1).astype(int)
     yIndexs    = np.arange(ymin, ymax, 1).astype(int)
