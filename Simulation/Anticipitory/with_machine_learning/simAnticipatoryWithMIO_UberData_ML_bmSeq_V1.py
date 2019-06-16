@@ -27,9 +27,8 @@ from createGif import create_gif
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/MachineLearning/finalNetwork/')
 from LSTM_inputFullGrid_multiClassSmooth import Model
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/with_machine_learning/')
-from createUberDistribution_ML import getPreviousEventMatRealData, createProbabilityMatrix_ML, createEventsFrom_ML
-
-# from createUberDistribution_FromSequence import createProbabilityMatrix_FromSequence, createEventsFromSequence_Bm
+from createUberDistribution_ML import getPreviousEventMatRealData, createProbabilityMatrix_ML, createEventsFrom_ML, \
+    createProbabilityMatrix_seq, createEventsFrom_seq
 
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/')
 from calculateOptimalActions import runActionOpt, getActions
@@ -633,11 +632,11 @@ def createStochasticEvents(simStartTime, numStochasticRuns, startTime, endTime, 
         for i in range(numStochasticRuns):
             eventPos, eventTimeWindow = createEventDistributionUber(simStartTime, startTime, endTime,
                                                                         probabilityMatrix, eventsTimeWindow, simTime)
-    else:
+    elif distMethod == 'Bm_easy':
+        events_distribution_matrix_seq, events_cdf_matrix_seq = createProbabilityMatrix_seq(startTime, endTime,
+                                                                             previousEventMat, my_net.class_size)
         for i in range(numStochasticRuns):
-            eventPos, eventTimeWindow = createEventDistributionUber_fromSeq(simStartTime, startTime, endTime,
-                                                                    probabilityMatrix, eventsTimeWindow, simTime)
-
+            eventPos, eventTimeWindow = createEventsFrom_seq(events_cdf_matrix_seq, startTime, eventsTimeWindow)
             stochasticEventsDict[i] = {'eventsPos': eventPos, 'eventsTimeWindow': eventTimeWindow}
     return stochasticEventsDict
 
@@ -663,7 +662,7 @@ def anticipatorySimulation_bruteForce(initState, nStochastic, gs, tPred, eTimeWi
         optionalStatesList   = []
         optionalTotalCost    = []
         optionalActualCost   = []
-        if distMethod == 'NN':
+        if distMethod == 'NN' or distMethod == 'Bm_easy':
             previousEventMat = getPreviousEventMatRealData(simStartTime, 1, 1 + tPred,
                                                            realMatrix, eTimeWindow, currentTime, my_net.sequence_size)
             # previousEventMat = getPreviousEventMat(current, my_net.sequence_size,
@@ -787,7 +786,7 @@ def anticipatorySimulation_optimalActionChoice(initState, nStochastic, gs, tPred
                               (-1, 0): 4}
     while not isGoal:
         currentTime = current.time
-        if distMethod == 'NN':
+        if distMethod == 'NN' or distMethod == 'Bm_easy':
             previousEventMat = getPreviousEventMatRealData(simStartTime, 1, 1 + tPred,
                                                            realMatrix, eTimeWindow, currentTime, my_net.sequence_size)
         else:
@@ -912,7 +911,7 @@ def anticipatorySimulation_randomChoice(initState, nStochastic, gs, tPred, eTime
                               (-1, 0): 4}
     while not isGoal:
         currentTime = current.time
-        if distMethod == 'NN':
+        if distMethod == 'NN' or distMethod == 'Bm_easy':
             previousEventMat = getPreviousEventMatRealData(simStartTime, 1, 1 + tPred,
                                                            realMatrix, eTimeWindow, currentTime, my_net.sequence_size)
         else:
@@ -1129,6 +1128,7 @@ def main():
     # data loader -
     dataPath = '/Users/chanaross/dev/Thesis/UberData/'
     netPath = '/Users/chanaross/dev/Thesis/MachineLearning/finalNetwork/'
+    # fileNameNetwork = 'smooth_30_seq_30_bs_40_hs_128_lr_0.5_ot_1_wd_0.002_torch.pkl'
     fileNameNetwork = 'smooth_10_seq_5_bs_40_hs_128_lr_0.05_ot_1_wd_0.002_torch.pkl'
     fileNameReal = '3D_allDataLatLonCorrected_20MultiClass_500gridpickle_30min.p'
     fileNameDist = '4D_ProbabilityMat_allDataLatLonCorrected_20MultiClass_CDF_500gridpickle_30min.p'
@@ -1152,7 +1152,7 @@ def main():
     # params
     epsilon                     = 0.001  # distance between locations to be considered same location
     simStartTime                = 1000   # time from which to start looking at the data
-    lengthSim                   = 24   # 12 hours, each time step is 30 min. of real time
+    lengthSim                   = 24     # 12 hours, each time step is 30 min. of real time
     numStochasticRuns           = 10
     lengthPrediction            = 4    # how many time steps should it use for prediction
     deltaTimeForCommit          = 10   # not useful for now
@@ -1172,9 +1172,9 @@ def main():
     eventStartTime      = eventTimes[:, 0]
     eventEndTime        = eventTimes[:, 1]
 
-    # plt.scatter(eventPos[:, 0], eventPos[:, 1], c= 'r')
-    # plt.scatter(carPos[:, 0], carPos[:, 1], c='k')
-    # plt.show()
+    plt.scatter(eventPos[:, 0], eventPos[:, 1], c= 'r')
+    plt.scatter(carPos[:, 0], carPos[:, 1], c='k')
+    plt.show()
     uncommitedCarDict   = {}
     commitedCarDict     = {}
     uncommitedEventDict = {}

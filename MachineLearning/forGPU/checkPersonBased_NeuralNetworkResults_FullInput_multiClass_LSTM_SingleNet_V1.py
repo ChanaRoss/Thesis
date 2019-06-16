@@ -14,7 +14,7 @@ import torch
 import torch.utils.data as data
 # my file imports
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/')
-from LSTM_inputFullGrid_multiClassSmooth import Model, moving_average
+from LSTM_personBased_inputFullGrid_multiClass import Model
 from dataLoader_uber import DataSet_oneLSTM_allGrid
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/UtilsCode/')
 from createGif import create_gif
@@ -89,11 +89,9 @@ def plotSpesificTime(data_net, data_labels, data_real, t, pathName, fileName, da
     return
 
 
-def plotSpesificTime_allData(data_net, data_net_smooth, data_smooth, data_real, t, pathName, fileName, dataType, maxTick):
+def plotSpesificTime_allData(data_net, data_real, t, pathName, fileName, dataType, maxTick):
     dataReal    = data_real.reshape(data_real.shape[1], data_real.shape[2])
     dataPred    = data_net.reshape(data_net.shape[1], data_net.shape[2])
-    dataPredSmooth = data_net_smooth.reshape(data_net_smooth.shape[1], data_net_smooth.shape[2])
-    dataSmooth  = data_smooth.reshape(data_smooth.shape[1], data_smooth.shape[2])
     day              = np.floor_divide(t, 2 * 24) + 1  # sunday is 1
     week             = np.floor_divide(t, 2 * 24 * 7) + 14  # first week is week 14 of the year
     temp_hour, temp  = np.divmod(t, 2)
@@ -105,36 +103,22 @@ def plotSpesificTime_allData(data_net, data_net_smooth, data_smooth, data_real, 
     dataFixed   = np.swapaxes(dataReal, 1, 0)
     dataFixed   = np.flipud(dataFixed)
 
-    dataFixedSmooth = np.zeros_like(dataSmooth)
-    dataFixedSmooth = np.swapaxes(dataSmooth, 1, 0)
-    dataFixedSmooth = np.flipud(dataFixedSmooth)
-
     dataFixedPred = np.zeros_like(dataPred)
     dataFixedPred = np.swapaxes(dataPred, 1, 0)
     dataFixedPred = np.flipud(dataFixedPred)
 
-    dataFixedPredSmooth = np.zeros_like(dataPredSmooth)
-    dataFixedPredSmooth = np.swapaxes(dataPredSmooth, 1, 0)
-    dataFixedPredSmooth = np.flipud(dataFixedPredSmooth)
 
-    f, axes = plt.subplots(1, 4)
+    f, axes = plt.subplots(1, 2)
     ticksDict = list(range(maxTick+1))
-
-    sns.heatmap(dataFixedPred, cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[0],cmap='CMRmap_r')
-    sns.heatmap(dataFixed,     cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[1], cmap='CMRmap_r')
-    sns.heatmap(dataFixedSmooth, cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict),  ax=axes[2], cmap='CMRmap_r')
-    sns.heatmap(dataFixedPredSmooth, cbar=True, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[3],cmap='CMRmap_r', cbar_kws=dict(ticks=ticksDict))
-
+    cbar_ax = f.add_axes([.91, .3, .03, .4])
+    sns.heatmap(dataFixedPred, cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[0], cmap='CMRmap_r', cbar_kws=dict(ticks=ticksDict))
+    sns.heatmap(dataFixed,     cbar=True, cbar_ax=cbar_ax, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[1], cmap='CMRmap_r', cbar_kws=dict(ticks=ticksDict))
     f.suptitle('week- {0}, day- {1},time- {2}:{3}'.format(week, day, hour, minute), fontsize=16)
     axes[0].set_title('net-real data')
     axes[1].set_title('real data')
-    axes[2].set_title('smooth data')
-    axes[3].set_title('net-smooth data')
     axes[0].set_xlabel('X axis')
     axes[0].set_ylabel('Y axis')
     axes[1].set_xlabel('X axis')
-    axes[2].set_xlabel('X axis')
-    axes[3].set_xlabel('X axis')
     plt.savefig(pathName + dataType + '_' + fileName + '_' + str(t) +'.png')
     plt.close()
     return
@@ -156,16 +140,14 @@ def createTimeGif(net_data, labels_data, real_data, timeIndexs, fileName, pathNa
     return
 
 
-def createTimeGif_allData(net_data, net_data_smooth, smooth_data, real_data, timeIndexs, fileName, pathName, dataType):
+def createTimeGif_allData(net_data, real_data, timeIndexs, fileName, pathName, dataType):
     lengthX = net_data.shape[1]
     lengthY = net_data.shape[2]
     maxTick = np.max(real_data).astype(int)
     for i, t in enumerate(timeIndexs):
         temp_net    = net_data[i, :, :].reshape([1, lengthX, lengthY])
         temp_real   = real_data[i, :, :].reshape([1, lengthX, lengthY])
-        temp_smooth = smooth_data[i, :, :].reshape([1, lengthX, lengthY])
-        temp_net_smooth = net_data_smooth[i, :, :].reshape([1, lengthX, lengthY])
-        plotSpesificTime_allData(temp_net, temp_net_smooth, temp_smooth, temp_real, t, pathName, fileName, dataType, maxTick)
+        plotSpesificTime_allData(temp_net, temp_real, t, pathName, fileName, dataType, maxTick)
     listNames = [dataType + '_' + fileName + '_' + str(t) + '.png' for t in timeIndexs]
     create_gif(pathName, listNames, 1, dataType + '_' + fileName)
     for fileName in listNames:
@@ -323,7 +305,7 @@ def calc_netOutput_fromData(data_in, my_net, timeIndexs):
     # netlabelTemp = []
     # inputTemp    = []
     for i, t in enumerate(timeIndexs):
-        # print("t:" + str(i) + " out of:" + str(timeIndexs.size))
+        #print("t:" + str(i) + " out of:" + str(timeIndexs.size))
         for x in range(x_size):
             for y in range(y_size):
                 # print("t:" + str(i) + ",x:"+str(x)+", y:"+str(y))
@@ -444,11 +426,12 @@ def plotEpochGraphs(my_net, filePath, fileName):
 
 
 def main():
-    epochs   = 'last'
-    net_name     = 'smooth_20_seq_50_bs_40_hs_128_lr_0.5_ot_1_wd_0.002_torch.pkl'
+    epochs       = 'last'
+    net_name     = 'theoretical_seq_10_bs_80_hs_64_lr_0.005_ot_2_wd_0.002_torch.pkl'
     net_path     = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/'
-    data_path    = '/Users/chanaross/dev/Thesis/UberData/'
-    data_name    = '3D_allDataLatLonCorrected_20MultiClass_500gridpickle_30min.p'
+    data_path    = '/Users/chanaross/dev/Thesis/ProbabilityFunction/personBasedProbability/'
+    data_name    = '3Dmat_personBasedData_60_numCustomers.p' # this is what the network trained on
+    # data_name    = 'Test_3Dmat_theoreticalData_2_mu_3_sigma.p'
     ####################################################################################################################
     # this is for checking the actual output from the network during training (need to save results during training)
     # netName     = 'netDict'
@@ -458,50 +441,44 @@ def main():
     # checkNetwork(data_net, data_labels, 'last')
     ####################################################################################################################
 
-    network_path      = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/singleGridId_multiClassSmooth/'  # GPU_results/singleGridId_multiClassSmooth/'
-    # network_names     = ['smooth_10_seq_5_bs_40_hs_128_lr_0.05_ot_1_wd_0.002_torch.pkl']
-    network_names   = [f for f in os.listdir(network_path) if (f.endswith('.pkl'))]
+    network_path      = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/personBasedTheory/singleInput/'
+    network_names     = ['personBased_seq_5_bs_20_hs_20_lr_0.001_ot_1_wd_0.001_torch.pkl']
+    # network_names = ['theoretical_seq_5_bs_20_hs_64_lr_0.1_ot_1_wd_0.001_torch.pkl']
+    # network_names   = [f for f in os.listdir(network_path) if (f.endswith('.pkl'))]
 
-    plot_graph_vs_time = False
+    plot_graph_vs_time = True
     plot_time_gif      = False
-    plot_loss_accuracy = False
+    plot_loss_accuracy = True
+    plot_from_probability = False
 
     # create dictionary for storing result for each network tested
     results = {'networkName'            : [],
                'mean RMSE'              : [],
                'mean accuracy'          : [],
                'mean zeros accuracy'    : [],
-               'mean nonZeros accuracy' : [],
-               'mean smooth RMSE'               : [],
-               'mean smooth accuracy'           : [],
-               'mean smooth zeros accuracy'     : [],
-               'mean smooth nonZeros accuracy'  : []}
+               'mean nonZeros accuracy' : []}
 
     dataInputReal = np.load(data_path + data_name)
-    # dataInputReal[dataInputReal > 1] = 1
-    # use only data wanted (x, y, time)
+    lengthT = dataInputReal.shape[2]
+    lengthX = dataInputReal.shape[0]
+    lengthY = dataInputReal.shape[1]
+
     xmin = 0
-    xmax = 6  # dataInputReal.shape[0]  # 6
-    ymin = 0   # 10
-    ymax = 11 # dataInputReal.shape[1]  # 11
-    # xmin = 5
-    # xmax = 6
-    # ymin = 40
-    # ymax = 41
-    zmin = 48  # np.floor(dataInputReal.shape[2]*0.7).astype(int)
+    xmax = 1 #lengthX
+    ymin = 0
+    ymax = 1 #lengthY
+    zmin = 0  # np.floor(dataInputReal.shape[2]*0.7).astype(int)
     zmax = dataInputReal.shape[2]
     dataInputReal = dataInputReal[xmin:xmax, ymin:ymax, zmin:zmax]  # shrink matrix size for fast training in order to test model
     dataInputReal_orig = dataInputReal
     # dataInputReal = dataInputReal[5:6, 10:11, :]
     # reshape input data for network format -
-    lengthT = dataInputReal.shape[2]
-    lengthX = dataInputReal.shape[0]
-    lengthY = dataInputReal.shape[1]
+
     dataInputReal = np.swapaxes(dataInputReal, 0, 1)
     dataInputReal = np.swapaxes(dataInputReal, 0, 2)
     # create results index's -
-    tmin = 1100
-    tmax = 1300
+    tmin = 100
+    tmax = 400
     timeIndexs = np.arange(tmin, tmax, 1).astype(int)
     xIndexs    = np.arange(xmin, xmax, 1).astype(int)
     yIndexs    = np.arange(ymin, ymax, 1).astype(int)
@@ -509,7 +486,7 @@ def main():
     for network_name in network_names:
         print("network:" + network_name.replace('.pkl', ''))
         figPath     = network_path + 'figures/'
-        fileName    = "probability" + str(numRuns) + network_name.replace('.pkl', '')
+        fileName    = str(numRuns) + network_name.replace('.pkl', '')
         if "descent" in network_name:
             my_net = torch.load(network_path + network_name, map_location=lambda storage, loc: storage)
         else:
@@ -517,29 +494,24 @@ def main():
         my_net.eval()
         if plot_loss_accuracy:
             plotEpochGraphs(my_net, figPath, fileName)
-        try:
-            smoothParam = my_net.smoothingParam
-        except:
-            print("no smoothing param, using default 15")
-            smoothParam = 15
-        # create smooth data -
-        dataInputSmooth      = moving_average(dataInputReal,      smoothParam, axis=0)     # smoothing data so that results are more clear to network
-        dataInputSmooth_orig = moving_average(dataInputReal_orig, smoothParam, axis=2)
 
         # calc network output
         # real data -
-        net_output_fromData, label_output_fromData, net_results = calc_netOutput_fromData_probability(dataInputReal, my_net, timeIndexs)
-        # smooth data -
-        net_output_fromSmoothData, label_output_fromSmoothData, net_resultsSmooth = calc_netOutput_fromData_probability(dataInputSmooth, my_net, timeIndexs)
+        if plot_from_probability:
+            net_output_fromData, label_output_fromData, net_results = calc_netOutput_fromData_probability(dataInputReal,
+                                                                                                          my_net,
+                                                                                                          timeIndexs)
+            fileName = "probability_" + fileName
+        else:
+            net_output_fromData, label_output_fromData, net_results = calc_netOutput_fromData_probability(dataInputReal,
+                                                                                                          my_net,
+                                                                                                          timeIndexs)
 
         # plot each grid point vs. time
         if plot_graph_vs_time:
             # real data-
             checkNetwork(net_output_fromData, label_output_fromData, dataInputReal[timeIndexs, :, :],
                          timeIndexs, xIndexs, yIndexs, figPath, fileName, 'Real')
-            # smooth data-
-            checkNetwork(net_output_fromSmoothData, label_output_fromSmoothData, dataInputSmooth[timeIndexs, :, :],
-                         timeIndexs, xIndexs, yIndexs, figPath, fileName, 'Smooth')
 
         # save total results to dictionary for each network tested -
         # real data -
@@ -548,18 +520,13 @@ def main():
         results['mean accuracy'].append(100 * np.mean(net_results['accuracy']))
         results['mean nonZeros accuracy'].append(100 * np.mean(net_results['correctedNonZeros']))
         results['mean zeros accuracy'].append(100 * np.mean(net_results['correctedZeros']))
-        # smooth data -
-        results['mean smooth RMSE'].append(np.mean(net_resultsSmooth['rmse']))
-        results['mean smooth accuracy'].append(100 * np.mean(net_resultsSmooth['accuracy']))
-        results['mean smooth nonZeros accuracy'].append(100 * np.mean(net_resultsSmooth['correctedNonZeros']))
-        results['mean smooth zeros accuracy'].append(100 * np.mean(net_resultsSmooth['correctedZeros']))
+
 
         if plot_time_gif:
             # create gif for results -
             # all data -
-            createTimeGif_allData(net_output_fromData, net_output_fromSmoothData, dataInputSmooth[timeIndexs, :, :], dataInputReal[timeIndexs, :, :], timeIndexs, fileName, figPath, 'Smooth')
-            # # smooth data
-            # createTimeGif(net_output_fromSmoothData, label_output_fromSmoothData, dataInputSmooth[timeIndexs, :, :], timeIndexs, fileName, figPath, 'Smooth')
+            createTimeGif_allData(net_output_fromData, dataInputReal[timeIndexs, :, :], timeIndexs, fileName, figPath, 'Real')
+
             # # real data
             # createTimeGif(net_output_fromData, label_output_fromData, dataInputReal[timeIndexs, :, :], timeIndexs, fileName, figPath, 'Real')
 
@@ -569,14 +536,9 @@ def main():
         print("average accuracy for " + str(numRuns) + " runs is:" + str(100 * np.mean(net_results['accuracy'])))
         print("average corrected zeros " + str(numRuns) + " runs is:" + str(100 * np.mean(net_results['correctedZeros'])))
         print("average corrected non zeros for " + str(numRuns) + " runs is:" + str(100 * np.mean(net_results['correctedNonZeros'])))
-        # smooth data -
-        print("average smooth RMSE for " + str(numRuns) + " runs is:" + str(np.mean(net_resultsSmooth['rmse'])))
-        print("average smooth accuracy for " + str(numRuns) + " runs is:" + str(100 * np.mean(net_resultsSmooth['accuracy'])))
-        print("average smooth corrected zeros " + str(numRuns) + " runs is:" + str(100 * np.mean(net_resultsSmooth['correctedZeros'])))
-        print("average smooth corrected non zeros for " + str(numRuns) + " runs is:" + str(100 * np.mean(net_resultsSmooth['correctedNonZeros'])))
 
     df_results = pd.DataFrame.from_dict(results)
-    df_results.to_csv(network_path + 'probability_FullGrid_results.csv')
+    df_results.to_csv(network_path + 'FullGrid_results.csv')
     return
 
 

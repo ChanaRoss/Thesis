@@ -192,9 +192,9 @@ def main():
     flag_save_network = True
 
     xmin = 0
-    xmax = dataInput.shape[0]
+    xmax = 1 #dataInput.shape[0]
     ymin = 0
-    ymax = dataInput.shape[1]
+    ymax = 1 #dataInput.shape[1]
     zmin = 0
     zmax = dataInput.shape[2]
     dataInput     = dataInput[xmin:xmax, ymin:ymax, zmin:zmax]  # shrink matrix size for fast training in order to test model

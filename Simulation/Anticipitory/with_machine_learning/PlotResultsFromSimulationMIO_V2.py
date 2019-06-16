@@ -23,23 +23,23 @@ pickleNames = []
 # pickleNames.append('SimAnticipatory_SingleTime_OptimalActionChoice_MioFinalResults_4lpred_50startTime_10gridX_20gridY_42numEvents_5nStochastic_5numCars_NN')
 # pickleNames.append('SimGreedyFinalResults_4lpred_50startTime_10gridX_20gridY_42numEvents_5nStochastic_5numCars_uberData')
 # pickleNames.append('SimOptimizationFinalResults_4lpred_50startTime_10gridX_20gridY_42numEvents_5nStochastic_5numCars_uberData')
-#
+
 # pickleNames.append('SimAnticipatory_SingleTime_OptimalActionChoice_MioFinalResults_4lpred_50startTime_10gridX_20gridY_42numEvents_20nStochastic_5numCars_Bm')
 # pickleNames.append('SimAnticipatory_OptimalActionChoice_MioFinalResults_4lpred_50startTime_10gridX_20gridY_42numEvents_1nStochastic_5numCars_NN')
-# # pickleNames.append('SimGreedyFinalResults_4lpred_50startTime_10gridX_20gridY_42numEvents_20nStochastic_5numCars_Bm')
-# # pickleNames.append('SimOptimizationFinalResults_4lpred_50startTime_10gridX_20gridY_42numEvents_20nStochastic_5numCars_Bm')
+# pickleNames.append('SimGreedyFinalResults_4lpred_50startTime_10gridX_20gridY_42numEvents_20nStochastic_5numCars_Bm')
+# pickleNames.append('SimOptimizationFinalResults_4lpred_50startTime_10gridX_20gridY_42numEvents_20nStochastic_5numCars_Bm')
 # pickleNames.append('SimAnticipatory_OptimalActionChoice_MioFinalResults_4lpred_50startTime_10gridX_20gridY_42numEvents_20nStochastic_5numCars_Bm')
-#
+
 
 
 pickleNames.append('SimGreedy_7lpred_1000startTime_10gridX_20gridY_52numEvents_10nStochastic_4numCars_NN')
 # pickleNames.append('SimAnticipatoryMio_RandomChoice_7lpred_1000startTime_10gridX_20gridY_52numEvents_10nStochastic_4numCars_NN')
 pickleNames.append('SimAnticipatoryMio_RandomChoice_7lpred_1000startTime_10gridX_20gridY_52numEvents_10nStochastic_4numCars_Bm_MaxFlow')
-# pickleNames.append('SimAnticipatoryMio_RandomChoice_4lpred_1000startTime_10gridX_20gridY_52numEvents_20nStochastic_4numCars_NN_MaxFlow')
-pickleNames.append('SimAnticipatoryMio_RandomChoice_4lpred_1000startTime_10gridX_20gridY_52numEvents_20nStochastic_4numCars_Bm_MaxFlow')
+pickleNames.append('SimAnticipatoryMio_RandomChoice_4lpred_1000startTime_10gridX_20gridY_52numEvents_20nStochastic_4numCars_NN_MaxFlow')
+# pickleNames.append('SimAnticipatoryMio_RandomChoice_4lpred_1000startTime_10gridX_20gridY_52numEvents_20nStochastic_4numCars_Bm_MaxFlow')
 pickleNames.append('SimOptimization_MaxFlow_7lpred_1000startTime_10gridX_20gridY_52numEvents_10nStochastic_4numCars_NN')
 pickleNames.append('SimOptimization_TimeWindow_7lpred_1000startTime_10gridX_20gridY_52numEvents_10nStochastic_4numCars_NN')
-
+pickleNames.append('SimAnticipatoryMio_RandomChoice_4lpred_1000startTime_10gridX_20gridY_52numEvents_10nStochastic_4numCars_Bm_easy_MaxFlow')
 
 
 # pickleNames.append('SimGreedyFinalResults_7lpred_1000startTime_10gridX_15gridY_98numEvents_1nStochastic_4numCars_NN')
@@ -134,6 +134,10 @@ def plotBasicStatisticsOfEvents(gridSize,lg,pickleName,simTime):
         lineStyle = '--'
     elif 'SimAnticipatory' in pickleName and 'NN' in pickleName:
         labelStr = 'Anticipatory Algorithm based on NN'
+        lineStyle = '-'
+        plotAllEvents = True
+    elif 'SimAnticipatory' in pickleName and 'Bm_easy' in pickleName:
+        labelStr = 'Anticipatory Algorithm based on Benchmark - seq'
         lineStyle = '-'
         plotAllEvents = True
     elif 'SimAnticipatory' in pickleName and 'Bm' in pickleName:
