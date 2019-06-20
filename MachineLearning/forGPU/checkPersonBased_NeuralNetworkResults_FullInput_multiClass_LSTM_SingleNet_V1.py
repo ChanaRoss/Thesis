@@ -430,7 +430,7 @@ def main():
     net_name     = 'theoretical_seq_10_bs_80_hs_64_lr_0.005_ot_2_wd_0.002_torch.pkl'
     net_path     = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/'
     data_path    = '/Users/chanaross/dev/Thesis/ProbabilityFunction/personBasedProbability/'
-    data_name    = '3Dmat_personBasedData_60_numCustomers.p' # this is what the network trained on
+    data_name    = '3Dmat_personBasedData_60_numCustomers.p'  # this is what the network trained on
     # data_name    = 'Test_3Dmat_theoreticalData_2_mu_3_sigma.p'
     ####################################################################################################################
     # this is for checking the actual output from the network during training (need to save results during training)
@@ -442,14 +442,14 @@ def main():
     ####################################################################################################################
 
     network_path      = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/personBasedTheory/singleInput/'
-    network_names     = ['personBased_seq_5_bs_20_hs_20_lr_0.001_ot_1_wd_0.001_torch.pkl']
+    # network_names     = ['personBased_seq_5_bs_20_hs_20_lr_0.001_ot_1_wd_0.001_torch.pkl']
     # network_names = ['theoretical_seq_5_bs_20_hs_64_lr_0.1_ot_1_wd_0.001_torch.pkl']
-    # network_names   = [f for f in os.listdir(network_path) if (f.endswith('.pkl'))]
+    network_names   = [f for f in os.listdir(network_path) if (f.endswith('.pkl'))]
 
-    plot_graph_vs_time = True
+    plot_graph_vs_time = False
     plot_time_gif      = False
     plot_loss_accuracy = True
-    plot_from_probability = False
+    plot_from_probability = True
 
     # create dictionary for storing result for each network tested
     results = {'networkName'            : [],
@@ -464,9 +464,9 @@ def main():
     lengthY = dataInputReal.shape[1]
 
     xmin = 0
-    xmax = 1 #lengthX
+    xmax = lengthX
     ymin = 0
-    ymax = 1 #lengthY
+    ymax = lengthY
     zmin = 0  # np.floor(dataInputReal.shape[2]*0.7).astype(int)
     zmax = dataInputReal.shape[2]
     dataInputReal = dataInputReal[xmin:xmax, ymin:ymax, zmin:zmax]  # shrink matrix size for fast training in order to test model
@@ -503,7 +503,7 @@ def main():
                                                                                                           timeIndexs)
             fileName = "probability_" + fileName
         else:
-            net_output_fromData, label_output_fromData, net_results = calc_netOutput_fromData_probability(dataInputReal,
+            net_output_fromData, label_output_fromData, net_results = calc_netOutput_fromData(dataInputReal,
                                                                                                           my_net,
                                                                                                           timeIndexs)
 

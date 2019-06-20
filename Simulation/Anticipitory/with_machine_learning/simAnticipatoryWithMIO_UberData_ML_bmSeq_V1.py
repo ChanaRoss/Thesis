@@ -1109,7 +1109,7 @@ def main():
     # NN : use neural network
     # Bm : use probability benchmark
     # Bm_easy : use probability based on NN sequence length benchmark
-    distMethod = 'NN'
+    distMethod = 'Bm_easy'
     # TimeWindow : run deterministic algorithm with time window algorithm
     # MaxFlow    : run deterministic algorithm with max flow algorithm
     optimizationMethod = 'MaxFlow'
@@ -1117,7 +1117,7 @@ def main():
     # RandomChoice  : choose car movement order randomally and calculate the optimal reward for each car
     # OptimalChoice : find optimal choice for each couple of cars and choose optimal reward
     algorithmType = 'RandomChoice'
-    np.random.seed(10)
+    np.random.seed(100)
     shouldRunAnticipatory   = 1
     shouldRunGreedy         = 1
     shouldRunOptimization   = 1
@@ -1128,8 +1128,8 @@ def main():
     # data loader -
     dataPath = '/Users/chanaross/dev/Thesis/UberData/'
     netPath = '/Users/chanaross/dev/Thesis/MachineLearning/finalNetwork/'
-    # fileNameNetwork = 'smooth_30_seq_30_bs_40_hs_128_lr_0.5_ot_1_wd_0.002_torch.pkl'
-    fileNameNetwork = 'smooth_10_seq_5_bs_40_hs_128_lr_0.05_ot_1_wd_0.002_torch.pkl'
+    fileNameNetwork = 'smooth_30_seq_50_bs_40_hs_128_lr_0.5_ot_1_wd_0.002_torch.pkl'
+    # fileNameNetwork = 'smooth_10_seq_5_bs_40_hs_128_lr_0.05_ot_1_wd_0.002_torch.pkl'
     fileNameReal = '3D_allDataLatLonCorrected_20MultiClass_500gridpickle_30min.p'
     fileNameDist = '4D_ProbabilityMat_allDataLatLonCorrected_20MultiClass_CDF_500gridpickle_30min.p'
 
@@ -1144,17 +1144,17 @@ def main():
     # y limits are : (0 , 52)
     # t limits are : (0 , 9024)
     xLim    = [0, 10]
-    yLim    = [30, 50]
+    yLim    = [35, 50]
     # take from each matrix only the grid points of interest
     eventsMatrix        = eventsMatrix[xLim[0]:xLim[1], yLim[0]: yLim[1], :]
     probabilityMatrix   = probabilityMatrix[xLim[0]:xLim[1], yLim[0]: yLim[1], :, :]
 
     # params
     epsilon                     = 0.001  # distance between locations to be considered same location
-    simStartTime                = 1000   # time from which to start looking at the data
-    lengthSim                   = 24     # 12 hours, each time step is 30 min. of real time
-    numStochasticRuns           = 10
-    lengthPrediction            = 4    # how many time steps should it use for prediction
+    simStartTime                = 2500   # time from which to start looking at the data
+    lengthSim                   = 48     # 12 hours, each time step is 30 min. of real time
+    numStochasticRuns           = 20
+    lengthPrediction            = 6    # how many time steps should it use for prediction
     deltaTimeForCommit          = 10   # not useful for now
     closeReward                 = 80   # reward for closing an event
     cancelPenalty               = 140  # penalty for event being canceled
@@ -1163,7 +1163,7 @@ def main():
 
     gridSize            = [probabilityMatrix.shape[0], probabilityMatrix.shape[1]]
     deltaOpenTime       = 3
-    numCars             = 4
+    numCars             = 5
     carPosX             = np.random.randint(0, gridSize[0], numCars)
     carPosY             = np.random.randint(0, gridSize[1], numCars)
     carPos              = np.column_stack((carPosX, carPosY)).reshape(numCars, 2)
@@ -1172,8 +1172,8 @@ def main():
     eventStartTime      = eventTimes[:, 0]
     eventEndTime        = eventTimes[:, 1]
 
-    plt.scatter(eventPos[:, 0], eventPos[:, 1], c= 'r')
-    plt.scatter(carPos[:, 0], carPos[:, 1], c='k')
+    # plt.scatter(eventPos[:, 0], eventPos[:, 1], c= 'r')
+    # plt.scatter(carPos[:, 0], carPos[:, 1], c='k')
     plt.show()
     uncommitedCarDict   = {}
     commitedCarDict     = {}

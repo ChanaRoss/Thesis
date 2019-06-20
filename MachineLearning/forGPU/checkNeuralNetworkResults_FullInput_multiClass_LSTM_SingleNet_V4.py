@@ -460,11 +460,12 @@ def main():
 
     network_path      = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/singleGridId_multiClassSmooth/'  # GPU_results/singleGridId_multiClassSmooth/'
     # network_names     = ['smooth_10_seq_5_bs_40_hs_128_lr_0.05_ot_1_wd_0.002_torch.pkl']
-    network_names   = [f for f in os.listdir(network_path) if (f.endswith('.pkl'))]
+    network_names     = ['smooth_30_seq_50_bs_40_hs_128_lr_0.5_ot_1_wd_0.002_torch.pkl']
+    # network_names   = [f for f in os.listdir(network_path) if (f.endswith('.pkl'))]
 
-    plot_graph_vs_time = False
+    plot_graph_vs_time = True
     plot_time_gif      = False
-    plot_loss_accuracy = False
+    plot_loss_accuracy = True
 
     # create dictionary for storing result for each network tested
     results = {'networkName'            : [],
@@ -480,10 +481,10 @@ def main():
     dataInputReal = np.load(data_path + data_name)
     # dataInputReal[dataInputReal > 1] = 1
     # use only data wanted (x, y, time)
-    xmin = 0
-    xmax = 6  # dataInputReal.shape[0]  # 6
-    ymin = 0   # 10
-    ymax = 11 # dataInputReal.shape[1]  # 11
+    xmin = 5
+    xmax = 6   # dataInputReal.shape[0]  # 6
+    ymin = 10   # 10
+    ymax = 11  # dataInputReal.shape[1]  # 11
     # xmin = 5
     # xmax = 6
     # ymin = 40
