@@ -1233,7 +1233,7 @@ def main():
     eventEndTime        = eventTimes[:, 1]
 
     # plt.scatter(eventPos[:, 0], eventPos[:, 1], c= 'r')
-    # # plt.scatter(carPos[:, 0], carPos[:, 1], c='k')
+    # plt.scatter(carPos[:, 0], carPos[:, 1], c='k')
     # plt.show()
     uncommitedCarDict   = {}
     commitedCarDict     = {}

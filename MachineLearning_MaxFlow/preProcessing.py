@@ -5,7 +5,7 @@ import sys
 import time
 import pickle
 
-sys.path.insert(0, '/Users/joe/dev/Thesis/MixedIntegerOptimization/')
+sys.path.insert(0, '/Users/chanaross/dev/Thesis/MixedIntegerOptimization/')
 from offlineOptimizationProblemMaxFlow import runMaxFlowOpt, plotResults
 
 
@@ -81,9 +81,9 @@ def main():
     STOCHASTIC_ITERS = 30
     CAR_PERMUTATION = 10
     EVENT_TIME_WINDOW = 3
-    DATA_PATH = "/Users/joe/dev/Thesis/UberData/thesisDataCDF.p"
-    OUT_ITEMS_PATH = "/Users/joe/dev/Thesis/MachineLearning_MaxFlow/network_input_max_flow.p"
-    OUT_DEBUG_PATH = "/Users/joe/dev/Thesis/MachineLearning_MaxFlow/network_input_debug_max_flow.p"
+    DATA_PATH = "/Users/chanaross/dev/Thesis/UberData/4D_ProbabilityMat_allDataLatLonCorrected_20MultiClass_CDF_500gridpickle_30min.p"
+    OUT_ITEMS_PATH = "/Users/chanaross/dev/Thesis/MachineLearning_MaxFlow/network_input_max_flow.p"
+    OUT_DEBUG_PATH = "/Users/chanaross/dev/Thesis/MachineLearning_MaxFlow/network_input_debug_max_flow.p"
 
     # load the data
     data = np.load(DATA_PATH)
