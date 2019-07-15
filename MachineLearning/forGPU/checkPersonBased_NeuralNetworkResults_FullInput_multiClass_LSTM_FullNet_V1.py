@@ -441,12 +441,11 @@ def main():
     ####################################################################################################################
 
     network_path      = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/personBasedTheory/'
-    network_names     = ['personBased_seq_5_bs_20_hs_20_lr_0.001_ot_1_wd_0.001_torch.pkl']
-    # network_names = ['theoretical_seq_5_bs_20_hs_64_lr_0.1_ot_1_wd_0.001_torch.pkl']
+    network_names     = ['personBased_seq_20_bs_60_hs_48_lr_0.001_ot_2_wd_0.002_torch.pkl']
     # network_names   = [f for f in os.listdir(network_path) if (f.endswith('.pkl'))]
 
-    plot_graph_vs_time = True
-    plot_time_gif      = False
+    plot_graph_vs_time = False
+    plot_time_gif      = True
     plot_loss_accuracy = True
     plot_from_probability = False
 
@@ -479,8 +478,8 @@ def main():
     tmin = 100
     tmax = 400
     timeIndexs = np.arange(tmin, tmax, 1).astype(int)
-    xIndexs    = np.array([0])  # np.arange(xmin, xmax, 1).astype(int)
-    yIndexs    = np.array([0])  # np.arange(ymin, ymax, 1).astype(int)
+    xIndexs    = np.array([2])  # np.arange(xmin, xmax, 1).astype(int)
+    yIndexs    = np.array([1])  # np.arange(ymin, ymax, 1).astype(int)
     numRuns = timeIndexs.size
     for network_name in network_names:
         print("network:" + network_name.replace('.pkl', ''))

@@ -14,7 +14,7 @@ import torch
 import torch.utils.data as data
 # my file imports
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/')
-from LSTM_personBased_inputFullGrid_multiClass import Model
+from LSTM_inputFullGrid_multiClassSmooth import Model, moving_average
 from dataLoader_uber import DataSet_oneLSTM_allGrid
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/UtilsCode/')
 from createGif import create_gif
@@ -285,14 +285,14 @@ def plotEpochGraphs(my_net, filePath, fileName):
 
 
 def main():
-    data_path    = '/Users/chanaross/dev/Thesis/ProbabilityFunction/personBasedProbability/'
-    data_name    = '3Dmat_personBasedData_60_numCustomers.p'  # this is what the network trained on
-    # data_name    = 'Test_3Dmat_theoreticalData_2_mu_3_sigma.p'
+    data_path = '/Users/chanaross/dev/Thesis/UberData/'
+    data_name = '3D_allDataLatLonCorrected_20MultiClass_500gridpickle_30min.p'
 
-
-    # get network class size and sequence size from model -
-    network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/personBasedTheory/singleInput/'
-    network_name     = 'personBased_seq_5_bs_20_hs_20_lr_0.001_ot_1_wd_0.001_torch.pkl'
+    # network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/uberSingleGridTrain_longSeq/'
+    network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/singleGridId_multiClassSmooth/'
+    # GPU_results/singleGridId_multiClassSmooth/'
+    # network_name = 'smooth_30_seq_50_bs_40_hs_128_lr_0.9_ot_1_wd_0.002_torch.pkl'
+    network_name = 'smooth_10_seq_50_bs_40_hs_128_lr_0.9_ot_1_wd_0.002_torch.pkl'
     my_net = torch.load(network_path + network_name, map_location=lambda storage, loc: storage)
     sequence_size = my_net.sequence_size
 
@@ -300,10 +300,14 @@ def main():
     plot_time_gif      = False
 
     # create dictionary for storing result for each network tested
-    results = {'mean RMSE'              : [],
-               'mean accuracy'          : [],
-               'mean zeros accuracy'    : [],
-               'mean nonZeros accuracy' : []}
+    results = {'mean RMSE'                      : [],
+               'mean accuracy'                  : [],
+               'mean zeros accuracy'            : [],
+               'mean nonZeros accuracy'         : [],
+               'mean smooth RMSE'               : [],
+               'mean smooth accuracy'           : [],
+               'mean smooth zeros accuracy'     : [],
+               'mean smooth nonZeros accuracy'  : []}
 
     dataInputReal = np.load(data_path + data_name)
     lengthT = dataInputReal.shape[2]
@@ -311,9 +315,9 @@ def main():
     lengthY = dataInputReal.shape[1]
 
     xmin = 0
-    xmax = 1  #lengthX
+    xmax = dataInputReal.shape[0]  # 6
     ymin = 0
-    ymax = 1  #lengthY
+    ymax = dataInputReal.shape[1]  # 11
     zmin = 0  # np.floor(dataInputReal.shape[2]*0.7).astype(int)
     zmax = dataInputReal.shape[2]
     dataInputReal = dataInputReal[xmin:xmax, ymin:ymax, zmin:zmax]  # shrink matrix size for fast training in order to test model
@@ -325,14 +329,22 @@ def main():
     dataInputReal = np.swapaxes(dataInputReal, 0, 1)
     dataInputReal = np.swapaxes(dataInputReal, 0, 2)
     # create results index's -
-    tmin = 100
-    tmax = 400
+    tmin = 2000
+    tmax = 2500
     timeIndexs = np.arange(tmin, tmax, 1).astype(int)
     xIndexs    = np.arange(xmin, xmax, 1).astype(int)
     yIndexs    = np.arange(ymin, ymax, 1).astype(int)
     numRuns = timeIndexs.size
     figPath     = data_path + 'figures/'
     fileName    = str(numRuns) + '_bm_easy_seqBased'
+
+    try:
+        smoothParam = my_net.smoothingParam
+    except:
+        print("no smoothing param, using default 15")
+        smoothParam = 15
+    # create smooth data -
+    dataInputSmooth = moving_average(dataInputReal, smoothParam, axis=0)  # smoothing data so that results are more clear to network
 
     # calc network output
     # real data -
@@ -341,11 +353,20 @@ def main():
                                                                                                       timeIndexs,
                                                                                                       sequence_size)
 
+    bm_output_fromData_smooth, label_output_fromData_smooth, net_results_smooth = calc_bm_seq_Output_fromData_probability(dataInputSmooth,
+                                                                                                     class_size,
+                                                                                                     timeIndexs,
+                                                                                                     sequence_size)
+
     # plot each grid point vs. time
     if plot_graph_vs_time:
         # real data-
         checkResults(bm_output_fromData, label_output_fromData, dataInputReal[timeIndexs, :, :],
                      timeIndexs, xIndexs, yIndexs, figPath, fileName, 'Real')
+
+        # real data-
+        checkResults(bm_output_fromData_smooth, label_output_fromData_smooth, dataInputSmooth[timeIndexs, :, :],
+                     timeIndexs, xIndexs, yIndexs, figPath, fileName, 'Smooth')
 
     # save total results to dictionary for each network tested -
     # real data -
@@ -353,7 +374,11 @@ def main():
     results['mean accuracy'].append(100 * np.mean(net_results['accuracy']))
     results['mean nonZeros accuracy'].append(100 * np.mean(net_results['correctedNonZeros']))
     results['mean zeros accuracy'].append(100 * np.mean(net_results['correctedZeros']))
-
+    # smooth data -
+    results['mean smooth RMSE'].append(np.mean(net_results_smooth['rmse']))
+    results['mean smooth accuracy'].append(100 * np.mean(net_results_smooth['accuracy']))
+    results['mean smooth nonZeros accuracy'].append(100 * np.mean(net_results_smooth['correctedNonZeros']))
+    results['mean smooth zeros accuracy'].append(100 * np.mean(net_results_smooth['correctedZeros']))
 
     if plot_time_gif:
         # create gif for results -
@@ -369,6 +394,11 @@ def main():
     print("average accuracy for " + str(numRuns) + " runs is:" + str(100 * np.mean(net_results['accuracy'])))
     print("average corrected zeros " + str(numRuns) + " runs is:" + str(100 * np.mean(net_results['correctedZeros'])))
     print("average corrected non zeros for " + str(numRuns) + " runs is:" + str(100 * np.mean(net_results['correctedNonZeros'])))
+    # smooth data -
+    print("average smooth RMSE for " + str(numRuns) + " runs is:" + str(np.mean(net_results_smooth['rmse'])))
+    print("average smooth accuracy for " + str(numRuns) + " runs is:" + str(100 * np.mean(net_results_smooth['accuracy'])))
+    print("average smooth corrected zeros " + str(numRuns) + " runs is:" + str(100 * np.mean(net_results_smooth['correctedZeros'])))
+    print("average smooth corrected non zeros for " + str(numRuns) + " runs is:" + str(100 * np.mean(net_results_smooth['correctedNonZeros'])))
 
     return
 

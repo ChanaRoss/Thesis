@@ -260,8 +260,8 @@ def createProbabilityMatrix(inputMat):
 
 def main():
     np.random.seed(10)
-    num_customers = 60
-    num_weeks     = 100
+    num_customers = 10
+    num_weeks     = 300
     num_days      = 7*num_weeks
     nweek_plot    = 0
     grid_size_x   = 6

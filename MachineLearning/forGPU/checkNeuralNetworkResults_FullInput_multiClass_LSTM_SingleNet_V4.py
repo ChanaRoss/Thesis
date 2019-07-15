@@ -458,14 +458,17 @@ def main():
     # checkNetwork(data_net, data_labels, 'last')
     ####################################################################################################################
 
-    network_path      = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/singleGridId_multiClassSmooth/'  # GPU_results/singleGridId_multiClassSmooth/'
-    # network_names     = ['smooth_10_seq_5_bs_40_hs_128_lr_0.05_ot_1_wd_0.002_torch.pkl']
-    network_names     = ['smooth_30_seq_50_bs_40_hs_128_lr_0.5_ot_1_wd_0.002_torch.pkl']
+    # network_path      = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/uberSingleGridTrain_longSeq/'
+    network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/singleGridId_multiClassSmooth/'
+    # GPU_results/singleGridId_multiClassSmooth/'
+    network_names     = ['smooth_30_seq_50_bs_40_hs_128_lr_0.9_ot_1_wd_0.002_torch.pkl']
+    # network_names     = ['smooth_30_seq_50_bs_40_hs_128_lr_0.5_ot_1_wd_0.002_torch.pkl']
+    # network_names   = ['smooth_40_seq_5_bs_40_hs_128_lr_0.05_ot_1_wd_0.002_torch.pkl']
     # network_names   = [f for f in os.listdir(network_path) if (f.endswith('.pkl'))]
 
     plot_graph_vs_time = True
     plot_time_gif      = False
-    plot_loss_accuracy = True
+    plot_loss_accuracy = False
 
     # create dictionary for storing result for each network tested
     results = {'networkName'            : [],
@@ -481,10 +484,10 @@ def main():
     dataInputReal = np.load(data_path + data_name)
     # dataInputReal[dataInputReal > 1] = 1
     # use only data wanted (x, y, time)
-    xmin = 5
-    xmax = 6   # dataInputReal.shape[0]  # 6
-    ymin = 10   # 10
-    ymax = 11  # dataInputReal.shape[1]  # 11
+    xmin = 0
+    xmax = dataInputReal.shape[0]  # 6
+    ymin = 0
+    ymax = dataInputReal.shape[1]  # 11
     # xmin = 5
     # xmax = 6
     # ymin = 40
@@ -501,8 +504,8 @@ def main():
     dataInputReal = np.swapaxes(dataInputReal, 0, 1)
     dataInputReal = np.swapaxes(dataInputReal, 0, 2)
     # create results index's -
-    tmin = 1100
-    tmax = 1300
+    tmin = 2000
+    tmax = 2200
     timeIndexs = np.arange(tmin, tmax, 1).astype(int)
     xIndexs    = np.arange(xmin, xmax, 1).astype(int)
     yIndexs    = np.arange(ymin, ymax, 1).astype(int)

@@ -224,8 +224,8 @@ def moving_average(data_set, periods=3, axis = 2):
     # return np.floor(convRes)
 
 def main():
-    network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/'  #GPU_results/singleGridId_multiClassSmooth/'
-    network_names = ['smooth_20_seq_50_bs_40_hs_128_lr_0.5_ot_1_wd_0.002_torch.pkl']
+    network_path = '/Users/chanaross/dev/Thesis/MachineLearning/forGPU/GPU_results/singleGridId_multiClassSmooth/'
+    network_names = ['smooth_40_seq_5_bs_40_hs_128_lr_0.05_ot_1_wd_0.002_torch.pkl']
     # network_names = [f for f in os.listdir(network_path) if (f.endswith('.pkl'))]
     data_path    = '/Users/chanaross/dev/Thesis/UberData/'
     data_name    = '3D_allDataLatLonCorrected_20MultiClass_500gridpickle_30min.p'

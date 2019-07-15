@@ -186,29 +186,29 @@ def main():
         path = '/home/schanaby@st.technion.ac.il/thesisML/'
     else:
         path = '/Users/chanaross/dev/Thesis/ProbabilityFunction/personBasedProbability/'
-    fileName = '3Dmat_personBasedData_60_numCustomers.p'
+    fileName = '3Dmat_personBasedData_10_numCustomers.p'
     dataInput = np.load(path + fileName)
 
     flag_save_network = True
 
-    xmin = 0
-    xmax = 1 #dataInput.shape[0]
-    ymin = 0
-    ymax = 1 #dataInput.shape[1]
+    xmin = 2
+    xmax = 3 #dataInput.shape[0]
+    ymin = 1
+    ymax = 2 #dataInput.shape[1]
     zmin = 0
     zmax = dataInput.shape[2]
     dataInput     = dataInput[xmin:xmax, ymin:ymax, zmin:zmax]  # shrink matrix size for fast training in order to test model
 
     testSize            = 0.2
     # define hyper parameters -
-    hidden_sizeVec      = [20, 48, 64, 128]  # [20, 64, 256, 512] #[20, 64, 264, 512]  # [20, 40, 64, 128]
-    sequence_sizeVec    = [5, 10, 15, 20]  #[5, 10, 20]  # [5, 20, 30, 40]  # [5, 10, 15]  # length of sequence for lstm network
-    batch_sizeVec       = [20, 40, 60]
+    hidden_sizeVec      = [36, 64, 248]  # [20, 64, 256, 512] #[20, 64, 264, 512]  # [20, 40, 64, 128]
+    sequence_sizeVec    = [20, 25, 30, 35]  #[5, 10, 20]  # [5, 20, 30, 40]  # [5, 10, 15]  # length of sequence for lstm network
+    batch_sizeVec       = [20, 40]
     num_epochs          = 150
 
     # optimizer parameters -
-    lrVec   = [0.001, 0.01, 0.05, 0.1]  #[0.05, 0.2, 0.5]  # [0.1, 0.5, 0.9] #[0.1, 0.5, 0.9]  # [0.1, 0.01, 0.001]
-    otVec   = [1, 2]  # [1, 2]
+    lrVec   = [0.01, 0.005]  #[0.05, 0.2, 0.5]  # [0.1, 0.5, 0.9] #[0.1, 0.5, 0.9]  # [0.1, 0.01, 0.001]
+    otVec   = [1]  # [1, 2]
     dmp     = 0
     mm      = 0.9
     eps     = 1e-08
@@ -222,7 +222,7 @@ def main():
 
     itr = itertools.product(sequence_sizeVec, batch_sizeVec, hidden_sizeVec, lrVec, otVec, wdVec)
     for i in itr:
-        networkStr = 'personBased_seq_{0}_bs_{1}_hs_{2}_lr_{3}_ot_{4}_wd_{5}'.format(i[0], i[1], i[2], i[3], i[4], i[5])
+        networkStr = '10personBased_seq_{0}_bs_{1}_hs_{2}_lr_{3}_ot_{4}_wd_{5}'.format(i[0], i[1], i[2], i[3], i[4], i[5])
         networksDict[networkStr] = {'seq': i[0], 'bs': i[1], 'hs': i[2], 'lr': i[3], 'ot': i[4], 'wd': i[5]}
 
     for netConfig in networksDict:

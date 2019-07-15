@@ -1,7 +1,9 @@
 import numpy as np
 import torch
 from copy import deepcopy
-
+from matplotlib import pyplot as plt
+import seaborn as sns
+sns.set()
 
 def getPreviousEventMatRealData(simStartTime, startTime, endTime, dataMat, eventsTimeWindow, simTime, seq_len):
     t_index = startTime + simTime + simStartTime      # each time is a 30 min
@@ -94,9 +96,12 @@ def createEventsFrom_ML(events_cdf_matrix_ML, startTime, eventTimeWindow):
             for y in range(y_size):
                 randNum = np.random.uniform(0, 1)
                 cdfNumEvents = events_cdf_matrix_ML[x, y, t, :]
-                # find how many events are happening at the same time
-                numEvents = np.searchsorted(cdfNumEvents, randNum, side='left')
-                numEvents = np.floor(numEvents).astype(int)
+                if cdfNumEvents[0] > 0.9:
+                    numEvents = 0
+                else:
+                    # find how many events are happening at the same time
+                    numEvents = np.searchsorted(cdfNumEvents, randNum, side='left')
+                    numEvents = np.floor(numEvents).astype(int)
                 # print('at loc:' + str(x) + ',' + str(y) + ' num events:' + str(numEvents))
                 # for n in range(numEvents):
                 if numEvents > 0:
@@ -112,7 +117,7 @@ def createEventsFrom_ML(events_cdf_matrix_ML, startTime, eventTimeWindow):
 
 
 
-def createProbabilityMatrix_seq(startTime, endTime, previousMat, class_size):
+def createProbabilityMatrix_seq(startTime, endTime, previousMat, class_size, seq_size):
     # this function returns the event distribution matrix for each future time step.
     # the output matrix is of the size: [grid_x, grid_y, num_time_steps, num_classes]
     # previous mat is of shape : [seq, x, y]
@@ -120,7 +125,6 @@ def createProbabilityMatrix_seq(startTime, endTime, previousMat, class_size):
     numTimeSteps = endTime - startTime
     x_size   = previousMat.shape[1]
     y_size   = previousMat.shape[2]
-    seq_size = previousMat.shape[0]
     seq_output = np.zeros(shape=[x_size, y_size])
     eventPos = []
     eventTimes = []
