@@ -1,55 +1,52 @@
 import numpy as np
 import torch
+import torch.utils.data as data
+import pickle
 from matplotlib import pyplot as plt
 
 
 
 class DataSet_maxFlow:
-    def __init__(self, dataIn, lenSeqIn, numCars, shouldFlatten):
-        self.lengthX    = dataIn.shape[0]
-        self.lengthY    = dataIn.shape[1]
-        self.lengthT    = dataIn.shape[2]
-        self.numCars    = numCars
-        data            = np.swapaxes(dataIn, 0, 1)  # swap x and y axis , now matrix size is: [y, x, t]
-        data            = np.swapaxes(data, 0, 2)    # swap y and t axis , now matrix size is: [t, x, y]
-        self.data       = data
-        self.lenSeqIn   = lenSeqIn
-        self.numCars    = numCars
+    def __init__(self, dataIn, shouldFlatten):
+        self.dataIn        = dataIn
+        self.numCases      = len(dataIn)
         self.shouldFlatten = shouldFlatten
 
     def __getitem__(self, item):
-        temp = np.zeros(shape=(self.lenSeqIn, self.lengthX, self.lengthY))
-        if (item - self.lenSeqIn > 0):
-            temp = self.dataLabel[item - self.lenSeqIn:item, :, :]
-        else:
-            temp[self.lenSeqIn - item:, :, :] = self.dataLabel[0:item, :, :]
-
-        if self.shouldFlatten:
-            xArr = np.zeros(shape=(self.lengthX*self.lengthY, self.lenSeqIn))
-            k = 0
-            for i in range(self.lengthX):
-                for j in range(self.lengthY):
-                    xArr[k, :]  = temp[:, i, j]
-                    k += 1
-        else:
-            xArr = temp
-
+        events_loc = self.dataIn[item][0]
+        car_loc = self.dataIn[item][1]
+        expected_val = np.array(self.dataIn[item][2])
         if torch.cuda.is_available():
-            xTensor = torch.Tensor(xArr).cuda()
+            carsTensor = torch.Tensor(car_loc).cuda()
+            eventTensor  = torch.Tensor(events_loc).cuda()
+            expectedValTensor = torch.Tensor(expected_val).cuda()
         else:
-            xTensor = torch.Tensor(xArr)
-        # xTensor is of shape: [grid id, seq] or [x, y, seq] (Depends if flatten is true or false
-        # xTensor_cars: [2, numCars]
-        # yTensor: 1 (this is the value of the max flow run)
-        return xTensor
+            carsTensor = torch.Tensor(car_loc)
+            eventTensor  = torch.Tensor(events_loc)
+            expectedValTensor = torch.Tensor(expected_val)
+        if self.shouldFlatten:
+            eventTensor = eventTensor.view(-1)  # should flatten the input of the events dimension
+            carsTensor  = carsTensor.view(-1)   # should flatten the input of the events dimension
+        # eventTensor is of shape: [grid id, seq, prob] or [x, y, seq, prob] (Depends if flatten is true or false
+        # carsTensor: [2, numCars]
+        # expectedValTensor: 1 (this is the value of the max flow run)
+        return carsTensor, eventTensor, expectedValTensor
 
     def __len__(self):
-        return self.data.shape[0]
+        return self.numCases
 
 
 def main():
-    file_loc = '/Users/chanaross/dev/Thesis/UberData/'
-    fileNameDist = '4D_ProbabilityMat_allDataLatLonCorrected_20MultiClass_CDF_500gridpickle_30min.p'
+    file_loc  = '/Users/chanaross/dev/Thesis/MachineLearning_MaxFlow/'
+    file_name = 'network_input_max_flow_4_30.p'
+    dataIn      = pickle.load(open(file_loc + file_name, 'rb'))
+    dataset_maxFlow = DataSet_maxFlow(dataIn, True)
+    dataloader_maxFlow = data.DataLoader(dataset=dataset_maxFlow, batch_size=50, shuffle=False)
+    # a = list(iter(dataset_uber))
+
+    for i_batch, sample_batched in enumerate(dataloader_maxFlow):
+        print(i_batch, sample_batched[0].size(),
+              sample_batched[1].size(), sample_batched[2].size())
     return
 
 
