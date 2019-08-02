@@ -94,7 +94,7 @@ def main():
     OUT_ITEMS_PATH = "/Users/chanaross/dev/Thesis/MachineLearning_MaxFlow/network_input_" + optMethod + str_name
     OUT_DEBUG_PATH = "/Users/chanaross/dev/Thesis/MachineLearning_MaxFlow/network_input_debug_" + optMethod + str_name
     # load the data
-    data = np.load(DATA_PATH)
+    data = np.load(DATA_PATH, allow_pickle=True)
 
     # filter out irrelevent area
     assert(0 <= ROW_MIN < ROW_MAX < data.shape[0])
