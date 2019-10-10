@@ -45,9 +45,9 @@ def plotEpochGraphs(my_net, filePath, fileName):
     ax1[1].set_ylabel('Loss')
     plt.legend()
     # plt.ylim([0, 100000])
-    # plt.savefig(filePath + 'testLossResults_' + fileName + '.png')
-    # plt.close()
-    plt.show()
+    plt.savefig(filePath + 'testLossResults_' + fileName + '.png')
+    plt.close()
+    # plt.show()
     return
 
 
@@ -72,11 +72,11 @@ def plotNetComparison(my_net, dataloader, filePath, fileName):
         ax.set_xlabel('Index')
         ax.set_ylabel('Max flow result')
         plt.legend()
-        # plt.savefig(filePath + 'resultsComparison' + fileName + '.png')
-        # plt.close()
-        plt.show()
-        plt.plot(range(rmse.size), rmse, marker='.', label='Rmse')
-        plt.show()
+        plt.savefig(filePath + 'resultsComparison' + fileName + '.png')
+        plt.close()
+        # plt.show()
+        # plt.plot(range(rmse.size), rmse, marker='.', label='Rmse')
+        # plt.show()
 
 
 
@@ -84,10 +84,10 @@ def plotNetComparison(my_net, dataloader, filePath, fileName):
 
 def main():
     # load network from folder -
-    network_path  = '/Users/chanaross/dev/Thesis/MachineLearning_MaxFlow/'
-    # network_names   = [f for f in os.listdir(network_path) if (f.endswith('.pkl') and (f.startswith('fc')))]
-    #
-    network_names  = ['fcc1_128_fce1_64_fce2_128_fce3_16_fccat_8_bs_40_lr_0.005_ot_2_wd_0.002_torch.pkl']
+    network_path  = '/Users/chanaross/dev/Thesis/MachineLearning_MaxFlow/results/'
+    network_names   = [f for f in os.listdir(network_path) if (f.endswith('.pkl') and (f.startswith('fc')))]
+
+    # network_names  = ['fcc1_128_fce1_64_fce2_128_fce3_16_fccat_8_bs_40_lr_0.005_ot_2_wd_0.002_torch.pkl']
 
     # figure path -
     fig_path = '/Users/chanaross/dev/Thesis/MachineLearning_MaxFlow/figures/'
@@ -109,7 +109,7 @@ def main():
         network_name = network_name.replace('.pkl', '')
         fig_name  = network_name + '.png'
         my_net    = torch.load(network_path + network_name + '.pkl', map_location=lambda storage, loc: storage)
-        # plotEpochGraphs(my_net, fig_path, fig_name)
+        plotEpochGraphs(my_net, fig_path, fig_name)
         rmse, loss = checkNetwork(dataLoader_in, my_net)
         if (np.mean(rmse)<250):
             plotNetComparison(my_net, dataLoader_in, fig_path, fig_name)

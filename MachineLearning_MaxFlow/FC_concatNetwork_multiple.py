@@ -46,11 +46,12 @@ def CreateOptimizer(netParams, ot, lr, dmp, mm, eps, wd):
 
 
 class Model(nn.Module):
-    def __init__(self, fc_car1, fc_event1, fc_event2, fc_event3, fc_concat1, batch_size, input_event, input_car):
+    def __init__(self, fc_car1, fc_event1, fc_event2, fc_event3, fc_concat1, batch_size, input_event, input_car, num_event_layers):
         super(Model, self).__init__()
         self.input_event      = input_event  # size of input event vector
         self.input_car        = input_car    # size of input car vector
         self.batch_size       = batch_size   # batch size
+        self.numEventLayers   = num_event_layers # number of times to use 2nd layer for events
         # network -
         self.fc_car1          = None
         self.fc_event1        = None
@@ -78,7 +79,8 @@ class Model(nn.Module):
                                'fc_event1'  : fc_event1,
                                'fc_event2'  : fc_event2,
                                'fc_event3'  : fc_event3,
-                               'fc_concat1' : fc_concat1}
+                               'fc_concat1' : fc_concat1,
+                               'num_event_layers': num_event_layers}
 
         # output variables (loss, acc ect.)
         self.finalAcc       = 0
@@ -101,10 +103,13 @@ class Model(nn.Module):
         outBatchNorm_event1 = self.batchNorm_event1(outRel_event1)
         outDp_event1    = F.dropout(outBatchNorm_event1, p=self.p_dp, training=False, inplace=False)
         # event network , layer 2 -
-        outFc_event2 = self.fc_event2(outDp_event1)
-        outRel_event2 = self.relu(outFc_event2)
-        outBatchNorm_event2 = self.batchNorm_event2(outRel_event2)
-        outDp_event2 = F.dropout(outBatchNorm_event2, p=self.p_dp, training=False, inplace=False)
+        input_layer2 = outDp_event1
+        for i in range(self.numEventLayers):
+            outFc_event2 = self.fc_event2(input_layer2)
+            outRel_event2 = self.relu(outFc_event2)
+            outBatchNorm_event2 = self.batchNorm_event2(outRel_event2)
+            outDp_event2 = F.dropout(outBatchNorm_event2, p=self.p_dp, training=False, inplace=False)
+            input_layer2 = outDp_event2
         # event network , layer 3 -
         outFc_event3 = self.fc_event3(outDp_event2)
         outRel_event3 = self.relu(outFc_event3)
@@ -208,17 +213,17 @@ def main():
     inputEventSize      = dataInput[0][0].size
     inputCarSize        = dataInput[0][1].size
     # define hyper parameters -
-    fc_car1Vec      = [128, 16, 28, 64]
-    fc_event1Vec    = [64, 128, 256, ]
-    fc_event2Vec    = [64, 128]
-    fc_event3Vec    = [32, 16, 32]
-    fc_concat1Vec   = [8, 16, 24]
+    num_layers_events = 6
+    fc_car1Vec      = [128, 256, 12]
+    fc_event1Vec    = [64, 8, 256]
+    fc_event3Vec    = [128, 16]
+    fc_concat1Vec   = [8, 48, 256]
     batch_sizeVec   = [10, 40]
     num_epochs      = 50
     p_dp            = 0  # percentage dropout
     # optimizer parameters -
-    lrVec   = [0.001, 0.005, 0.01, 0.1, 0.5]
-    otVec   = [2]  # [1, 2]
+    lrVec   = [0.001, 0.01, 0.1]
+    otVec   = [1, 2]  # [1, 2]
     dmp     = 0
     mm      = 0.9
     eps     = 1e-08
@@ -229,12 +234,12 @@ def main():
     dataset_test  = DataSet_maxFlow(data_test, shouldFlatten=True)
     # create case vectors
     networksDict = {}
-    itr = itertools.product(fc_car1Vec, fc_event1Vec, fc_event2Vec, fc_event3Vec, fc_concat1Vec, batch_sizeVec, lrVec, otVec, wdVec)
+    itr = itertools.product(fc_car1Vec, fc_event1Vec, fc_event3Vec, fc_concat1Vec, batch_sizeVec, lrVec, otVec, wdVec)
     for i in itr:
-        networkStr = 'fcc1_{0}_fce1_{1}_fce2_{2}_fce3_{3}_fccat_{4}_bs_{5}_lr_{6}_ot_{7}_wd_{8}'.\
-            format(i[0], i[1], i[2], i[3], i[4], i[5], i[6], i[7], i[8])
-        networksDict[networkStr] = {'fcc1': i[0], 'fce1': i[1], 'fce2': i[2], 'fce3': i[3], 'fccat': i[4], 'bs': i[5],
-                                    'lr': i[6], 'ot' : i[7], 'wd': i[8]}
+        networkStr = 'fcc1_{0}_fce1_{1}_fce3_{2}_fccat_{3}_bs_{4}_lr_{5}_ot_{6}_wd_{7}'.\
+            format(i[0], i[1], i[2], i[3], i[4], i[5], i[6], i[7])
+        networksDict[networkStr] = {'fcc1': i[0], 'fce1': i[1], 'fce3': i[2], 'fccat': i[3], 'bs': i[4],
+                                    'lr': i[5], 'ot' : i[6], 'wd': i[7]}
 
     for netConfig in networksDict:
         # output file
@@ -247,7 +252,7 @@ def main():
         # create network based on input parameter's -
         fc_car1     = networksDict[netConfig]['fcc1']
         fc_event1   = networksDict[netConfig]['fce1']
-        fc_event2   = networksDict[netConfig]['fce2']
+        fc_event2   = networksDict[netConfig]['fce1']
         fc_event3   = networksDict[netConfig]['fce3']
         fc_concat   = networksDict[netConfig]['fccat']
 
@@ -256,7 +261,7 @@ def main():
         ot              = networksDict[netConfig]['ot']
         wd              = networksDict[netConfig]['wd']
 
-        my_net = Model(fc_car1, fc_event1, fc_event2, fc_event3, fc_concat, batch_size, inputEventSize, inputCarSize)
+        my_net = Model(fc_car1, fc_event1, fc_event2, fc_event3, fc_concat, batch_size, inputEventSize, inputCarSize, num_layers_events)
         my_net.fc_car1 = nn.Linear(inputCarSize, fc_car1)
         my_net.fc_event1 = nn.Linear(inputEventSize, fc_event1)
         my_net.fc_event2 = nn.Linear(fc_event1, fc_event2)
