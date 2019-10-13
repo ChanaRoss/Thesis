@@ -118,7 +118,7 @@ class Model(nn.Module):
             cnn_output[:, :, i] = out
         output, (h_n, c_n) = self.lstm(cnn_output.view(self.sequence_size, batch_size, -1))
         out = self.fc_after_lstm(h_n)
-        out = self.logSoftMax(out.view(batch_size,-1))  # after last fc out is of size: [batch_size , num_classes] and is after LogSoftMax
+        out = self.logSoftMax(out.view(batch_size, -1))  # after last fc out is of size: [batch_size , num_classes] and is after LogSoftMax
         return out
 
     def calcLoss(self, outputs, labels):

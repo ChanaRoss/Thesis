@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 
 
 
-class DataSet_maxFlow:
+class DataSet_maxFlow(torch.utils.data.Dataset):
     def __init__(self, dataIn, shouldFlatten):
         self.dataIn        = dataIn
         self.numCases      = len(dataIn)
