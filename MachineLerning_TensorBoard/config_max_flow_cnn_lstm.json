@@ -1,0 +1,51 @@
+{
+  "optimizer": "SGD",
+  "opt_params": {
+    "lr": 0.0001,
+    "momentum": 0,
+    "dampening": 0,
+    "weight_decay": 0,
+    "nesterov": false
+  },
+  "scheduler": "on_plateau",
+  "sched_params": {
+    "mode": "min",
+    "factor": 0.1,
+    "patience": 10
+  },
+  "train_params": {
+    "epochs": 40,
+    "batch_size": 20,
+    "shuffle": false,
+    "run_name": "cnn_lstm",
+    "log_path": "logs"
+  },
+  "model": "cnn_lstm_model",
+  "model_params": {
+    "cnn_input_size": 21,
+    "num_cnn_features" : 32,
+    "num_cnn_layers":  2,
+    "cnn_dimension" : 10 ,
+    "kernel_size":5,
+    "stride_size": 1,
+    "fc_after_cnn_out_size": 128,
+    "sequence_size" : 5,
+    "hidden_size": 128,
+    "event_out_size": 64,
+    "input_car_size": 8,
+    "fc_car_size": 24,
+    "fc_concat_size": 32,
+    "p_dp": 0.1
+  },
+  "loss": "MSELoss",
+  "loss_params": {
+
+  },
+  "dataset": "max_flow",
+  "dataset_params": {
+    "file_path": "datasets/data/network_input_max_flow_4_30.p",
+    "flatten_cars": true,
+    "flatten_events": false,
+    "percentage_train": 0.7
+  }
+}

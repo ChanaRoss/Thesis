@@ -1,0 +1,45 @@
+{
+  "optimizer": "SGD",
+  "opt_params": {
+    "lr": 0.001,
+    "momentum": 0,
+    "dampening": 0,
+    "weight_decay": 0,
+    "nesterov": false
+  },
+  "scheduler": "on_plateau",
+  "sched_params": {
+    "mode": "min",
+    "factor": 0.1,
+    "patience": 10
+  },
+  "train_params": {
+    "epochs": 40,
+    "batch_size": 50,
+    "shuffle": false,
+    "run_name": "test_run",
+    "log_path": "logs"
+  },
+  "model": "fcc_concat_model",
+  "model_params": {
+    "input_car" : 8,
+    "fc_car1" :  16,
+    "input_event":  10500,
+    "fc_event1":  64,
+    "fc_event2": 32,
+    "fc_event3": 16,
+    "fc_concat": 8,
+    "p_dp": 0.5
+  },
+  "loss": "MSELoss",
+  "loss_params": {
+
+  },
+  "dataset": "max_flow",
+  "dataset_params": {
+    "file_path": "datasets/data/network_input_max_flow_4_30.p",
+    "flatten_cars": true,
+    "flatten_events": true,
+    "percentage_train": 0.7
+  }
+}

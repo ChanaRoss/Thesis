@@ -1,0 +1,7 @@
+
+in order to run a docker with tensorboard :
+
+
+docker run -it --rm -p 8889:6006 -v myPath:dockerPath f078e705dd8d
+
+
