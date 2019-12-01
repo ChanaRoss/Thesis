@@ -113,6 +113,10 @@ class MultiAttentionModel(nn.Module):
         )
 
         self.decoder = nn.ModuleList()
+        # For each node we compute (glimpse key, glimpse value, logit key) so 3 * embedding_dim
+        self.project_node_embeddings = nn.ModuleList()
+        self.project_fixed_context = nn.ModuleList()
+
         for i in range(n_cars):
             self.decoder.append(GraphAttentionDecoder(
                 embedding_dim=embedding_dim,
@@ -124,11 +128,9 @@ class MultiAttentionModel(nn.Module):
                 n_cars=n_cars,
                 car_id=i
             ))
+            self.project_node_embeddings.append(nn.Linear(embedding_dim, 3 * embedding_dim, bias=False))
+            self.project_fixed_context.append(nn.Linear(embedding_dim, embedding_dim, bias=False))
 
-        # For each node we compute (glimpse key, glimpse value, logit key) so 3 * embedding_dim
-        self.project_node_embeddings = nn.Linear(embedding_dim, 3 * embedding_dim, bias=False)
-        self.project_fixed_context = nn.Linear(embedding_dim, embedding_dim, bias=False)
-        self.project_step_context = nn.Linear(step_context_dim, embedding_dim, bias=False)
         assert embedding_dim % n_heads == 0
         # Note n_heads * val_dim == embedding_dim so input to project_out is embedding_dim
         final_dim = n_cars*n_nodes  # this is the dimension of the output layer (soft max for each car and all nodes)
@@ -169,12 +171,6 @@ class MultiAttentionModel(nn.Module):
 
     def beam_search(self, *args, **kwargs):
         return self.problem.beam_search(*args, **kwargs, model=self)
-
-    def precompute_fixed(self, input):
-        embeddings, _ = self.embedder(self._init_embed(input))
-        # Use a CachedLookup such that if we repeatedly index this object with the same index we only need to do
-        # the lookup once... this is the case if all elements in the batch have maximum batch size
-        return CachedLookup(self._precompute(embeddings))
 
     def propose_expansions(self, beam, fixed, expand_size=None, normalize=False, max_calc_batch_size=4096):
         # First dim = batch_size * cur_beam_size
@@ -248,23 +244,23 @@ class MultiAttentionModel(nn.Module):
             return self.init_embed(input['loc'])
         return self.init_embed(input)
 
-    def _inner(self, input, embeddings):
+    def _inner(self, input_data, embeddings):
 
         outputs = []
         sequences = []
-        state = self.problem.make_state(input)
+        state = self.problem.make_state(input_data)
 
         # Compute keys, values for the glimpse and keys for the logits once as they can be reused in every step
         fixed = []
         for i in range(self.n_cars):
-            fixed.append(self._precompute(embeddings))
+            fixed.append(self._precompute(embeddings, i))
 
         batch_size = state.ids.size(0)
 
         # Perform decoding steps
         i = 0
         while not (self.shrink_size is None and state.all_finished()):
-            log_p = torch.zeros(self.n_cars, batch_size, self.n_nodes, device=input['loc'].device)
+            log_p = torch.zeros(batch_size, self.n_cars, self.n_nodes, device=input_data['loc'].device)
             selected = torch.zeros(self.n_cars, batch_size, device=state.ids.device)
             for i_c in range(self.n_cars):
                 if self.shrink_size is not None:
@@ -280,14 +276,15 @@ class MultiAttentionModel(nn.Module):
                         fixed[i_c] = fixed[i_c][unfinished]
                 # this is the log_p per car before masking -
                 log_p_per_car = self.decoder[i_c](state, fixed[i_c], embeddings)
-                log_p[i_c, :, :] = log_p_per_car
-            log_p_ff = self.project_all_cars_out(log_p.view(batch_size, -1)).view(self.n_cars, batch_size, 1, -1)
+                log_p[:, i_c, :] = log_p_per_car
+            # log_p_ff output is of size [n_car, batch_size, 1, n_nodes]
+            log_p_ff = self.project_all_cars_out(log_p.view(batch_size, -1))\
+                .view(batch_size, self.n_cars, 1, -1).permute(1, 0, 2, 3)
             log_p_ff_temp = log_p_ff.clone()
             mask = state.get_mask()
             log_p_ff_temp[mask[None, ...].expand_as(log_p_ff_temp)] = -math.inf
             log_p_ff = log_p_ff_temp.clone()
-            probs = F.log_softmax(log_p_ff, dim=3)
-            selected, state = self._select_nodes_all(selected, log_p_ff, state, i)
+            selected, state, probs = self._select_nodes_all(selected, log_p_ff, state, i)
             # Now make log_p, selected desired output size by 'unshrinking'
             if self.shrink_size is not None and state.ids.size(0) < batch_size:
                 log_p_, selected_ = probs, selected
@@ -304,6 +301,7 @@ class MultiAttentionModel(nn.Module):
 
     def _select_nodes_all(self, selected, log_p_ff, state, step):
         mask = state.get_mask()
+        probs_out = torch.zeros_like(log_p_ff)
         for i_c in range(self.n_cars):
             probs = F.log_softmax(log_p_ff, dim=3)
             probs_ = probs[i_c, ...]
@@ -314,7 +312,8 @@ class MultiAttentionModel(nn.Module):
             log_p_ff_temp = log_p_ff.clone()
             log_p_ff_temp[mask[None, ...].expand_as(log_p_ff_temp)] = -math.inf
             log_p_ff = log_p_ff_temp.clone()
-        return selected, state
+            probs_out[i_c, :, :, :] = probs_
+        return selected, state, probs_out
 
     def sample_many(self, input, batch_rep=1, iter_rep=1):  # might need to updated function to work with mtsp
         """
@@ -330,16 +329,22 @@ class MultiAttentionModel(nn.Module):
             batch_rep, iter_rep
         )
 
-    def _precompute(self, embeddings, num_steps=1):
-
+    def _precompute(self, embeddings, n_c, num_steps=1):
+        """
+        calculate all precomputed vectors for Attention model
+        :param embeddings: embeddings of nodes in graph
+        :param n_c: car id to calculate for
+        :param num_steps: number of step , for parallel calculation
+        :return: Attention Fixed vectors
+        """
         # The fixed context projection of the graph embedding is calculated only once for efficiency
         graph_embed = embeddings.mean(1)
         # fixed context = (batch_size, 1, embed_dim) to make broadcastable with parallel timesteps
-        fixed_context = self.project_fixed_context(graph_embed)[:, None, :]
+        fixed_context = self.project_fixed_context[n_c](graph_embed)[:, None, :]
 
         # The projection of the node embeddings for the attention is calculated once up front
         glimpse_key_fixed, glimpse_val_fixed, logit_key_fixed = \
-            self.project_node_embeddings(embeddings[:, None, :, :]).chunk(3, dim=-1)
+            self.project_node_embeddings[n_c](embeddings[:, None, :, :]).chunk(3, dim=-1)
 
         # No need to rearrange key for logit as there is a single head
         fixed_attention_node_data = (

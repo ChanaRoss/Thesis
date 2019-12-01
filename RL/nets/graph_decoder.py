@@ -118,7 +118,7 @@ class GraphAttentionDecoder(nn.Module):
             assert self.mask_logits, "Cannot mask inner without masking logits"
             compatibility[mask[None, :, :, None, :].expand_as(compatibility)] = -math.inf
 
-        # Batch matrix multiplication to compute heads (n_heads, batch_size, num_steps, val_size)
+        # Batch matrix multiplication to compute heads (n_heads, batch_size, num_steps, val_size, n_nodes)
         heads = torch.matmul(F.softmax(compatibility, dim=-1), glimpse_V)
 
         # Project to get glimpse/updated context node embedding (batch_size, num_steps, embedding_dim)
@@ -134,8 +134,8 @@ class GraphAttentionDecoder(nn.Module):
         # if self.mask_logits:
         #     logits[mask] = -math.inf
         # # From the logits compute the probabilities by clipping, masking and softmax
-        # if self.tanh_clipping > 0:
-        #     logits = F.tanh(logits) * self.tanh_clipping
+        if self.tanh_clipping > 0:
+            logits = F.tanh(logits) * self.tanh_clipping
         return logits, glimpse.squeeze(-2)
 
 
