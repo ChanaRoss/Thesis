@@ -80,6 +80,7 @@ def load_args(filename):
 def load_model(path, epoch=None):
     from nets.attention_model import AttentionModel
     from nets.pointer_network import PointerNetwork
+    from nets.mtsp_attention_model import MultiAttentionModel
 
     if os.path.isfile(path):
         model_filename = path
@@ -98,11 +99,13 @@ def load_model(path, epoch=None):
     args = load_args(os.path.join(path, 'args.json'))
 
     problem = load_problem(args['problem'])
-
+    print(args.get('model', 'multi_attention'))
+    
     model_class = {
         'attention': AttentionModel,
-        'pointer': PointerNetwork
-    }.get(args.get('model', 'attention'), None)
+        'pointer': PointerNetwork,
+        'multi_attention': MultiAttentionModel
+    }.get(args.get('model', 'multi_attention'), None)
     assert model_class is not None, "Unknown model: {}".format(model_class)
 
     model = model_class(
@@ -110,6 +113,8 @@ def load_model(path, epoch=None):
         args['hidden_dim'],
         problem,
         n_encode_layers=args['n_encode_layers'],
+        n_nodes=args['graph_size'],
+        n_cars=args['n_cars'],
         mask_inner=True,
         mask_logits=True,
         normalization=args['normalization'],
@@ -208,3 +213,4 @@ def sample_many(inner_func, get_cost_func, input, batch_rep=1, iter_rep=1):
     minpis = pis[torch.arange(pis.size(0), out=argmincosts.new()), argmincosts]
 
     return minpis, mincosts
+

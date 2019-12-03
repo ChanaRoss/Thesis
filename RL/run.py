@@ -13,7 +13,7 @@ from options import get_options
 from train import train_epoch, validate, get_inner_model
 from reinforce_baselines import NoBaseline, ExponentialBaseline, CriticBaseline, RolloutBaseline, WarmupBaseline
 from nets.attention_model import AttentionModel
-from nets.mtsp_attention_model import  MultiAttentionModel
+from nets.mtsp_attention_model import MultiAttentionModel
 from nets.pointer_network import PointerNetwork, CriticNetworkLSTM
 from utils import torch_load_cpu, load_problem
 
@@ -172,6 +172,8 @@ def run(opts):
                 tb_logger,
                 opts
             )
+
+
 
 
 if __name__ == "__main__":

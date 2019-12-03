@@ -57,8 +57,11 @@ class MultiAttentionModel(nn.Module):
                  normalization='batch',
                  n_heads=8,
                  checkpoint_encoder=False,
-                 shrink_size=None):
+                 shrink_size=None,
+                 allow_repeated_choices=False):
         super(MultiAttentionModel, self).__init__()
+
+        self.allow_repeated_choices = allow_repeated_choices
 
         self.embedding_dim = embedding_dim
         self.hidden_dim = hidden_dim
@@ -248,7 +251,7 @@ class MultiAttentionModel(nn.Module):
 
         outputs = []
         sequences = []
-        state = self.problem.make_state(input_data)
+        state = self.problem.make_state(input_data, self.allow_repeated_choices)
 
         # Compute keys, values for the glimpse and keys for the logits once as they can be reused in every step
         fixed = []
@@ -280,10 +283,10 @@ class MultiAttentionModel(nn.Module):
             # log_p_ff output is of size [n_car, batch_size, 1, n_nodes]
             log_p_ff = self.project_all_cars_out(log_p.view(batch_size, -1))\
                 .view(batch_size, self.n_cars, 1, -1).permute(1, 0, 2, 3)
-            log_p_ff_temp = log_p_ff.clone()
-            mask = state.get_mask()
-            log_p_ff_temp[mask[None, ...].expand_as(log_p_ff_temp)] = -math.inf
-            log_p_ff = log_p_ff_temp.clone()
+            # log_p_ff_temp = log_p_ff.clone()
+            # mask = state.get_mask(0)
+            # log_p_ff_temp[mask[None, ...].expand_as(log_p_ff_temp)] = -math.inf
+            # log_p_ff = log_p_ff_temp.clone()
             selected, state, probs = self._select_nodes_all(selected, log_p_ff, state, i)
             # Now make log_p, selected desired output size by 'unshrinking'
             if self.shrink_size is not None and state.ids.size(0) < batch_size:
@@ -300,18 +303,17 @@ class MultiAttentionModel(nn.Module):
         return torch.stack(outputs, 1), torch.stack(sequences, 1)
 
     def _select_nodes_all(self, selected, log_p_ff, state, step):
-        mask = state.get_mask()
         probs_out = torch.zeros_like(log_p_ff)
         for i_c in range(self.n_cars):
+            mask = state.get_mask(i_c)
+            log_p_ff_temp = log_p_ff.clone()
+            log_p_ff_temp[mask[None, ...].expand_as(log_p_ff_temp)] = -math.inf
+            log_p_ff = log_p_ff_temp.clone()
             probs = F.log_softmax(log_p_ff, dim=3)
             probs_ = probs[i_c, ...]
             selected_car = self._select_node(probs_.exp()[:, 0, :], mask[:, 0, :])
             selected[i_c, ...] = selected_car
             state = state.update(selected_car, i_c, step)  # selected, car index, step
-            mask = state.get_mask()
-            log_p_ff_temp = log_p_ff.clone()
-            log_p_ff_temp[mask[None, ...].expand_as(log_p_ff_temp)] = -math.inf
-            log_p_ff = log_p_ff_temp.clone()
             probs_out[i_c, :, :, :] = probs_
         return selected, state, probs_out
 

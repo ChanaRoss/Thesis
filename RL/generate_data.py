@@ -7,6 +7,11 @@ from utils.data_utils import check_extension, save_dataset
 def generate_tsp_data(dataset_size, tsp_size):
     return np.random.uniform(size=(dataset_size, tsp_size, 2)).tolist()
 
+def generate_mtsp_data(dataset_size, tsp_size, n_cars):
+    return list(zip(
+        np.random.uniform(size=(dataset_size, tsp_size, 2)).tolist(),  # Node locations
+        np.full(dataset_size, n_cars).tolist()  # Capacity, same for whole dataset
+    ))
 
 def generate_vrp_data(dataset_size, vrp_size):
     CAPACITIES = {
@@ -99,7 +104,7 @@ if __name__ == "__main__":
     parser.add_argument("--data_dir", default='data', help="Create datasets in data_dir/problem (default 'data')")
     parser.add_argument("--name", type=str, required=True, help="Name to identify dataset")
     parser.add_argument("--problem", type=str, default='all',
-                        help="Problem, 'tsp', 'vrp', 'pctsp' or 'op_const', 'op_unif' or 'op_dist'"
+                        help="Problem,'mts', 'tsp', 'vrp', 'pctsp' or 'op_const', 'op_unif' or 'op_dist'"
                              " or 'all' to generate all")
     parser.add_argument('--data_distribution', type=str, default='all',
                         help="Distributions to generate for problem, default 'all'.")
@@ -109,6 +114,7 @@ if __name__ == "__main__":
                         help="Sizes of problem instances (default 20, 50, 100)")
     parser.add_argument("-f", action='store_true', help="Set true to overwrite")
     parser.add_argument('--seed', type=int, default=1234, help="Random seed")
+    parser.add_argument('--n_cars',type = int, default=1, help="number of cars in problem")
 
     opts = parser.parse_args()
 
@@ -119,6 +125,7 @@ if __name__ == "__main__":
         'tsp': [None],
         'vrp': [None],
         'pctsp': [None],
+        'mtsp' : [None],
         'op': ['const', 'unif', 'dist']
     }
     if opts.problem == 'all':
@@ -152,6 +159,8 @@ if __name__ == "__main__":
                 np.random.seed(opts.seed)
                 if problem == 'tsp':
                     dataset = generate_tsp_data(opts.dataset_size, graph_size)
+                elif problem == 'mtsp':
+                    dataset = generate_mtsp_data(opt.dataset_size, graph_size, opt.n_cars)
                 elif problem == 'vrp':
                     dataset = generate_vrp_data(
                         opts.dataset_size, graph_size)

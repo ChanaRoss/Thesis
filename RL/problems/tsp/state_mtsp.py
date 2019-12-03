@@ -3,6 +3,7 @@ from typing import NamedTuple
 from utils.boolmask import mask_long2bool, mask_long_scatter
 import itertools as iter
 
+
 class StateMTSP(NamedTuple):
     # Fixed input
     loc: torch.Tensor
@@ -20,10 +21,12 @@ class StateMTSP(NamedTuple):
     cur_coord: torch.Tensor
     i: torch.Tensor  # Keeps track of step
     n_cars: int  # number of cars in problem
+    index_to_choices: torch.Tensor  # keeps track of choices based on index chosen by network
+    allow_repeated_choices: bool
 
     @property
     def visited(self):
-        if self.visited_.dtype == torch.uint8:
+        if self.visited_.dtype == torch.bool:
             return self.visited_
         else:
             return mask_long2bool(self.visited_, n=self.loc.size(-2))
@@ -41,11 +44,13 @@ class StateMTSP(NamedTuple):
         return super(StateMTSP, self).__getitem__(key)
 
     @staticmethod
-    def initialize(input, visited_dtype=torch.uint8):
+    def initialize(input, allow_repeated_choices=False, visited_dtype=torch.bool):
         loc = input['loc']
         n_cars = input['n_cars'][0]
         batch_size, n_loc, _ = loc.size()
         prev_a = torch.zeros(n_cars, batch_size, 1, dtype=torch.long, device=loc.device)
+        index_to_choices = create_index_to_choices(n_cars, n_loc)
+        index_size = index_to_choices.shape[0]
         return StateMTSP(
             loc=loc,
             dist=(loc[:, :, None, :] - loc[:, None, :, :]).norm(p=2, dim=-1),
@@ -56,15 +61,17 @@ class StateMTSP(NamedTuple):
             visited_=(  # Visited as mask is easier to understand, as long more memory efficient
                 torch.zeros(
                     batch_size, 1, n_loc,
-                    dtype=torch.uint8, device=loc.device
+                    dtype=torch.bool, device=loc.device
                 )
-                if visited_dtype == torch.uint8
+                if visited_dtype == torch.bool
                 else torch.zeros(batch_size, 1, (n_loc + 63) // 64, dtype=torch.int64, device=loc.device)  # Ceil
             ),
             lengths=torch.zeros(batch_size, 1, device=loc.device),
             cur_coord=None,
             i=torch.zeros(1, dtype=torch.int64, device=loc.device),  # Vector with length num_steps
-            n_cars=n_cars
+            n_cars=n_cars,
+            index_to_choices=index_to_choices,
+            allow_repeated_choices=allow_repeated_choices
         )
 
     def get_final_cost(self):
@@ -97,7 +104,7 @@ class StateMTSP(NamedTuple):
         cur_coord_ = self.loc[self.ids, prev_a_].view(batch_size, -1)
         if self.cur_coord is not None:  # Don't add length for first action (selection of start node)
             lengths = lengths + (cur_coord_ - self.cur_coord[car_id, ...]).norm(p=2, dim=-1).view(-1, 1)  # (batch_dim, 1)
-        if self.visited_.dtype == torch.uint8:
+        if self.visited_.dtype == torch.bool:
             # Add one dimension since we write a single value
             # add's 1 to wherever we visit now, this creates a vector of 1's wherever we have been already
             visited_ = visited_.scatter(-1, prev_a_[:, :, None], 1)
@@ -115,10 +122,18 @@ class StateMTSP(NamedTuple):
     def get_current_node(self):
         return self.prev_a
 
-    def get_mask(self):
-        return self.visited
+    def get_mask(self, car_id):
+        mask = self.visited
+        if self.allow_repeated_choices:
+            prev_a_ = self.prev_a[car_id, ...]
+            mask.scatter(-1, prev_a_[:, :, None], 0)
+        return mask
 
-    # def get_nn(self, k=None):   # TODO update for multiple cars
+    def get_locations(self, selections):
+        selections_per_car = None
+        return selections_per_car
+
+        # def get_nn(self, k=None):   # TODO update for multiple cars
     #     # Insert step dimension
     #     # Nodes already visited get inf so they do not make it
     #     if k is None:
@@ -142,3 +157,8 @@ class StateMTSP(NamedTuple):
 
     def construct_solutions(self, actions):
         return actions
+
+
+def create_index_to_choices(num_cars, num_nodes):
+    choices_tensor = torch.Tensor(list(iter.permutations(range(num_nodes, num_cars))))
+    return choices_tensor

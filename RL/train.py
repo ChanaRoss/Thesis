@@ -11,6 +11,8 @@ from nets.attention_model import set_decode_type
 from utils.log_utils import log_values
 from utils import move_to
 
+from utils.plot_results import *
+
 
 def get_inner_model(model):
     return model.module if isinstance(model, DataParallel) else model
@@ -40,7 +42,7 @@ def rollout(model, dataset, opts):
     return torch.cat([
         eval_model_bat(bat)
         for bat
-        in tqdm(DataLoader(dataset ,batch_size=opts.eval_batch_size), disable=opts.no_progress_bar)
+        in tqdm(DataLoader(dataset, batch_size=opts.eval_batch_size), disable=opts.no_progress_bar)
     ], 0)
 
 
@@ -68,7 +70,7 @@ def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, pr
     print("Start train epoch {}, lr={} for run {}".format(epoch, optimizer.param_groups[0]['lr'], opts.run_name))
     step = epoch * (opts.epoch_size // opts.batch_size)
     start_time = time.time()
-    lr_scheduler.step(epoch)
+
 
     if not opts.no_tensorboard:
         tb_logger.log_value('learnrate_pg0', optimizer.param_groups[0]['lr'], step)
@@ -97,7 +99,7 @@ def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, pr
         )
 
         step += 1
-
+    lr_scheduler.step(epoch)
     epoch_duration = time.time() - start_time
     print("Finished epoch {}, took {} s".format(epoch, time.strftime('%H:%M:%S', time.gmtime(epoch_duration))))
 

@@ -48,7 +48,7 @@ class TSP(object):
             )
 
         state = TSP.make_state(
-            input, visited_dtype=torch.int64 if compress_mask else torch.uint8
+            input, visited_dtype=torch.int64 if compress_mask else torch.bool
         )
 
         return beam_search(state, beam_size, propose_expansions)
@@ -98,7 +98,7 @@ class MTSP(object):
             )
 
         state = TSP.make_state(
-            input, visited_dtype=torch.int64 if compress_mask else torch.uint8
+            input, visited_dtype=torch.int64 if compress_mask else torch.bool
         )
 
         return beam_search(state, beam_size, propose_expansions)
