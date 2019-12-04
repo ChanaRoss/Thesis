@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from torch.nn import DataParallel
 
 from nets.attention_model import set_decode_type
-from utils.log_utils import log_values
+from utils.log_utils import log_values_step, log_values_epoch
 from utils import move_to
 
 from utils.plot_results import *
@@ -73,7 +73,7 @@ def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, pr
 
 
     if not opts.no_tensorboard:
-        tb_logger.log_value('learnrate_pg0', optimizer.param_groups[0]['lr'], step)
+        tb_logger.add_scalar('optimizer/learnrate_pg0', optimizer.param_groups[0]['lr'], step)
 
     # Generate new training data for each epoch
     training_dataset = baseline.wrap_dataset(problem.make_dataset(
@@ -83,10 +83,12 @@ def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, pr
     # Put model in train mode!
     model.train()
     set_decode_type(model, "greedy")
-
+    avg_cost_epoch = 0
+    avg_ll_epoch = 0
+    avg_loss_epoch = 0
     for batch_id, batch in enumerate(tqdm(training_dataloader, disable=opts.no_progress_bar)):
 
-        train_batch(
+        avg_cost, loss_batch, avg_ll = train_batch(
             model,
             optimizer,
             baseline,
@@ -97,12 +99,20 @@ def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, pr
             tb_logger,
             opts
         )
-
+        avg_cost_epoch += avg_cost
+        avg_ll_epoch += avg_ll
+        avg_loss_epoch += loss_batch
         step += 1
+
     lr_scheduler.step(epoch)
     epoch_duration = time.time() - start_time
     print("Finished epoch {}, took {} s".format(epoch, time.strftime('%H:%M:%S', time.gmtime(epoch_duration))))
-
+    batch_size = (batch_id + 1)
+    avg_cost_epoch = avg_cost_epoch / batch_size
+    avg_loss_epoch = avg_loss_epoch / batch_size
+    avg_ll_epoch = avg_ll_epoch / batch_size
+    log_values_epoch(avg_cost_epoch, epoch,
+               avg_ll_epoch, avg_loss_epoch, tb_logger, opts, model)
     if (opts.checkpoint_epochs != 0 and epoch % opts.checkpoint_epochs == 0) or epoch == opts.n_epochs - 1:
         print('Saving model and state...')
         torch.save(
@@ -119,9 +129,14 @@ def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, pr
     avg_reward = validate(model, val_dataset, opts)
 
     if not opts.no_tensorboard:
-        tb_logger.log_value('val_avg_reward', avg_reward, step)
+        tb_logger.add_scalar('validation/val_avg_reward', avg_reward, step)
 
-    baseline.epoch_callback(model, epoch)
+    baseline_epoch, baseline_mean = baseline.epoch_callback(model, epoch)
+    if not opts.no_tensorboard:
+        print("*****************************************")
+        print(baseline_mean, baseline_epoch)
+        tb_logger.add_scalar('baseline/cost_epoch', baseline_mean, epoch)
+        tb_logger.add_scalar('baseline/baseline_epoch',  baseline_epoch, epoch)
 
 
 def train_batch(
@@ -158,5 +173,9 @@ def train_batch(
 
     # Logging
     if step % int(opts.log_step) == 0:
-        log_values(cost, grad_norms, epoch, batch_id, step,
+        log_values_step(cost, grad_norms, epoch, batch_id, step,
                    log_likelihood, reinforce_loss, bl_loss, tb_logger, opts)
+
+    avg_cost = cost.mean().item()
+    avg_log_likelihood = log_likelihood.mean().item()
+    return avg_cost, reinforce_loss, avg_log_likelihood

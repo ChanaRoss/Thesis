@@ -6,7 +6,7 @@ import pprint as pp
 
 import torch
 import torch.optim as optim
-from tensorboard_logger import Logger as TbLogger
+from torch.utils.tensorboard import SummaryWriter
 
 from nets.critic_network import CriticNetwork
 from options import get_options
@@ -29,7 +29,10 @@ def run(opts):
     # Optionally configure tensorboard
     tb_logger = None
     if not opts.no_tensorboard:
-        tb_logger = TbLogger(os.path.join(opts.log_dir, "{}_{}".format(opts.problem, opts.graph_size), opts.run_name))
+        tb_logger = SummaryWriter(os.path.join(opts.log_dir, "{}_{}".format(opts.problem, opts.graph_size), opts.run_name))
+        # log the configuration for this run
+        tb_logger.add_text("config/" + os.path.join("{}_{}".format(opts.problem, opts.graph_size), opts.run_name),
+                           json.dumps(vars(opts), indent=True), 0)
 
     os.makedirs(opts.save_dir)
     # Save arguments so exact configuration can always be found
@@ -140,7 +143,6 @@ def run(opts):
 
     # Initialize learning rate scheduler, decay by lr_decay once per epoch!
     lr_scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: opts.lr_decay ** epoch)
-
     # Start the actual training loop
     val_dataset = problem.make_dataset(
         size=opts.graph_size, n_cars=opts.n_cars, num_samples=opts.val_size, filename=opts.val_dataset, distribution=opts.data_distribution)
@@ -153,7 +155,7 @@ def run(opts):
             torch.cuda.set_rng_state_all(load_data['cuda_rng_state'])
         # Set the random states
         # Dumping of state was done before epoch callback, so do that now (model is loaded)
-        baseline.epoch_callback(model, epoch_resume)
+        _, _ = baseline.epoch_callback(model, epoch_resume)
         print("Resuming after {}".format(epoch_resume))
         opts.epoch_start = epoch_resume + 1
 
@@ -173,8 +175,12 @@ def run(opts):
                 opts
             )
 
+    tb_logger.close()
+
+
 
 
 
 if __name__ == "__main__":
     run(get_options())
+
