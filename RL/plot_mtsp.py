@@ -11,9 +11,6 @@ from problems import MTSP
 from matplotlib import pyplot as plt
 
 
-# Code inspired by Google OR Tools plot:
-# https://github.com/google/or-tools/blob/fb12c5ded7423d524fc6c95656a9bdc290a81d4d/examples/python/cvrptw_plot.py
-
 
 def discrete_cmap(N, base_cmap=None):
     """
@@ -52,29 +49,45 @@ def plot_vehicle_routes(data, route, ax1, markersize=5):
 
 
 if __name__ == "__main__":
-    model, _ = load_model('/Users/chanaross/dev/Thesis/RL/outputs/mtsp_10/mtsp10_rollout_20191203T234716/epoch-248.pt')
-    torch.manual_seed(124)
-    dataset = MTSP.make_dataset(size=model.n_nodes, num_samples=5, n_cars=model.n_cars)
+    problem_loc = '/Users/chanaross/dev/Thesis/RL/outputs/mtsp_10/'
+    model_loc = []
+    model_loc.append('mtsp10_rollout_20191208T000410/epoch-16.pt')
+    model_loc.append('mtsp10_rollout_20191208T000410/epoch-9.pt')
 
-    # Need a dataloader to batch instances
-    dataloader = DataLoader(dataset, batch_size=1000)
+    model_loc.append('mtsp10_rollout_20191206T153448/epoch-34.pt')
+    # torch.manual_seed(1224)
+    torch.manual_seed(404)
+    n_samples = 8
+    fig2, ax2 = plt.subplots(1, 1)
+    cmap2 = discrete_cmap(len(model_loc))
+    for i_m in range(len(model_loc)):
+        model, _ = load_model(problem_loc + model_loc[i_m])
+        if i_m == 0:  # create dataset based on first model , then use the same nodes for all models to be checked
+            dataset = MTSP.make_dataset(size=model.n_nodes, num_samples=n_samples, n_cars=model.n_cars)
+            # Need a dataloader to batch instances
+            dataloader = DataLoader(dataset, batch_size=1000)
+            # Make var works for dicts
+            batch = next(iter(dataloader))
+        fig_title = model_loc[i_m]
+        # Run the model
+        model.eval()
+        model.set_decode_type('greedy')
+        with torch.no_grad():
+            length, log_p, pi = model(batch, return_pi=True)
+            print(model_loc[i_m]+":")
+            print(length)
+        tours = pi.permute(1, 0, 2)  # new order is [batch_size, n_cars, tour_length]
+        fig, ax = plt.subplots(n_samples, 1)
+        # Plot the results
+        for i, (data, tour) in enumerate(zip(dataset, tours)):
+            plot_vehicle_routes(data, tour, ax[i])
+            ax[i].grid()
+        fig.suptitle(fig_title, fontsize=16)
 
-    # Make var works for dicts
-    batch = next(iter(dataloader))
-
-    # Run the model
-    model.eval()
-    model.set_decode_type('greedy')
-    with torch.no_grad():
-        length, log_p, pi = model(batch, return_pi=True)
-    tours = pi.permute(1, 0, 2)  # new order is [batch_size, n_cars, tour_length]
-    fig, ax = plt.subplots(5, 1)
-    # Plot the results
-    for i, (data, tour) in enumerate(zip(dataset, tours)):
-        plot_vehicle_routes(data, tour, ax[i])
-        ax[i].grid()
-
-    plt.legend()
+        ax2.plot(range(n_samples), length.detach().numpy(), label='cost -'+model_loc[i_m], marker='*', color=cmap2(i_m))
+        plt.legend()
+        ax2.grid()
+    fig2.legend()
     plt.show()
 
         # fig.savefig(os.path.join('images', 'cvrp_{}.png'.format(i)))

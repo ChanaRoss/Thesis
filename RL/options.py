@@ -11,7 +11,7 @@ def get_options(args=None):
     # Data
     parser.add_argument('--problem', default='tsp', help="The problem to solve, default 'tsp'")
     parser.add_argument('--graph_size', type=int, default=20, help="The size of the problem graph")
-    parser.add_argument('--n_cars', type=int, default=2, help="Number of agents in problem")
+    parser.add_argument('--n_cars', type=int, default=1, help="Number of agents in problem")
     parser.add_argument('--batch_size', type=int, default=512, help='Number of instances per batch during training')
     parser.add_argument('--epoch_size', type=int, default=1280000, help='Number of instances per epoch during training')
     parser.add_argument('--val_size', type=int, default=100,
@@ -24,7 +24,7 @@ def get_options(args=None):
     parser.add_argument('--hidden_dim', type=int, default=128, help='Dimension of hidden layers in Enc/Dec')
     parser.add_argument('--n_encode_layers', type=int, default=3,
                         help='Number of layers in the encoder/critic network')
-    parser.add_argument('--tanh_clipping', type=float, default=0.,
+    parser.add_argument('--tanh_clipping', type=float, default=10.,
                         help='Clip the parameters to within +- this value using tanh. '
                              'Set to 0 to not perform any clipping.')
     parser.add_argument('--normalization', default='batch', help="Normalization type, 'batch' (default) or 'instance'")

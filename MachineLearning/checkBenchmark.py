@@ -159,14 +159,14 @@ def plot_confusion_matrix(y_true, y_pred, classes,
 def main():
     # data loader -
     path = '/Users/chanaross/dev/Thesis/UberData/'
-    figPath = '/Users/chanaross/dev/Thesis/MachineLearning/BenchmarkFigures/'
+    figPath = '/Users/chanaross/dev/Thesis/MachineLearning/BenchmarkFigures/presentation/'
     fileNameReal = '3D_allDataLatLonCorrected_20MultiClass_500gridpickle_30min.p'
     # fileNameReal = '4D_matPerWeek_allDataLatLonCorrected_20MultiClass_500gridpickle_30min.p'
     fileNameDist = '4D_ProbabilityMat_allDataLatLonCorrected_20MultiClass_CDF_500gridpickle_30min.p'
     # data real values are between 0 and k (k is the maximum amount of concurrent events at each x,y,t)
     # data dist have values that are the probability of having k events at x,y,t
-    dataInputReal = np.load(path + fileNameReal)  # matrix size is : [xsize , ysize, timeseq]
-    dataInputProb = np.load(path + fileNameDist)  # matrix size is : [xsize , ysize, timeseq, probability for k events]
+    dataInputReal = np.load(path + fileNameReal, allow_pickle= True)  # matrix size is : [xsize , ysize, timeseq]
+    dataInputProb = np.load(path + fileNameDist, allow_pickle= True)  # matrix size is : [xsize , ysize, timeseq, probability for k events]
 
     # dataInputRealFull = np.zeros(shape=(dataInputReal.shape[0], dataInputReal.shape[1], dataInputReal.shape[2] * dataInputReal.shape[3]))
     # numTimes = dataInputReal.shape[2]
@@ -190,10 +190,10 @@ def main():
     correct_non_zeros = []
 
     timeOut = []
-    timeIndexs = np.arange(1100, 1200, 1).astype(int)
+    timeIndexs = np.arange(1100, 1150, 1).astype(int)
     numRuns = timeIndexs.size
     print(timeIndexs)
-    fileNameOut = '500grid_30min_20Multi_benchmark_results_' + str(numRuns)
+    fileNameOut = 'presentation_500grid_30min_20Multi_benchmark_results_' + str(numRuns)
 
     for t in timeIndexs:
         # start_time = np.random.randint(10, dataInputReal.shape[2]-10)

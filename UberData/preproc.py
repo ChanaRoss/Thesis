@@ -58,7 +58,8 @@ def main():
 
     df['Fixed_Lon'] = df['Lon'] * np.cos(36.1 * np.pi / 180) - df['Lat'] * np.sin(36.1 * np.pi / 180)
     df['Fixed_Lat'] = df['Lat'] * np.cos(36.1 * np.pi / 180) + df['Lon'] * np.sin(36.1 * np.pi / 180)
-
+    df['original_Lon'] = df['Lon']
+    df['original_Lat'] = df['Lat']
     df['Lon'] = df['Fixed_Lon']
     df['Lat'] = df['Fixed_Lat']
     # create list of tuples of long lat coordiantes

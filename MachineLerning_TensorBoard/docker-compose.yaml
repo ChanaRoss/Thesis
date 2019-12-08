@@ -1,9 +1,0 @@
-version: '3'
-services:
-  tensorboard_server:
-    image: tensorflow/tensorflow:latest-py3-board_1.15
-    volumes:
-      - /Users/chanaross/dev/Thesis/MachineLerning_TensorBoard/:/workspace/pytorch_experiments
-    ports:
-      - 8899:6006
-    command: tensorboard --logdir=workspace/pytorch_experiments/logs --port=6006

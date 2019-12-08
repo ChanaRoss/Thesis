@@ -481,7 +481,7 @@ def main():
                'mean smooth zeros accuracy'     : [],
                'mean smooth nonZeros accuracy'  : []}
 
-    dataInputReal = np.load(data_path + data_name)
+    dataInputReal = np.load(data_path + data_name, allow_pickle=True)
     # dataInputReal[dataInputReal > 1] = 1
     # use only data wanted (x, y, time)
     xmin = 0
@@ -496,7 +496,7 @@ def main():
     zmax = dataInputReal.shape[2]
     dataInputReal = dataInputReal[xmin:xmax, ymin:ymax, zmin:zmax]  # shrink matrix size for fast training in order to test model
     dataInputReal_orig = dataInputReal
-    # dataInputReal = dataInputReal[5:6, 10:11, :]
+    dataInputReal = dataInputReal[5:6, 10:11, :]
     # reshape input data for network format -
     lengthT = dataInputReal.shape[2]
     lengthX = dataInputReal.shape[0]
@@ -504,8 +504,8 @@ def main():
     dataInputReal = np.swapaxes(dataInputReal, 0, 1)
     dataInputReal = np.swapaxes(dataInputReal, 0, 2)
     # create results index's -
-    tmin = 2000
-    tmax = 2200
+    tmin = 336
+    tmax = 336+48*7
     timeIndexs = np.arange(tmin, tmax, 1).astype(int)
     xIndexs    = np.arange(xmin, xmax, 1).astype(int)
     yIndexs    = np.arange(ymin, ymax, 1).astype(int)

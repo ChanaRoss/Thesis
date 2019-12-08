@@ -21,7 +21,7 @@ __status__ = "Thesis"
 
 # Class definitions
 class SearchState:
-    def __init__(self, carPos, eventPos, eventTimes, eventStatus, heuristicVal, costVal, parent,hWeight):
+    def __init__(self, carPos, eventPos, eventTimes, eventStatus, heuristicVal, costVal, parent, hWeight):
         self.carPos = carPos
         self.hWeight = hWeight
         self.eventPos = eventPos
