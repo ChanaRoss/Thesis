@@ -76,7 +76,7 @@ class SearchState:
         eveSttVec  = self.eventsCanceled.astype(np.int32)
         eveAnStVec = self.eventsAnswered.astype(np.int32)
         stateTime  = np.reshape(np.array(self.time), 1)
-        hv = np.hstack([carPosVec , evePosVec , eveSttVec ,eveAnStVec , stateTime])
+        hv = np.hstack([carPosVec, evePosVec, eveSttVec,eveAnStVec, stateTime])
         return hash(tuple(hv))
 
     def goalCheck(self):
@@ -184,7 +184,7 @@ def heuristic(distanceMatrix, newEventTimes,newEventClosedTimes, possibleNewEven
     # calc minimum ditances and costs
     minDists = np.min(distanceMatrix, axis=1)
     possibleEventCosts = minDists-np.tile(newEventTimes, reps=(minDists.shape[0],1))
-    possibleNewEventsOpened = np.logical_and(np.logical_not(possibleNewEventsAnswered),np.logical_not(possibleNewEventsCanceled))
+    possibleNewEventsOpened = np.logical_and(np.logical_not(possibleNewEventsAnswered), np.logical_not(possibleNewEventsCanceled))
     isReachable =  (minDists - np.tile(newEventClosedTimes, reps=(minDists.shape[0],1)))<0
     possibleNewEventsReachable = np.logical_and(isReachable,possibleNewEventsOpened)
     possibleNewEventsNotReachable = np.logical_and(np.logical_not(isReachable),possibleNewEventsOpened)
@@ -192,7 +192,7 @@ def heuristic(distanceMatrix, newEventTimes,newEventClosedTimes, possibleNewEven
     filteredPossibleEventCosts = np.multiply(possibleEventCosts, possibleNewEventsReachable.astype(np.int32))
     filteredMinDist = np.multiply(minDists, possibleNewEventsReachable)
     notReachablePenalty = eventPenalty*np.sum(possibleNewEventsNotReachable, axis =1)
-    RechableReward      = eventReward*np.sum(possibleNewEventsReachable , axis = 1)
+    RechableReward      = eventReward*np.sum(possibleNewEventsReachable, axis = 1)
     # final event costs
     eventsCosts = np.maximum(filteredPossibleEventCosts, np.zeros_like(filteredPossibleEventCosts))
     finalCosts = np.sum((eventsCosts + filteredMinDist).astype(np.int32), axis=1) - RechableReward + notReachablePenalty
@@ -311,7 +311,7 @@ def main():
     maxTime = 15
     hWeight = 1
     eventTimeWindow = 5
-    fromPickle = 1
+    fromPickle = 0
     eventReward = 10
     eventPenalty = 100
 

@@ -75,10 +75,13 @@ def plotSpesificTime(data_net, data_labels, data_real, t, pathName, fileName, da
     f, axes = plt.subplots(1, 2)
     ticksDict = list(range(maxTick+1))
 
-    sns.heatmap(dataFixed,     cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[0], cmap='CMRmap_r', cbar_kws=dict(ticks=ticksDict))
-    sns.heatmap(dataFixedPred, cbar=True, center=1, square=True, vmin=0, vmax=np.max(ticksDict),  ax=axes[1], cmap='CMRmap_r', cbar_kws=dict(ticks=ticksDict))
-    axes[0].set_title('week- {0}, day- {1},time- {2}:{3}'.format(week, day, hour, minute) + ' , ' + dataType + ' data')
-    axes[1].set_title('time- {0}:{1}'.format(hour, minute) + ' , net predicted data')
+    sns.heatmap(dataFixed,     cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[0],
+                cmap='BuPu', cbar_kws=dict(ticks=ticksDict))
+    sns.heatmap(dataFixedPred, cbar=True, center=1, square=True, vmin=0, vmax=np.max(ticksDict),  ax=axes[1],
+                cmap='BuPu', cbar_kws=dict(ticks=ticksDict))
+    f.suptitle('week- {0}, day- {1},time- {2}:{3}'.format(week, day, hour, minute))
+    axes[0].set_title(dataType + 'real data')
+    axes[1].set_title('net predicted data')
     # plt.title('time is -  {0}:{1}'.format(hour, minute))
     axes[0].set_xlabel('X axis')
     axes[0].set_ylabel('Y axis')
@@ -118,12 +121,14 @@ def plotSpesificTime_allData(data_net, data_net_smooth, data_smooth, data_real, 
     dataFixedPredSmooth = np.flipud(dataFixedPredSmooth)
 
     f, axes = plt.subplots(1, 4)
-    ticksDict = list(range(maxTick+1))
+    # ticksDict = list(range(maxTick+1))
+    ticksDict = list(range(10 + 1))
 
-    sns.heatmap(dataFixedPred, cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[0],cmap='CMRmap_r')
-    sns.heatmap(dataFixed,     cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[1], cmap='CMRmap_r')
-    sns.heatmap(dataFixedSmooth, cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict),  ax=axes[2], cmap='CMRmap_r')
-    sns.heatmap(dataFixedPredSmooth, cbar=True, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[3],cmap='CMRmap_r', cbar_kws=dict(ticks=ticksDict))
+    sns.heatmap(dataFixedPred, cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[0],cmap='BuPu')
+    sns.heatmap(dataFixed,     cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[1], cmap='BuPu')
+    sns.heatmap(dataFixedSmooth, cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict),  ax=axes[2], cmap='BuPu')
+    sns.heatmap(dataFixedPredSmooth, cbar=True, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[3],
+                cmap='BuPu', cbar_kws=dict(ticks=ticksDict))
 
     f.suptitle('week- {0}, day- {1},time- {2}:{3}'.format(week, day, hour, minute), fontsize=16)
     axes[0].set_title('net-real data')
@@ -466,8 +471,8 @@ def main():
     # network_names   = ['smooth_40_seq_5_bs_40_hs_128_lr_0.05_ot_1_wd_0.002_torch.pkl']
     # network_names   = [f for f in os.listdir(network_path) if (f.endswith('.pkl'))]
 
-    plot_graph_vs_time = True
-    plot_time_gif      = False
+    plot_graph_vs_time = False
+    plot_time_gif      = True
     plot_loss_accuracy = False
 
     # create dictionary for storing result for each network tested
@@ -496,7 +501,7 @@ def main():
     zmax = dataInputReal.shape[2]
     dataInputReal = dataInputReal[xmin:xmax, ymin:ymax, zmin:zmax]  # shrink matrix size for fast training in order to test model
     dataInputReal_orig = dataInputReal
-    dataInputReal = dataInputReal[5:6, 10:11, :]
+    # dataInputReal = dataInputReal[5:6, 10:11, :]
     # reshape input data for network format -
     lengthT = dataInputReal.shape[2]
     lengthX = dataInputReal.shape[0]
@@ -505,7 +510,7 @@ def main():
     dataInputReal = np.swapaxes(dataInputReal, 0, 2)
     # create results index's -
     tmin = 336
-    tmax = 336+48*7
+    tmax = 336+48
     timeIndexs = np.arange(tmin, tmax, 1).astype(int)
     xIndexs    = np.arange(xmin, xmax, 1).astype(int)
     yIndexs    = np.arange(ymin, ymax, 1).astype(int)

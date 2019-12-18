@@ -3,7 +3,7 @@ from matplotlib import  pyplot as plt
 from sklearn import metrics
 from math import sqrt
 import seaborn as sns
-sns.set(rc={'figure.figsize':(14, 9)})
+sns.set(rc={'figure.figsize':(4, 4)})
 
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
@@ -75,7 +75,7 @@ def getBenchmarkAccuracy(start_time, seq_len, realMat, probMat):
 
 def plotSpesificTime(dataReal, dataPred, t, fileName):
     day         = np.floor_divide(t, 2 * 24) + 1  # sunday is 1
-    week        = np.floor_divide(t, 2 * 24 * 7) + 14 # first week is week 14 of the year
+    week        = np.floor_divide(t, 2 * 24 * 7) + 14  # first week is week 14 of the year
     hour, temp  = np.divmod(t, 2)
     hour        += 8  # data starts from 98 but was normalized to 0
     _, hour        = np.divmod(hour, 24)
@@ -90,18 +90,22 @@ def plotSpesificTime(dataReal, dataPred, t, fileName):
     dataFixedPred = np.flipud(dataFixedPred)
 
     f, axes = plt.subplots(1, 2)
-    ticksDict = list(range(21))
+    ticksDict = list(range(11))
+    # CMRmap_r
 
-    sns.heatmap(dataFixed, cbar = False, center = 1, square=True, vmin = 0, vmax = 20, ax=axes[0], cmap = 'CMRmap_r', cbar_kws=dict(ticks=ticksDict))
-    sns.heatmap(dataFixedPred, cbar=True, center=1, square=True, vmin=0, vmax=20, ax=axes[1], cmap='CMRmap_r',cbar_kws=dict(ticks=ticksDict))
-    axes[0].set_title('week- {0}, day- {1},time- {2}:{3}'.format(week,day,hour, minute) + ' , Real data')
+    sns.heatmap(dataFixed, cbar=False, center=1, square=True, vmin=0, vmax=10, ax=axes[0],
+                cmap='BuPu', cbar_kws=dict(ticks=ticksDict))
+    sns.heatmap(dataFixedPred, cbar=True, center=1, square=True, vmin=0, vmax=10, ax=axes[1],
+                cmap='BuPu', cbar_kws=dict(ticks=ticksDict))
+    f.suptitle('week- {0}, day- {1},time- {2}:{3}'.format(week, day, hour, minute), fontsize=15)
+    axes[0].set_title('Real data')
     axes[1].set_title('Predicted data')
     # plt.title('time is -  {0}:{1}'.format(hour, minute))
     axes[0].set_xlabel('X axis')
     axes[0].set_ylabel('Y axis')
     axes[1].set_xlabel('X axis')
     axes[1].set_ylabel('Y axis')
-    plt.savefig(fileName + '_' + str(t) +'.png')
+    plt.savefig(fileName + '_' + str(t) + '.png')
     plt.close()
     return
 
@@ -190,7 +194,10 @@ def main():
     correct_non_zeros = []
 
     timeOut = []
-    timeIndexs = np.arange(1100, 1150, 1).astype(int)
+    timeIndexs = np.arange(48*7, 48*7+50, 1).astype(int)
+
+    plot_figures = False
+
     numRuns = timeIndexs.size
     print(timeIndexs)
     fileNameOut = 'presentation_500grid_30min_20Multi_benchmark_results_' + str(numRuns)
@@ -231,33 +238,33 @@ def main():
 
     # listNames = ['ConfMat_'+fileNameOut + '_' + str(t) + '.png' for t in timeOut]
     # create_gif(figPath, listNames, 1, 'ContMat_' + fileNameOut)
-
-    plt.scatter(range(len(accuracy)), 100*np.array(accuracy))
-    plt.xlabel('run number [#]')
-    plt.ylabel('accuracy [%]')
-    plt.figure()
-    plt.scatter(range(len(rmse)), np.array(rmse))
-    plt.xlabel('run number [#]')
-    plt.ylabel('RMSE')
-    plt.figure()
-    plt.scatter(range(len(numEventsCreated)), np.array(numEventsCreated), label="num real events")
-    plt.scatter(range(len(numEventsPredicted)), np.array(numEventsPredicted), label="num predicted")
-    plt.xlabel('run number [#]')
-    plt.ylabel('num events created')
-    plt.legend()
-    plt.figure()
-    plt.scatter(range(len(numEventsCreated)), np.abs(np.array(numEventsCreated) - np.array(numEventsPredicted)), label="difference between prediction and real")
-    plt.xlabel('run number [#]')
-    plt.ylabel('abs. (real - pred)')
-    plt.legend()
-    plt.figure()
-    plt.scatter(range(len(correct_zeros)), 100*np.array(correct_zeros))
-    plt.xlabel('run number [#]')
-    plt.ylabel('correct_zeros')
-    plt.figure()
-    plt.scatter(range(len(correct_non_zeros)), 100 * np.array(correct_non_zeros))
-    plt.xlabel('run number [#]')
-    plt.ylabel('correct non zeros')
+    if plot_figures:
+        plt.scatter(range(len(accuracy)), 100*np.array(accuracy))
+        plt.xlabel('run number [#]')
+        plt.ylabel('accuracy [%]')
+        plt.figure()
+        plt.scatter(range(len(rmse)), np.array(rmse))
+        plt.xlabel('run number [#]')
+        plt.ylabel('RMSE')
+        plt.figure()
+        plt.scatter(range(len(numEventsCreated)), np.array(numEventsCreated), label="num real events")
+        plt.scatter(range(len(numEventsPredicted)), np.array(numEventsPredicted), label="num predicted")
+        plt.xlabel('run number [#]')
+        plt.ylabel('num events created')
+        plt.legend()
+        plt.figure()
+        plt.scatter(range(len(numEventsCreated)), np.abs(np.array(numEventsCreated) - np.array(numEventsPredicted)), label="difference between prediction and real")
+        plt.xlabel('run number [#]')
+        plt.ylabel('abs. (real - pred)')
+        plt.legend()
+        plt.figure()
+        plt.scatter(range(len(correct_zeros)), 100*np.array(correct_zeros))
+        plt.xlabel('run number [#]')
+        plt.ylabel('correct_zeros')
+        plt.figure()
+        plt.scatter(range(len(correct_non_zeros)), 100 * np.array(correct_non_zeros))
+        plt.xlabel('run number [#]')
+        plt.ylabel('correct non zeros')
 
     print("average RMSE for "+str(numRuns)+" runs is:"+str(np.mean(np.array(rmse))))
     print("average accuracy for "+str(numRuns)+" runs is:"+str(100*np.mean(np.array(accuracy))))

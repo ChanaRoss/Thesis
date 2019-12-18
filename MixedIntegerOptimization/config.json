@@ -1,0 +1,16 @@
+{
+  "close_reward": 50,
+  "cancel_penalty": 100,
+  "opened_penalty": 5,
+  "sim_seed": 100,
+  "grid_size": 40,
+  "n_cars": 10,
+  "t_start": 0,
+  "delta_open_time": 5,
+  "length_sim": 25,
+  "lam": 1.5,
+  "plot_figures": false,
+  "print_logs": false,
+  "file_loc": "/Users/chanaross/dev/Thesis/MixedIntegerOptimization/",
+  "file_name": "optimizationResults_small"
+}

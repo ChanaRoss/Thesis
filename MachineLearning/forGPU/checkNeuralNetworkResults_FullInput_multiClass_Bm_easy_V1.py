@@ -72,13 +72,16 @@ def plotSpesificTime(data_net, data_labels, data_real, t, pathName, fileName, da
     dataFixedPred = np.swapaxes(dataPred, 1, 0)
     dataFixedPred = np.flipud(dataFixedPred)
 
-    f, axes = plt.subplots(1, 2)
+    f, axes = plt.subplots(1, 4)
     ticksDict = list(range(maxTick+1))
 
-    sns.heatmap(dataFixed,     cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[0], cmap='CMRmap_r', cbar_kws=dict(ticks=ticksDict))
-    sns.heatmap(dataFixedPred, cbar=True, center=1, square=True, vmin=0, vmax=np.max(ticksDict),  ax=axes[1], cmap='CMRmap_r', cbar_kws=dict(ticks=ticksDict))
-    axes[0].set_title('week- {0}, day- {1},time- {2}:{3}'.format(week, day, hour, minute) + ' , ' + dataType + ' data')
-    axes[1].set_title('time- {0}:{1}'.format(hour, minute) + ' , net predicted data')
+    sns.heatmap(dataFixed,     cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[1],
+                cmap='BuPu', cbar_kws=dict(ticks=ticksDict))
+    sns.heatmap(dataFixedPred, cbar=True, center=1, square=True, vmin=0, vmax=np.max(ticksDict),  ax=axes[2],
+                cmap='BuPu', cbar_kws=dict(ticks=ticksDict))
+    f.set_suptitle('week- {0}, day- {1},time- {2}:{3}'.format(week, day, hour, minute))
+    axes[0].set_title(dataType + 'real data')
+    axes[1].set_title('predicted data')
     # plt.title('time is -  {0}:{1}'.format(hour, minute))
     axes[0].set_xlabel('X axis')
     axes[0].set_ylabel('Y axis')
@@ -108,11 +111,11 @@ def plotSpesificTime_allData(data_net, data_real, t, pathName, fileName, dataTyp
     dataFixedPred = np.flipud(dataFixedPred)
 
 
-    f, axes = plt.subplots(1, 2)
+    f, axes = plt.subplots(1, 4)
     ticksDict = list(range(maxTick+1))
     cbar_ax = f.add_axes([.91, .3, .03, .4])
-    sns.heatmap(dataFixedPred, cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[0], cmap='CMRmap_r', cbar_kws=dict(ticks=ticksDict))
-    sns.heatmap(dataFixed,     cbar=True, cbar_ax=cbar_ax, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[1], cmap='CMRmap_r', cbar_kws=dict(ticks=ticksDict))
+    sns.heatmap(dataFixedPred, cbar=False, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[1], cmap='CMRmap_r', cbar_kws=dict(ticks=ticksDict))
+    sns.heatmap(dataFixed,     cbar=True, cbar_ax=cbar_ax, center=1, square=True, vmin=0, vmax=np.max(ticksDict), ax=axes[2], cmap='CMRmap_r', cbar_kws=dict(ticks=ticksDict))
     f.suptitle('week- {0}, day- {1},time- {2}:{3}'.format(week, day, hour, minute), fontsize=16)
     axes[0].set_title('net-real data')
     axes[1].set_title('real data')
@@ -128,6 +131,8 @@ def createTimeGif(net_data, labels_data, real_data, timeIndexs, fileName, pathNa
     lengthX = net_data.shape[1]
     lengthY = net_data.shape[2]
     maxTick = np.max(real_data).astype(int)
+    maxTick = 10
+
     for i, t in enumerate(timeIndexs):
         temp_net = net_data[i, :, :].reshape([1, lengthX, lengthY])
         temp_real = real_data[i, :, :].reshape([1, lengthX, lengthY])

@@ -49,15 +49,31 @@ def plot_vehicle_routes(data, route, ax1, markersize=5):
 
 
 if __name__ == "__main__":
-    problem_loc = '/Users/chanaross/dev/Thesis/RL/outputs/mtsp_10/'
+    problem_loc = '/Users/chanaross/dev/Thesis/RL/outputs/mtsp_20/'
     model_loc = []
-    model_loc.append('mtsp10_rollout_20191208T000410/epoch-16.pt')
-    model_loc.append('mtsp10_rollout_20191208T000410/epoch-9.pt')
+    # model_loc.append('mtsp10_rollout_20191208T000410/epoch-16.pt')
+    # model_loc.append('mtsp10_rollout_20191208T000410/epoch-9.pt')
+    # model_loc.append('mtsp10_rollout_20191206T153448/epoch-34.pt')
 
-    model_loc.append('mtsp10_rollout_20191206T153448/epoch-34.pt')
+
+    # model_loc.append('mtsp10_rollout_20191208T210659/epoch-9.pt')
+    # model_loc.append('mtsp10_rollout_20191208T210659/epoch-65.pt')
+    # model_loc.append('mtsp10_rollout_20191208T210659/epoch-157.pt')
+    # model_loc.append('mtsp10_rollout_20191208T210659/epoch-183.pt')
+
+    # model_loc.append('mtsp10_rollout_20191210T203544/epoch-10.pt')
+    # model_loc.append('mtsp10_rollout_20191210T203544/epoch-113.pt')
+    # model_loc.append('mtsp10_rollout_20191210T203544/epoch-140.pt')
+
+    model_loc.append('/mtsp20_rollout_20191217T001444/epoch-9.pt')
+    model_loc.append('/mtsp20_rollout_20191217T001444/epoch-26.pt')
+
+
     # torch.manual_seed(1224)
     torch.manual_seed(404)
-    n_samples = 8
+    n_samples = 6
+    length_out = np.zeros([len(model_loc), n_samples])
+    flag_plot_results = True
     fig2, ax2 = plt.subplots(1, 1)
     cmap2 = discrete_cmap(len(model_loc))
     for i_m in range(len(model_loc)):
@@ -74,19 +90,22 @@ if __name__ == "__main__":
         model.set_decode_type('greedy')
         with torch.no_grad():
             length, log_p, pi = model(batch, return_pi=True)
+            length_out[i_m, :] = length.detach().numpy()
             print(model_loc[i_m]+":")
             print(length)
+            print("average length is:" + str(length.mean()))
         tours = pi.permute(1, 0, 2)  # new order is [batch_size, n_cars, tour_length]
-        fig, ax = plt.subplots(n_samples, 1)
-        # Plot the results
-        for i, (data, tour) in enumerate(zip(dataset, tours)):
-            plot_vehicle_routes(data, tour, ax[i])
-            ax[i].grid()
-        fig.suptitle(fig_title, fontsize=16)
+        if flag_plot_results:
+            fig, ax = plt.subplots(n_samples, 1)
+            # Plot the results
+            for i, (data, tour) in enumerate(zip(dataset, tours)):
+                plot_vehicle_routes(data, tour, ax[i])
+                ax[i].grid()
+            fig.suptitle(fig_title, fontsize=16)
 
         ax2.plot(range(n_samples), length.detach().numpy(), label='cost -'+model_loc[i_m], marker='*', color=cmap2(i_m))
         plt.legend()
-        ax2.grid()
+    ax2.grid()
     fig2.legend()
     plt.show()
 

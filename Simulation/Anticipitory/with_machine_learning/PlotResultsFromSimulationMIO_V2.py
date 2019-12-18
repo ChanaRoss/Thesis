@@ -60,6 +60,7 @@ pickleNames.append('SimAnticipatoryMio_RandomChoice_7lpred_1000startTime_10gridX
 # pickleNames.append('SimAnticipatoryMio_RandomChoice_limitedNN0p9_7lpred_1000startTime_10gridX_15gridY_55numEvents_40nStochastic_3numCars_NN_MaxFlow')
 pickleNames.append('SimAnticipatoryMio_RandomChoice_limitedNN0p8_7lpred_1000startTime_10gridX_15gridY_55numEvents_40nStochastic_3numCars_NN_MaxFlow')
 pickleNames.append('SimGreedy_7lpred_1000startTime_10gridX_15gridY_55numEvents_10nStochastic_3numCars_Bm_easy_MaxFlow')
+
 # # 72 timesteps -
 # pickleNames.append('SimOptimization_TimeWindow_7lpred_1000startTime_10gridX_15gridY_67numEvents_5nStochastic_3numCars_NN_MaxFlow')
 # pickleNames.append('SimOptimization_MaxFlow_7lpred_1000startTime_10gridX_15gridY_67numEvents_5nStochastic_3numCars_NN_MaxFlow')
@@ -102,11 +103,12 @@ pickleNames.append('SimGreedy_7lpred_1000startTime_10gridX_15gridY_55numEvents_1
 
 
 # 10 cars
-# pickleNames.append('SimAnticipatoryMio_RandomChoice_5lpred_4delOpen_48startTime_10gridX_25gridY_84numEvents_20nStochastic_10numCars_Bm_MaxFlow')
-# pickleNames.append('SimGreedy_5lpred_4delOpen_48startTime_10gridX_25gridY_84numEvents_20nStochastic_10numCars_Bm_MaxFlow')
-#
 # pickleNames.append('SimOptimization_TimeWindow_5lpred_4delOpen_48startTime_10gridX_25gridY_84numEvents_20nStochastic_10numCars_Bm_MaxFlow')
 # pickleNames.append('SimOptimization_MaxFlow_5lpred_4delOpen_48startTime_10gridX_25gridY_84numEvents_20nStochastic_10numCars_Bm_MaxFlow')
+# #
+# pickleNames.append('SimAnticipatoryMio_RandomChoice_5lpred_4delOpen_48startTime_10gridX_25gridY_84numEvents_20nStochastic_10numCars_Bm_MaxFlow')
+# pickleNames.append('SimGreedy_5lpred_4delOpen_48startTime_10gridX_25gridY_84numEvents_20nStochastic_10numCars_Bm_MaxFlow')
+
 
 def filterEvents(eventDict, currentTime,lg):
     filterdEventDict = {}
@@ -188,41 +190,53 @@ def plotCarsHeatmap(gridSize,lg,simTime,pickleName):
             sns.heatmap(heatMat)
             plt.title('Heat map of car location - greedy')
 
-def plotBasicStatisticsOfEvents(gridSize,lg,pickleName,simTime):
+def plotBasicStatisticsOfEvents(gridSize,lg,pickleName,simTime, fig, ax):
     plotAllEvents = False
     if 'Hungarian' in pickleName or 'Greedy' in pickleName:
-        labelStr = 'Greey Algorithm'
+        labelStr = 'Greedy Algorithm'
         lineStyle = '--'
+        m_str="o"
     elif 'SimAnticipatory' in pickleName and 'Bm_easy' in pickleName:
-        labelStr = 'Anticipatory Algorithm based on Benchmark - seq'
+        # labelStr = 'Anticipatory Algorithm based on Benchmark - seq'
+        labelStr = 'Anticipatory Algorithm - Prior Knowledge'
         lineStyle = '-'
         plotAllEvents = True
+        m_str="s"
     elif 'SimAnticipatory' in pickleName and 'NN' in pickleName:
-        labelStr = 'Anticipatory Algorithm based on NN'
+        # labelStr = 'Anticipatory Algorithm based on NN'
+        labelStr = 'Anticipatory Algorithm - NN'
         lineStyle = '-'
         plotAllEvents = True
+        m_str="s"
     elif 'SimAnticipatory' in pickleName and 'Bm' in pickleName:
-        labelStr = 'Anticipatory Algorithm based on Benchmark'
+        # labelStr = 'Anticipatory Algorithm based on Benchmark'
+        labelStr = 'Anticipatory Algorithm - Prior Knowledge'
         lineStyle = '-'
         plotAllEvents = True
+        m_str="s"
     elif 'Optimization' in pickleName and 'TimeWindow' in pickleName:
-        labelStr = 'determinsitc MIO results with time window'
+        # labelStr = 'determinsitc MIO results with time window'
+        labelStr = 'MIO - with time window'
         lineStyle = ':'
+        m_str ="d"
     elif 'Optimization' in pickleName and 'MaxFlow' in pickleName:
-        labelStr = 'determinsitc MIO results - max flow'
+        # labelStr = 'determinsitc MIO results - max flow'
+        labelStr = 'MIO - max flow'
         lineStyle = ':'
+        m_str='d'
     if 'SimAnticipatory' in pickleName or 'Greedy' in pickleName or 'Optimization' in pickleName:
-        plt.figure(2)
         if plotAllEvents:
-            plt.scatter(lg['time'], lg['allEvents'], c='r', label='Num Created events')
+            ax.plot(lg['time'], lg['allEvents'], c='k', marker='*', markersize=8, linewidth=1.5, label='Num Total Events')
             plotAllEvents = False
-        plt.plot(lg['time'], lg['closedEvents'], linestyle=lineStyle,linewidth = 2, marker ='o', label='Num Closed for :' + labelStr)
+        ax.plot(lg['time'], lg['closedEvents'], linestyle=lineStyle, linewidth=1.5, marker=m_str, label=labelStr)
         # plt.plot(lg['time'], lg['canceledEvents'], c='y', linestyle=lineStyle, label='canceled')
-        plt.legend()
-        plt.grid(True)
-        plt.xlabel('time')
-        plt.ylabel('num events')
-        plt.title('number of events over time')
+        ax.legend(loc='upper left', fontsize="medium")
+        ax.grid(True)
+        ax.set_xlabel('time', fontsize=20)
+        ax.set_ylabel('num events', fontsize=20)
+        ax.set_title('number of events over time', fontsize=20)
+        ax.tick_params(axis="x", labelsize=20)
+        ax.tick_params(axis="y", labelsize=20)
 
         # current over time
         plt.figure(3)
@@ -296,7 +310,7 @@ def plotBasicStatisticsOfEvents(gridSize,lg,pickleName,simTime):
         plt.ylim([-3, gridSize + 3])
 
 
-def plotCurrentTimeAnticipatory(s, ne,nc, gs,fileName):
+def plotCurrentTimeAnticipatory(s, ne, nc, gs,fileName):
     """
         plot cars as red points, events as blue points,
         and lines connecting cars to their targets
@@ -308,9 +322,10 @@ def plotCurrentTimeAnticipatory(s, ne,nc, gs,fileName):
     ax.set_title('time: {0}'.format(s.time))
     for c in range(nc):
         carTemp = s.cars.getObject(c)
-        ax.scatter(carTemp.position[0], carTemp.position[1], c='k', alpha=0.8)
-    ax.scatter([], [], c='b', marker='*', label='Opened not commited')
-    ax.scatter([], [], c='b', label='Opened commited')
+        ax.scatter(carTemp.position[0], carTemp.position[1], c='k', alpha=1, marker='s')
+    ax.scatter([], [], c='y', label='Future Requests')
+    ax.scatter([], [], c='b', label='Opened')
+    # ax.scatter([], [], c='b', label='Opened commited')
     ax.scatter([], [], c='r', label='Canceled')
     ax.scatter([], [], c='g', label='Closed')
     for i in range(ne):
@@ -318,13 +333,13 @@ def plotCurrentTimeAnticipatory(s, ne,nc, gs,fileName):
         if eventTemp.status == Status.OPENED_COMMITED:
             ax.scatter(eventTemp.position[0], eventTemp.position[1], c='b', alpha=0.8)
         elif eventTemp.status == Status.OPENED_NOT_COMMITED:
-            ax.scatter(eventTemp.position[0], eventTemp.position[1], c='b', marker='*', alpha=0.8)
+            ax.scatter(eventTemp.position[0], eventTemp.position[1], c='b', alpha=1)
         elif (eventTemp.status == Status.CLOSED):
-            ax.scatter(eventTemp.position[0], eventTemp.position[1], c='g', alpha=0.4)
+            ax.scatter(eventTemp.position[0], eventTemp.position[1], c='g', alpha=0.6)
         elif (eventTemp.status == Status.CANCELED):
-            ax.scatter(eventTemp.position[0], eventTemp.position[1], c='r', alpha=0.4)
+            ax.scatter(eventTemp.position[0], eventTemp.position[1], c='r', alpha=0.6)
         else:
-            ax.scatter(eventTemp.position[0], eventTemp.position[1], c='y', alpha=0.4)
+            ax.scatter(eventTemp.position[0], eventTemp.position[1], c='y', alpha=0.7, marker='+')
     ax.set_xlim([-1, gs[0] + 1])
     ax.set_ylim([-1, gs[1] + 1])
     ax.grid(True)
@@ -361,6 +376,8 @@ def main():
 
     FlagCreateGif = 0
     fileLoc = '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/with_machine_learning/NumCars/Results/'
+    # fileLoc = '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/with_machine_learning/Results_presentation/'
+    fig, ax = plt.subplots(1, 1)
     for pickleName in pickleNames:
         lg  = pickle.load(open(fileLoc + pickleName + '.p', 'rb'))
         simTime = 20
@@ -401,7 +418,7 @@ def main():
                     plotCurrentTimeAnticipatory(lg['pathresults'][t], len(eventsPos), len(carsPos), gridSize, fileLoc + '/' + pickleName + '/' + pickleName)
                 listNames = [pickleName+'_'+str(t)+'.png' for t in time]
                 create_gif(fileLoc+pickleName+'/', listNames, 1, pickleName)
-            plotBasicStatisticsOfEvents(gridSize, lg, pickleName, simTime)
+            plotBasicStatisticsOfEvents(gridSize, lg, pickleName, simTime, fig, ax)
             # plotCarsHeatmap(gridSize, lg, simTime, pickleName)
             print('number of closed events:' + str(closedEvents[-1]))
             cost           = lg['cost']
@@ -414,7 +431,7 @@ def main():
             cost            = lg['cost']
             print('number of closed events:' + str(closedEvents[-1]))
             print('total cost is :'+str(cost))
-            plotBasicStatisticsOfEvents(gridSize, lg, pickleName, simTime)
+            plotBasicStatisticsOfEvents(gridSize, lg, pickleName, simTime, fig, ax)
 
     plt.show()
 
