@@ -66,12 +66,15 @@ if __name__ == "__main__":
     # model_loc.append('mtsp10_rollout_20191210T203544/epoch-140.pt')
 
     model_loc.append('/mtsp20_rollout_20191217T001444/epoch-9.pt')
-    model_loc.append('/mtsp20_rollout_20191217T001444/epoch-26.pt')
+    # model_loc.append('/mtsp20_rollout_20191217T001444/epoch-26.pt')
+    # model_loc.append('/mtsp20_rollout_20191217T001444/epoch-32.pt')
+    # model_loc.append('/mtsp20_rollout_20191217T001444/epoch-68.pt')
+    model_loc.append('/mtsp20_rollout_20191217T001444/epoch-150.pt')
 
 
     # torch.manual_seed(1224)
-    torch.manual_seed(404)
-    n_samples = 6
+    torch.manual_seed(40)
+    n_samples = 4
     length_out = np.zeros([len(model_loc), n_samples])
     flag_plot_results = True
     fig2, ax2 = plt.subplots(1, 1)

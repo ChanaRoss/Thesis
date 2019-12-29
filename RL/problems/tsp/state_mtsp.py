@@ -31,7 +31,7 @@ class StateMTSP(NamedTuple):
         else:
             return mask_long2bool(self.visited_, n=self.loc.size(-2))
 
-    def __getitem__(self, key):  # TODO make sure this works for multiple cars, now that the dimension in some is different then expected
+    def __getitem__(self, key):
         if torch.is_tensor(key) or isinstance(key, slice):  # If tensor, idx all tensors by this tensor:
             return self._replace(
                 ids=self.ids[key],
@@ -133,7 +133,7 @@ class StateMTSP(NamedTuple):
         selections_per_car = None
         return selections_per_car
 
-        # def get_nn(self, k=None):   # TODO update for multiple cars
+        # def get_nn(self, k=None):
     #     # Insert step dimension
     #     # Nodes already visited get inf so they do not make it
     #     if k is None:

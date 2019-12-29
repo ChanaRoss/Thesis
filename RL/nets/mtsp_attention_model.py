@@ -356,8 +356,7 @@ class MultiAttentionModel(nn.Module):
         )
         return AttentionModelFixed(embeddings, fixed_context, *fixed_attention_node_data)
 
-
-    def _make_heads(self, v, num_steps=None):    # TODO add to decoder
+    def _make_heads(self, v, num_steps=None):
         assert num_steps is None or v.size(1) == 1 or v.size(1) == num_steps
 
         return (

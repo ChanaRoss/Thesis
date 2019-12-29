@@ -367,7 +367,7 @@ class AttentionModel(nn.Module):
 
         return log_p, mask
 
-    def _get_parallel_step_context(self, embeddings, state, from_depot=False):     # TODO add to decoder
+    def _get_parallel_step_context(self, embeddings, state, from_depot=False):
         """
         Returns the context per step, optionally for multiple steps at once (for efficient evaluation of the model)
         
@@ -451,7 +451,7 @@ class AttentionModel(nn.Module):
                 ), 2)
             ), 1)
 
-    def _one_to_many_logits(self, query, glimpse_K, glimpse_V, logit_K, mask):    # TODO add to decoder
+    def _one_to_many_logits(self, query, glimpse_K, glimpse_V, logit_K, mask):
 
         batch_size, num_steps, embed_dim = query.size()
         key_size = val_size = embed_dim // self.n_heads
@@ -487,7 +487,7 @@ class AttentionModel(nn.Module):
 
         return logits, glimpse.squeeze(-2)
 
-    def _get_attention_node_data(self, fixed, state):    # TODO add to decoder
+    def _get_attention_node_data(self, fixed, state):
 
         if self.is_vrp and self.allow_partial:
 
@@ -506,7 +506,7 @@ class AttentionModel(nn.Module):
         # TSP or VRP without split delivery
         return fixed.glimpse_key, fixed.glimpse_val, fixed.logit_key
 
-    def _make_heads(self, v, num_steps=None):    # TODO add to decoder
+    def _make_heads(self, v, num_steps=None):
         assert num_steps is None or v.size(1) == 1 or v.size(1) == num_steps
 
         return (

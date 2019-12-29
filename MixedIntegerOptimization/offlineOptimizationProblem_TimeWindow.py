@@ -328,16 +328,16 @@ def main():
     openedPenalty = 5
     sim_seed      = 1
     np.random.seed(sim_seed)
-    gridSize            = [30, 30]
-    nCars               = 10
+    gridSize            = [4, 4]
+    nCars               = 2
     tStart              = 0
     deltaOpenTime       = 5
-    lengthSim           = 24
-    lam                 = 2  # 2/3
+    lengthSim           = 15
+    lam                 = 0.7  # 2/3
 
     plotFigures = True
     fileLoc = '/Users/chanaross/dev/Thesis/MixedIntegerOptimization/'
-    fileName = 'optimizationResults_test'
+    fileName = 'optimizationResults_small'
 
     carPos = np.reshape(np.random.randint(0, gridSize[0], 2 * nCars), (nCars, 2))
 

@@ -3,7 +3,7 @@ from matplotlib import  pyplot as plt
 from sklearn import metrics
 from math import sqrt
 import seaborn as sns
-sns.set(rc={'figure.figsize':(4, 4)})
+sns.set(rc={'figure.figsize': (6.4, 4.8)})
 
 from sklearn.metrics import confusion_matrix
 from sklearn.utils.multiclass import unique_labels
@@ -111,7 +111,7 @@ def plotSpesificTime(dataReal, dataPred, t, fileName):
 
 def plot_confusion_matrix(y_true, y_pred, classes,
                           t, fileLoc, fileName,
-                          normalize=False,
+                          normalize=True,
                           title=None,
                           cmap=plt.cm.Blues):
     """
@@ -132,15 +132,18 @@ def plot_confusion_matrix(y_true, y_pred, classes,
         else:
             title = 'Confusion matrix, without normalization'
 
-    # Compute confusion matrix
-    cm = confusion_matrix(y_true, y_pred, labels=classes)
+
     # Only use the labels that appear in the data
     #classes = classes[unique_labels(y_true, y_pred)]
     if normalize:
-        cm = np.round(cm.astype('float') / cm.sum(axis=1)[:, np.newaxis], 2)
-        cm = np.nan_to_num(cm)
+        # Compute confusion matrix
+        cm = confusion_matrix(y_true, y_pred, labels=classes, normalize='all')
+        # cm = np.round(cm.astype('float') / cm.sum(axis=1)[:, np.newaxis], 2)
+        # cm = np.nan_to_num(cm)
         print("Normalized confusion matrix")
     else:
+        # Compute confusion matrix
+        cm = confusion_matrix(y_true, y_pred, labels=classes, normalize=None)
         print('Confusion matrix, without normalization')
 
     num_ticks = len(classes)
@@ -148,14 +151,16 @@ def plot_confusion_matrix(y_true, y_pred, classes,
     yticks = np.linspace(0, len(classes) - 1, num_ticks, dtype=np.int)
     # the content of labels of these yticks
     yticklabels = [classes[idx].astype(int) for idx in yticks]
-    ax = sns.heatmap(cm, cmap=cmap, annot=True, yticklabels=yticklabels, xticklabels= yticklabels)
+    ax = sns.heatmap(cm.round(2), cmap=cmap, annot=True, vmin=0, vmax=0.85, yticklabels=yticklabels, xticklabels= yticklabels)
     ax.set_yticks(yticks+0.5)
     ax.set_xticks(yticks+0.5)
+    ax.set_ylim(10 - 0.1, 0.1)
     ax.set_title(title)
     ax.set_xlabel('Real Classification')
     ax.set_ylabel('Predicted Classification')
     plt.savefig(fileLoc + 'ConfMat_'+fileName + '_' + str(t) +'.png')
     plt.close()
+    # plt.show()
     return
 
 
@@ -194,7 +199,8 @@ def main():
     correct_non_zeros = []
 
     timeOut = []
-    timeIndexs = np.arange(48*7, 48*7+50, 1).astype(int)
+    # timeIndexs = np.arange(48*7, 48*7+50, 1).astype(int)
+    timeIndexs = np.arange(336, 336 + 48, 1).astype(int)
 
     plot_figures = False
 
@@ -221,8 +227,9 @@ def main():
         numEventsPredicted.append(np.sum(distMatOut))
         y_true = realMatOut.reshape(-1)
         y_pred = distMatOut.reshape(-1)
-        labels = np.unique([y_true, y_pred])
-        # plot_confusion_matrix(y_true, y_pred, classes=labels, t=start_time,fileLoc=figPath, fileName=fileNameOut, normalize=True)
+        # labels = np.unique([y_true, y_pred])
+        labels = np.arange(0, 10, 1)
+        plot_confusion_matrix(y_true, y_pred, classes=labels, t=start_time, fileLoc=figPath, fileName=fileNameOut, normalize=True)
         # realMatOut[realMatOut > 1] = 1
         # distMatOut[distMatOut > 1] = 1
         # accuracy1.append(np.sum(np.sum(realMatOut == distMatOut)/(realMatOut.shape[0]*realMatOut.shape[1])))

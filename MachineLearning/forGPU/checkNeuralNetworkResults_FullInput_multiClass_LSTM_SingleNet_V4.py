@@ -2,6 +2,7 @@
 import numpy as np
 from sklearn import metrics
 import pandas as pd
+from sklearn.metrics import confusion_matrix
 # graphical imports
 from matplotlib import pyplot as plt
 import seaborn as sns
@@ -430,6 +431,63 @@ def calc_netOutput_fromData_probability(data_in, my_net, timeIndexs):
     return net_output, label_output, results
 
 
+def plot_confusion_matrix(y_true, y_pred, classes,
+                          t, fileLoc, fileName,
+                          normalize=False,
+                          title=None,
+                          cmap=plt.cm.Blues):
+    """
+    This function prints and plots the confusion matrix.
+    Normalization can be applied by setting `normalize=True`.
+    """
+
+    day = np.floor_divide(t, 2 * 24) + 1  # sunday is 1
+    week = np.floor_divide(t, 2 * 24 * 7) + 14  # first week is week 14 of the year
+    hour, temp = np.divmod(t, 2)
+    hour += 8  # data starts from 98 but was normalized to 0
+    _, hour = np.divmod(hour, 24)
+    minute = temp * 30
+    title = 'week- {0}, day- {1},time- {2}:{3}'.format(week, day, hour, minute) + ' , Confusion matrix'
+    if not title:
+        if normalize:
+            title = 'Normalized confusion matrix'
+        else:
+            title = 'Confusion matrix, without normalization'
+
+
+    # Only use the labels that appear in the data
+    #classes = classes[unique_labels(y_true, y_pred)]
+    if normalize:
+        # Compute confusion matrix
+        cm = confusion_matrix(y_true, y_pred, labels=classes, normalize='all')
+        # cm = np.round(cm.astype('float') / cm.sum(axis=1)[:, np.newaxis], 2)
+        # cm = np.nan_to_num(cm)
+        print("Normalized confusion matrix")
+    else:
+        # Compute confusion matrix
+        cm = confusion_matrix(y_true, y_pred, labels=classes, normalize=None)
+        print('Confusion matrix, without normalization')
+
+    num_ticks = len(classes)
+    # the index of the position of yticks
+    yticks = np.linspace(0, len(classes)-1, num_ticks, dtype=np.int)
+    # the content of labels of these yticks
+    yticklabels = [classes[idx].astype(int) for idx in yticks]
+
+    ax = sns.heatmap(cm.round(2), cmap=cmap, annot=True, vmin=0, vmax=0.85, yticklabels=yticklabels, xticklabels=yticklabels)
+    ax.set_yticks(yticks+0.5)
+    ax.set_xticks(yticks+0.5)
+    ax.set_ylim(10 - 0.1, 0.1)
+    ax.set_title(title)
+    ax.set_xlabel('Real Classification')
+    ax.set_ylabel('Predicted Classification')
+    # plt.show()
+    plt.savefig(fileLoc + 'ConfMat_'+fileName + '_' + str(t) +'.png')
+    plt.close()
+    return
+
+
+
 def plotEpochGraphs(my_net, filePath, fileName):
     f, ax = plt.subplots(2,1)
     ax[0].plot(range(len(my_net.accVecTrain)), np.array(my_net.accVecTrain), label = "Train accuracy")
@@ -471,9 +529,10 @@ def main():
     # network_names   = ['smooth_40_seq_5_bs_40_hs_128_lr_0.05_ot_1_wd_0.002_torch.pkl']
     # network_names   = [f for f in os.listdir(network_path) if (f.endswith('.pkl'))]
 
-    plot_graph_vs_time = False
-    plot_time_gif      = True
-    plot_loss_accuracy = False
+    flag_plot_graph_vs_time = False
+    flag_plot_time_gif      = False
+    flag_plot_loss_accuracy = False
+    flag_plot_confusion_matrix = True
 
     # create dictionary for storing result for each network tested
     results = {'networkName'            : [],
@@ -524,7 +583,7 @@ def main():
         else:
             my_net = torch.load(network_path + network_name, map_location=lambda storage, loc: storage)
         my_net.eval()
-        if plot_loss_accuracy:
+        if flag_plot_loss_accuracy:
             plotEpochGraphs(my_net, figPath, fileName)
         try:
             smoothParam = my_net.smoothingParam
@@ -542,7 +601,7 @@ def main():
         net_output_fromSmoothData, label_output_fromSmoothData, net_resultsSmooth = calc_netOutput_fromData_probability(dataInputSmooth, my_net, timeIndexs)
 
         # plot each grid point vs. time
-        if plot_graph_vs_time:
+        if flag_plot_graph_vs_time:
             # real data-
             checkNetwork(net_output_fromData, label_output_fromData, dataInputReal[timeIndexs, :, :],
                          timeIndexs, xIndexs, yIndexs, figPath, fileName, 'Real')
@@ -563,7 +622,7 @@ def main():
         results['mean smooth nonZeros accuracy'].append(100 * np.mean(net_resultsSmooth['correctedNonZeros']))
         results['mean smooth zeros accuracy'].append(100 * np.mean(net_resultsSmooth['correctedZeros']))
 
-        if plot_time_gif:
+        if flag_plot_time_gif:
             # create gif for results -
             # all data -
             createTimeGif_allData(net_output_fromData, net_output_fromSmoothData, dataInputSmooth[timeIndexs, :, :], dataInputReal[timeIndexs, :, :], timeIndexs, fileName, figPath, 'Smooth')
@@ -572,7 +631,13 @@ def main():
             # # real data
             # createTimeGif(net_output_fromData, label_output_fromData, dataInputReal[timeIndexs, :, :], timeIndexs, fileName, figPath, 'Real')
 
-        # print all results -
+        if flag_plot_confusion_matrix:
+            classes = np.arange(0, 10, 1)
+            for i, t in enumerate(timeIndexs):
+                plot_confusion_matrix(dataInputSmooth[t, :, :].reshape(-1), net_output_fromSmoothData[i, ...].reshape(-1), classes,
+                                      t, figPath, fileName,
+                                      normalize=True, title='Confustion matrix - network', cmap=plt.cm.Blues)
+            # print all results -
         # real data -
         print("average RMSE for " + str(numRuns) + " runs is:" + str(np.mean(net_results['rmse'])))
         print("average accuracy for " + str(numRuns) + " runs is:" + str(100 * np.mean(net_results['accuracy'])))

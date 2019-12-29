@@ -142,7 +142,11 @@ def run(opts):
                     state[k] = v.to(opts.device)
 
     # Initialize learning rate scheduler, decay by lr_decay once per epoch!
-    lr_scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: opts.lr_decay ** epoch)
+    if opts.lr_scheduler == 'Reduce':
+        lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=opts.lr_decay,
+                                                            patience=4, verbose=True, min_lr=5e-5)
+    else:
+        lr_scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: opts.lr_decay ** epoch)
     # Start the actual training loop
     val_dataset = problem.make_dataset(
         size=opts.graph_size, n_cars=opts.n_cars, num_samples=opts.val_size, filename=opts.val_dataset, distribution=opts.data_distribution)

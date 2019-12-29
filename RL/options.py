@@ -14,12 +14,13 @@ def get_options(args=None):
     parser.add_argument('--n_cars', type=int, default=1, help="Number of agents in problem")
     parser.add_argument('--batch_size', type=int, default=512, help='Number of instances per batch during training')
     parser.add_argument('--epoch_size', type=int, default=1280000, help='Number of instances per epoch during training')
-    parser.add_argument('--val_size', type=int, default=100,
+    parser.add_argument('--val_size', type=int, default=10000,
                         help='Number of instances used for reporting validation performance')
     parser.add_argument('--val_dataset', type=str, default=None, help='Dataset file to use for validation')
 
     # Model
     parser.add_argument('--model', default='attention', help="Model, 'attention' (default) or 'pointer'")
+    parser.add_argument('--decode_type', default='sampling', help="set decode type from soft-max (greedy/sampling)")
     parser.add_argument('--embedding_dim', type=int, default=128, help='Dimension of input embedding')
     parser.add_argument('--hidden_dim', type=int, default=128, help='Dimension of hidden layers in Enc/Dec')
     parser.add_argument('--n_encode_layers', type=int, default=3,
@@ -32,6 +33,8 @@ def get_options(args=None):
                                                                      " this effects the masking of a spesific car")
 
     # Training
+    parser.add_argument('--lr_scheduler', type=str, default='Reduce', help='lr scheduler to use, reduce:reduce on '
+                                                                           'plato,otherwise uses decay scheduler')
     parser.add_argument('--lr_model', type=float, default=1e-4, help="Set the learning rate for the actor network")
     parser.add_argument('--lr_critic', type=float, default=1e-4, help="Set the learning rate for the critic network")
     parser.add_argument('--lr_decay', type=float, default=1.0, help='Learning rate decay per epoch')

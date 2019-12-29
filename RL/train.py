@@ -31,7 +31,7 @@ def validate(model, dataset, opts):
 
 def rollout(model, dataset, opts):
     # Put in greedy evaluation mode!
-    set_decode_type(model, "greedy")
+    set_decode_type(model, opts.decode_type)
     model.eval()
 
     def eval_model_bat(bat):
@@ -82,7 +82,7 @@ def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, pr
 
     # Put model in train mode!
     model.train()
-    set_decode_type(model, "greedy")
+    set_decode_type(model, opts.decode_type)
     avg_cost_epoch = 0
     avg_ll_epoch = 0
     avg_loss_epoch = 0
