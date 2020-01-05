@@ -42,7 +42,7 @@ class AttentionModelFixed(NamedTuple):
         return super(AttentionModelFixed, self).__getitem__(key)
 
 
-class MultiAttentionModel(nn.Module):
+class MultiAttentionModelMultipleOptions(nn.Module):
 
     def __init__(self,
                  embedding_dim,
@@ -59,7 +59,7 @@ class MultiAttentionModel(nn.Module):
                  checkpoint_encoder=False,
                  shrink_size=None,
                  allow_repeated_choices=False):
-        super(MultiAttentionModel, self).__init__()
+        super(MultiAttentionModelMultipleOptions, self).__init__()
 
         self.allow_repeated_choices = allow_repeated_choices
 
@@ -82,7 +82,10 @@ class MultiAttentionModel(nn.Module):
         self.problem = problem
         self.n_heads = n_heads
         self.n_cars = n_cars
-        self.n_nodes = n_nodes  # number of nodes in problem
+        # number of nodes in problem
+        self.n_nodes = n_nodes
+        # number of output options from model , assume for now that only couples are taken into account
+        self.n_output_options = n_nodes*(n_nodes-1)
         self.checkpoint_encoder = checkpoint_encoder
         self.shrink_size = shrink_size
         # Problem specific context parameters (placeholder and step context dimension)
@@ -140,7 +143,7 @@ class MultiAttentionModel(nn.Module):
         self.project_all_cars_out = torch.nn.Sequential(
           torch.nn.Linear(final_dim, embedding_dim),
           torch.nn.ReLU(),
-          torch.nn.Linear(embedding_dim, final_dim),
+          torch.nn.Linear(embedding_dim, self.n_output_options),
         )
 
     def set_decode_type(self, decode_type, temp=None):
@@ -161,12 +164,13 @@ class MultiAttentionModel(nn.Module):
         else:
             embeddings, _ = self.embedder(self._init_embed(input))
 
-        _log_p, pi = self._inner(input, embeddings)
-        pi = pi.permute(0, 2, 1)
+        _log_p, _log_p_chosen, pi = self._inner(input, embeddings)
+        pi = pi.permute(0, 2, 1)  # new size is [n_cars, batch_size, tour_length]
+        _log_p_chosen = _log_p_chosen.permute(0, 2, 1)  # new size is [batch_size, tour_length]
         cost, mask = self.problem.get_costs(input, pi)
         # Log likelyhood is calculated within the model since returning it per action does not work well with
         # DataParallel since sequences can be of different lengths
-        ll = self._calc_log_likelihood(_log_p, pi, mask)
+        ll = self._calc_log_likelihood(_log_p_chosen, None)
         if return_pi:
             return cost, ll, pi
 
@@ -205,12 +209,7 @@ class MultiAttentionModel(nn.Module):
 
         return flat_parent[feas_ind], flat_action[feas_ind], flat_score[feas_ind]
 
-    def _calc_log_likelihood(self, _log_p, a, mask):
-        _log_p = _log_p.squeeze().permute(0, 2, 1, 3)
-        batch_size = _log_p.shape[1]
-        # Get log_p corresponding to selected actions
-        log_p = _log_p.gather(3, a.unsqueeze(-1).type(torch.long)).squeeze(-1)
-
+    def _calc_log_likelihood(self, log_p, mask):
         # Optional: mask out actions irrelevant to objective so they do not get reinforced
         if mask is not None:
             log_p[mask] = 0
@@ -218,9 +217,9 @@ class MultiAttentionModel(nn.Module):
             print("Logprobs should not be -inf, check sampling procedure!")
         assert (log_p > -1000).data.all(), "Logprobs should not be -inf, check sampling procedure!"
         # change order to be: [batch_size, n_cars, tour_length] and reshape to be [batch_size, tour_length*n_cars]
-        log_p_out = log_p.permute(1, 0, 2).reshape(batch_size, -1)
+        log_p_out = log_p
         # Calculate log_likelihood
-        return log_p_out.sum(1)
+        return log_p_out.squeeze().sum(1)
 
     def _init_embed(self, input):
 
@@ -251,6 +250,7 @@ class MultiAttentionModel(nn.Module):
 
         outputs = []
         sequences = []
+        outputs_chosen = []
         state = self.problem.make_state(input_data, self.allow_repeated_choices)
 
         # Compute keys, values for the glimpse and keys for the logits once as they can be reused in every step
@@ -264,7 +264,7 @@ class MultiAttentionModel(nn.Module):
         i = 0
         while not (self.shrink_size is None and state.all_finished()):
             log_p = torch.zeros(batch_size, self.n_cars, self.n_nodes, device=input_data['loc'].device)
-            selected = torch.zeros(self.n_cars, batch_size, device=state.ids.device)
+            # selected = torch.zeros(self.n_cars, batch_size, device=state.ids.device)
             for i_c in range(self.n_cars):
                 if self.shrink_size is not None:
                     unfinished = torch.nonzero(state.get_finished() == 0)
@@ -280,14 +280,9 @@ class MultiAttentionModel(nn.Module):
                 # this is the log_p per car before masking -
                 log_p_per_car = self.decoder[i_c](state, fixed[i_c], embeddings)
                 log_p[:, i_c, :] = log_p_per_car
-            # log_p_ff output is of size [n_car, batch_size, 1, n_nodes]
-            log_p_ff = self.project_all_cars_out(log_p.view(batch_size, -1))\
-                .view(batch_size, self.n_cars, 1, -1).permute(1, 0, 2, 3)
-            # log_p_ff_temp = log_p_ff.clone()
-            # mask = state.get_mask(0)
-            # log_p_ff_temp[mask[None, ...].expand_as(log_p_ff_temp)] = -math.inf
-            # log_p_ff = log_p_ff_temp.clone()
-            selected, state, probs = self._select_nodes_all(selected, log_p_ff, state, i)
+            # log_p_ff output is of size [batch_size, n_options]
+            log_p_ff = self.project_all_cars_out(log_p.view(batch_size, -1)).view(batch_size, -1)
+            selected, state, probs, probs_chosen = self._select_nodes_all(log_p_ff, state, i)
             # Now make log_p, selected desired output size by 'unshrinking'
             if self.shrink_size is not None and state.ids.size(0) < batch_size:
                 log_p_, selected_ = probs, selected
@@ -298,24 +293,23 @@ class MultiAttentionModel(nn.Module):
             # Collect output of step
             outputs.append(probs)
             sequences.append(selected)
+            outputs_chosen.append(probs_chosen)
             i += 1
         # Collected lists, return Tensor
-        return torch.stack(outputs, 1), torch.stack(sequences, 1)
+        return torch.stack(outputs, 1), torch.stack(outputs_chosen, 1), torch.stack(sequences, 1)
 
-    def _select_nodes_all(self, selected, log_p_ff, state, step):
-        probs_out = torch.zeros_like(log_p_ff)
+    def _select_nodes_all(self, log_p_ff, state, step):
+        mask = state.get_options_mask()
+        log_p_ff_temp = log_p_ff.clone()
+        log_p_ff_temp[mask[:, 0, :]] = -math.inf
+        log_p_ff = log_p_ff_temp.clone()
+        probs = F.log_softmax(log_p_ff, dim=1)
+        index_chosen, prob_chosen = self._select_index(probs.exp(), mask[:, 0, :])  # size is [batch_size, 1]
+        selected = state.get_selections_from_index(index_chosen)
         for i_c in range(self.n_cars):
-            mask = state.get_mask(i_c)
-            log_p_ff_temp = log_p_ff.clone()
-            log_p_ff_temp[mask[None, ...].expand_as(log_p_ff_temp)] = -math.inf
-            log_p_ff = log_p_ff_temp.clone()
-            probs = F.log_softmax(log_p_ff, dim=3)
-            probs_ = probs[i_c, ...]
-            selected_car = self._select_node(probs_.exp()[:, 0, :], mask[:, 0, :])
-            selected[i_c, ...] = selected_car
+            selected_car = selected[i_c, ...]
             state = state.update(selected_car, i_c, step)  # selected, car index, step
-            probs_out[i_c, :, :, :] = probs_
-        return selected, state, probs_out
+        return selected, state, probs, prob_chosen
 
     def sample_many(self, input, batch_rep=1, iter_rep=1):  # might need to updated function to work with mtsp
         """
@@ -365,10 +359,10 @@ class MultiAttentionModel(nn.Module):
             .permute(3, 0, 1, 2, 4)  # (n_heads, batch_size, num_steps, graph_size, head_dim)
         )
 
-    def _select_node(self, probs, mask):
+    def _select_index(self, probs, mask):
         # assert (probs == probs).all(), "Probs should not contain any nans"
         if self.decode_type == "greedy":
-            _, selected = probs.max(1)
+            probs_selected, selected = probs.max(1)
             if mask.gather(1, selected.unsqueeze(-1)).data.any():
                 print("Decode greedy: infeasible action has maximum probability")
             assert not mask.gather(1, selected.unsqueeze(
@@ -376,7 +370,7 @@ class MultiAttentionModel(nn.Module):
 
         elif self.decode_type == "sampling":
             selected = probs.multinomial(1).squeeze(1)
-
+            probs_selected = probs.gather(1, selected.unsqueeze(-1))
             # Check if sampling went OK, can go wrong due to bug on GPU
             # See https://discuss.pytorch.org/t/bad-behavior-of-multinomial-function/10232
             while mask.gather(1, selected.unsqueeze(-1)).data.any():
@@ -385,4 +379,5 @@ class MultiAttentionModel(nn.Module):
 
         else:
             assert False, "Unknown decode type"
-        return selected
+        return selected, probs_selected
+

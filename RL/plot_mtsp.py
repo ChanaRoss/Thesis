@@ -5,7 +5,7 @@ import torch
 from torch.utils.data import DataLoader
 from generate_data import generate_mtsp_data
 from utils import load_model
-from problems import MTSP
+from problems import MTSP, TSP
 
 
 from matplotlib import pyplot as plt
@@ -37,10 +37,10 @@ def plot_vehicle_routes(data, route, ax1, markersize=5):
         d = loc.gather(0, route_.unsqueeze(-1).expand(tour_length, 2).type(torch.long))
         for j in range(d.shape[0]):
             if j == 0:
-                marker=depot_marker
+                marker = depot_marker
                 ax1.scatter([], [], color=cmap(i_c), label='car id:'+str(i_c))
             else:
-                marker=regular_marker
+                marker = regular_marker
             ax1.scatter(d[j, 0], d[j, 1], color=cmap(i_c), marker=marker)
             ax1.text(d[j, 0], d[j, 1], str(j))
             if j+1 < d.shape[0]:
@@ -49,12 +49,14 @@ def plot_vehicle_routes(data, route, ax1, markersize=5):
 
 
 if __name__ == "__main__":
-    problem_loc = '/Users/chanaross/dev/Thesis/RL/outputs/mtsp_20/'
+    problem_loc = '/Users/chanaross/dev/Thesis/RL/outputs/mtsp_10/'
     model_loc = []
+
+# ********************************** grid : 10 ********************************** #
+
     # model_loc.append('mtsp10_rollout_20191208T000410/epoch-16.pt')
     # model_loc.append('mtsp10_rollout_20191208T000410/epoch-9.pt')
     # model_loc.append('mtsp10_rollout_20191206T153448/epoch-34.pt')
-
 
     # model_loc.append('mtsp10_rollout_20191208T210659/epoch-9.pt')
     # model_loc.append('mtsp10_rollout_20191208T210659/epoch-65.pt')
@@ -62,19 +64,27 @@ if __name__ == "__main__":
     # model_loc.append('mtsp10_rollout_20191208T210659/epoch-183.pt')
 
     # model_loc.append('mtsp10_rollout_20191210T203544/epoch-10.pt')
-    # model_loc.append('mtsp10_rollout_20191210T203544/epoch-113.pt')
     # model_loc.append('mtsp10_rollout_20191210T203544/epoch-140.pt')
+    # model_loc.append('mtsp10_rollout_20191210T203544/epoch-496.pt')
 
-    model_loc.append('/mtsp20_rollout_20191217T001444/epoch-9.pt')
+    model_loc.append('mtsp10_rollout_20191230T133940/epoch-124.pt')
+
+# ********************************** grid : 20 ********************************** #
+    # model_loc.append('/mtsp20_rollout_20191217T001444/epoch-9.pt')
     # model_loc.append('/mtsp20_rollout_20191217T001444/epoch-26.pt')
     # model_loc.append('/mtsp20_rollout_20191217T001444/epoch-32.pt')
     # model_loc.append('/mtsp20_rollout_20191217T001444/epoch-68.pt')
-    model_loc.append('/mtsp20_rollout_20191217T001444/epoch-150.pt')
+    # model_loc.append('/mtsp20_rollout_20191217T001444/epoch-150.pt')
+    #
+    # model_loc.append('/mtsp20_rollout_20191229T132632/epoch-9.pt')
+    # model_loc.append('/mtsp20_rollout_20191229T132632/epoch-22.pt')
 
+
+    # tsp_model = '/Users/chanaross/dev/Thesis/RL/pretrained/tsp_20/epoch-99.pt'
 
     # torch.manual_seed(1224)
-    torch.manual_seed(40)
-    n_samples = 4
+    torch.manual_seed(123)
+    n_samples = 3
     length_out = np.zeros([len(model_loc), n_samples])
     flag_plot_results = True
     fig2, ax2 = plt.subplots(1, 1)
@@ -90,7 +100,7 @@ if __name__ == "__main__":
         fig_title = model_loc[i_m]
         # Run the model
         model.eval()
-        model.set_decode_type('greedy')
+        model.set_decode_type('sampling')
         with torch.no_grad():
             length, log_p, pi = model(batch, return_pi=True)
             length_out[i_m, :] = length.detach().numpy()
@@ -98,18 +108,53 @@ if __name__ == "__main__":
             print(length)
             print("average length is:" + str(length.mean()))
         tours = pi.permute(1, 0, 2)  # new order is [batch_size, n_cars, tour_length]
+        n_splots = int(np.ceil(n_samples / 2))
+        fig, ax = plt.subplots(n_splots, 2)
         if flag_plot_results:
-            fig, ax = plt.subplots(n_samples, 1)
             # Plot the results
             for i, (data, tour) in enumerate(zip(dataset, tours)):
-                plot_vehicle_routes(data, tour, ax[i])
-                ax[i].grid()
+                x_p = i // 2
+                y_p = i % 2
+                plot_vehicle_routes(data, tour, ax[x_p][y_p])
+                ax[x_p][y_p].grid()
             fig.suptitle(fig_title, fontsize=16)
 
         ax2.plot(range(n_samples), length.detach().numpy(), label='cost -'+model_loc[i_m], marker='*', color=cmap2(i_m))
-        plt.legend()
-    ax2.grid()
-    fig2.legend()
+        ax[0][0].legend()
+
+    # model, _ = load_model(tsp_model)
+    # if i_m == 0:  # create dataset based on first model , then use the same nodes for all models to be checked
+    #     dataset = TSP.make_dataset(size=model.n_nodes, num_samples=n_samples, n_cars=model.n_cars)
+    #     # Need a dataloader to batch instances
+    #     dataloader = DataLoader(dataset, batch_size=1000)
+    #     # Make var works for dicts
+    #     batch = next(iter(dataloader))
+    # fig_title = model_loc[i_m]
+    # # Run the model
+    # model.eval()
+    # model.set_decode_type('sampling')
+    # with torch.no_grad():
+    #     length, log_p, pi = model(batch, return_pi=True)
+    #     length_out[i_m, :] = length.detach().numpy()
+    #     print(model_loc[i_m] + ":")
+    #     print(length)
+    #     print("average length is:" + str(length.mean()))
+    # tours = pi.permute(1, 0, 2)  # new order is [batch_size, n_cars, tour_length]
+    # n_splots = int(np.ceil(n_samples / 2))
+    # fig, ax = plt.subplots(n_splots, 2)
+    # if flag_plot_results:
+    #     # Plot the results
+    #     for i, (data, tour) in enumerate(zip(dataset, tours)):
+    #         x_p = i // 2
+    #         y_p = i % 2
+    #         plot_vehicle_routes(data, tour, ax[x_p][y_p])
+    #         ax[x_p][y_p].grid()
+    #     fig.suptitle(fig_title, fontsize=16)
+    #
+    # ax2.plot(range(n_samples), length.detach().numpy(), label='cost -' + model_loc[i_m], marker='*', color=cmap2(i_m))
+    # ax[0][0].legend()
+    # ax2.grid()
+    # fig2.legend()
     plt.show()
 
         # fig.savefig(os.path.join('images', 'cvrp_{}.png'.format(i)))

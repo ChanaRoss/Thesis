@@ -1,9 +1,9 @@
 {
-  "close_reward": 50,
-  "cancel_penalty": 100,
-  "opened_penalty": 5,
+  "close_reward": 1,
+  "cancel_penalty": 0,
+  "opened_penalty": 0,
   "sim_seed": 100,
-  "grid_size": 40,
+  "grid_size": 1,
   "n_cars": 10,
   "t_start": 0,
   "delta_open_time": 5,

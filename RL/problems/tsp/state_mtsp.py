@@ -23,6 +23,7 @@ class StateMTSP(NamedTuple):
     n_cars: int  # number of cars in problem
     index_to_choices: torch.Tensor  # keeps track of choices based on index chosen by network
     allow_repeated_choices: bool
+    mask: torch.Tensor  # this is the mask used by network for knowing which indexes are still feasible
 
     @property
     def visited(self):
@@ -49,8 +50,9 @@ class StateMTSP(NamedTuple):
         n_cars = input['n_cars'][0]
         batch_size, n_loc, _ = loc.size()
         prev_a = torch.zeros(n_cars, batch_size, 1, dtype=torch.long, device=loc.device)
-        index_to_choices = create_index_to_choices(n_cars, n_loc)
+        index_to_choices = create_index_to_choices(n_cars, n_loc, loc.device)
         index_size = index_to_choices.shape[0]
+        mask = torch.zeros([batch_size, 1, index_size], dtype=torch.bool, device=loc.device)
         return StateMTSP(
             loc=loc,
             dist=(loc[:, :, None, :] - loc[:, None, :, :]).norm(p=2, dim=-1),
@@ -71,7 +73,8 @@ class StateMTSP(NamedTuple):
             i=torch.zeros(1, dtype=torch.int64, device=loc.device),  # Vector with length num_steps
             n_cars=n_cars,
             index_to_choices=index_to_choices,
-            allow_repeated_choices=allow_repeated_choices
+            allow_repeated_choices=allow_repeated_choices,
+            mask=mask
         )
 
     def get_final_cost(self):
@@ -110,10 +113,11 @@ class StateMTSP(NamedTuple):
             visited_ = visited_.scatter(-1, prev_a_[:, :, None], 1)
         else:
             visited_ = mask_long_scatter(self.visited_, prev_a_)
+        new_mask = self._update_mask(selected)
         cur_coord[car_id, ...] = cur_coord_
         return self._replace(first_a=first_a, prev_a=prev_a,
                              cur_coord=cur_coord, i=torch.tensor(step),
-                             visited_=visited_, lengths=lengths)
+                             visited_=visited_, lengths=lengths, mask=new_mask)
 
     def all_finished(self):
         # all locations have been visited (dont need n steps since now there are multiple cars)
@@ -122,43 +126,57 @@ class StateMTSP(NamedTuple):
     def get_current_node(self):
         return self.prev_a
 
-    def get_mask(self, car_id):
+    def get_options_mask(self):
+        # n_choices = self.index_to_choices.shape[0]
+        # batch_size = self.mask.shape[0]
+        # if self.allow_repeated_choices:
+        #     mask = self.mask
+        #     for i_c in range(self.n_cars):
+        #         prev_a_ = self.prev_a[i_c, ...]
+        #         expanded_prev_a = prev_a_.expand([n_choices, 2, batch_size])
+        #         mask_addition = (expanded_prev_a == self.index_to_choices[..., None]).sum(1).permute([1, 0])
+        #         mask_addition = (mask_addition == 0).byte()
+        #         mask = self.mask + mask_addition
+        # else:
+        mask = self.mask
+        return mask
+
+    def get_nodes_mask(self, car_id):
         mask = self.visited
         if self.allow_repeated_choices:
             prev_a_ = self.prev_a[car_id, ...]
             mask.scatter(-1, prev_a_[:, :, None], 0)
         return mask
 
+    def _update_mask(self, selected):
+        batch_size = selected.shape[0]
+        n_choices = self.index_to_choices.shape[0]
+        expanded_selected = selected.expand([n_choices, 2, batch_size])
+        # create addition to mask by checking which tuples include a location that is selected
+        # mask_addition final size is : [batch_size, n_options]
+        mask_addition = (expanded_selected == self.index_to_choices[..., None]).sum(1).permute([1, 0])
+        # add new mask to previous masked nodes (might be larger than 1 therefore need to change back to ones)
+        new_mask = torch.zeros_like(self.mask)
+        new_mask[:, 0, :] = ((self.mask[:, 0, :] + mask_addition) > 0).byte()
+        return new_mask
+
+    def get_selections_from_index(self, selected_index):
+        batch_size = selected_index.shape[0]
+        n_options = self.index_to_choices.shape[0]
+        index_to_choices_expanded = self.index_to_choices.expand([batch_size, n_options, 2])
+        selected_index_expanded = selected_index[:, None].expand([batch_size, 2]).view([batch_size, 1, 2]).type(torch.long)
+        selected = index_to_choices_expanded.gather(1, selected_index_expanded).squeeze()
+        # selected shape is [batch_size, n_cars]
+        return selected.view(batch_size, -1).permute([1, 0])  # permuting so that its new size is [n_cars, batch_size]
+
     def get_locations(self, selections):
         selections_per_car = None
         return selections_per_car
-
-        # def get_nn(self, k=None):
-    #     # Insert step dimension
-    #     # Nodes already visited get inf so they do not make it
-    #     if k is None:
-    #         k = self.loc.size(-2) - self.i.item()  # Number of remaining
-    #     return (self.dist[self.ids, :, :] + self.visited.float()[:, :, None, :] * 1e6).topk(k, dim=-1, largest=False)[1]
-
-    # def get_nn_current(self, k = None):
-    #     assert False, "Currently not implemented, look into which neighbours to use in step 0?"
-    #     # Note: if this is called in step 0, it will have k nearest neighbours to node 0, which may not be desired
-    #     # so it is probably better to use k = None in the first iteration
-    #     if k is None:
-    #         k = self.loc.size(-2)
-    #     k = min(k, self.loc.size(-2) - self.i.item())  # Number of remaining
-    #     return (
-    #         self.dist[
-    #             self.ids,
-    #             self.prev_a
-    #         ] +
-    #         self.visited.float() * 1e6
-    #     ).topk(k, dim=-1, largest=False)[1]
 
     def construct_solutions(self, actions):
         return actions
 
 
-def create_index_to_choices(num_cars, num_nodes):
-    choices_tensor = torch.Tensor(list(iter.permutations(range(num_nodes, num_cars))))
+def create_index_to_choices(num_cars, num_nodes, device):
+    choices_tensor = torch.tensor(list(iter.permutations(range(num_nodes), num_cars.item())), device=device)
     return choices_tensor
