@@ -29,8 +29,9 @@ def get_options(args=None):
                         help='Clip the parameters to within +- this value using tanh. '
                              'Set to 0 to not perform any clipping.')
     parser.add_argument('--normalization', default='batch', help="Normalization type, 'batch' (default) or 'instance'")
-    parser.add_argument('--allow_repeated_choices', default=False, help="True - allow cars to choose to stay in their place,"
-                                                                     " this effects the masking of a spesific car")
+    parser.add_argument('--allow_repeated_choices', action='store_true',
+                        help="True - allow cars to choose to stay in their place,"
+                             " this effects the masking of a spesific car")
 
     # Training
     parser.add_argument('--lr_scheduler', type=str, default='Reduce', help='lr scheduler to use, reduce:reduce on '

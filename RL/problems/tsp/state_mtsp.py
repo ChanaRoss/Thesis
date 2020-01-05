@@ -44,30 +44,40 @@ class StateMTSP(NamedTuple):
         return super(StateMTSP, self).__getitem__(key)
 
     @staticmethod
-    def initialize(input, allow_repeated_choices=False, visited_dtype=torch.bool):
+    def initialize(input, allow_repeated_choices, visited_dtype=torch.bool):
+        depot = input['depot']
         loc = input['loc']
         n_cars = input['n_cars'][0]
         batch_size, n_loc, _ = loc.size()
         prev_a = torch.zeros(n_cars, batch_size, 1, dtype=torch.long, device=loc.device)
         index_to_choices = create_index_to_choices(n_cars, n_loc)
-        index_size = index_to_choices.shape[0]
-        return StateMTSP(
-            loc=loc,
-            dist=(loc[:, :, None, :] - loc[:, None, :, :]).norm(p=2, dim=-1),
-            ids=torch.arange(batch_size, dtype=torch.int64, device=loc.device)[:, None],  # Add steps dimension
-            first_a=prev_a,
-            prev_a=prev_a,
-            # Keep visited with depot so we can scatter efficiently (if there is an action for depot)
-            visited_=(  # Visited as mask is easier to understand, as long more memory efficient
+        visited_ = (  # Visited as mask is easier to understand, as long more memory efficient
                 torch.zeros(
                     batch_size, 1, n_loc,
                     dtype=torch.bool, device=loc.device
                 )
                 if visited_dtype == torch.bool
                 else torch.zeros(batch_size, 1, (n_loc + 63) // 64, dtype=torch.int64, device=loc.device)  # Ceil
-            ),
+            )
+
+        # mark first node as visited since it is now the depot and where all cars start
+        prev_a_ = prev_a[0, ...]
+        if visited_.dtype == torch.bool:
+            # Add one dimension since we write a single value
+            # add's 1 to wherever we visit now, this creates a vector of 1's wherever we have been already
+            visited_ = visited_.scatter(-1, prev_a_[:, :, None], 1)
+        else:
+            visited_ = mask_long_scatter(visited_, prev_a_)
+        return StateMTSP(
+            loc=torch.cat((depot[:, None, :], loc), -2),
+            dist=(loc[:, :, None, :] - loc[:, None, :, :]).norm(p=2, dim=-1),
+            ids=torch.arange(batch_size, dtype=torch.int64, device=loc.device)[:, None],  # Add steps dimension
+            first_a=torch.zeros_like(prev_a, device=loc.device),
+            prev_a=prev_a,
+            # Keep visited with depot so we can scatter efficiently (if there is an action for depot)
+            visited_=visited_,
             lengths=torch.zeros(batch_size, 1, device=loc.device),
-            cur_coord=None,
+            cur_coord=input['depot'][None, :, :].expand([n_cars, batch_size, 2]),
             i=torch.zeros(1, dtype=torch.int64, device=loc.device),  # Vector with length num_steps
             n_cars=n_cars,
             index_to_choices=index_to_choices,
@@ -94,7 +104,7 @@ class StateMTSP(NamedTuple):
         prev_a[car_id, ...] = selected[:, None].view(batch_size, -1).type(torch.LongTensor)
         # Update should only be called with just 1 parallel step,
         # in which case we can check this way if we should update
-        first_a = prev_a if self.i.item() == 0 else self.first_a
+        first_a = self.first_a
         cur_coord = self.cur_coord
         if cur_coord is None:
             cur_coord = torch.zeros(self.n_cars, batch_size, 2, device=prev_a.device)
@@ -126,7 +136,7 @@ class StateMTSP(NamedTuple):
         mask = self.visited
         if self.allow_repeated_choices:
             prev_a_ = self.prev_a[car_id, ...]
-            mask.scatter(-1, prev_a_[:, :, None], 0)
+            mask = mask.scatter(-1, prev_a_[:, :, None], 0)
         return mask
 
     def get_locations(self, selections):

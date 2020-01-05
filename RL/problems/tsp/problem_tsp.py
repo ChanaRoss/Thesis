@@ -61,16 +61,22 @@ class MTSP(object):
     def get_costs(dataset, pi):
         cost = 0
         pi_assert = pi.permute(1, 0, 2)
-        n_cars, batch_size, tour_length = pi.shape
+        batch_size, tour_length, n_cars = dataset['loc'].shape
         # Check that tours are valid, i.e. contain 0 to n -1
-        assert (
-                torch.arange(n_cars*tour_length, out=pi.data.new()).view(1, -1).expand_as(pi_assert.view(batch_size, -1)) ==
-                pi_assert.view(-1, tour_length*n_cars).data.sort(1)[0]
-        ).all(), "Invalid tour"
+        is_full_tour = True
+        for i in range(batch_size):
+            tour_ = pi_assert[i, ...].unique()
+            min_val = tour_.min().item()
+            max_val = tour_.max().item()
+            if (torch.arange(min_val, max_val+1).view(-1, 1) != tour_.view(-1, 1)).all():
+                is_full_tour = False
+                break
+        assert is_full_tour, "Invalid tour"
+        data_size = pi.shape[2]
         for i in range(n_cars):
             pi_ = pi[i, ...]
             # Gather dataset in order of tour
-            d = dataset['loc'].gather(1, pi_.unsqueeze(-1).expand(batch_size, tour_length, 2).type(torch.long))
+            d = dataset['loc'].gather(1, pi_.unsqueeze(-1).expand(batch_size, data_size, 2).type(torch.long))
 
             # Length is distance (L2-norm of difference) from each next location from its prev and of last from first
             # Add all tour costs together for each car
@@ -145,6 +151,7 @@ class MTSPDataset(Dataset):
             self.data = [
                 {
                     'loc': torch.FloatTensor(size, 2).uniform_(0, 1),
+                    'depot': torch.FloatTensor(2).uniform_(0, 1),
                     'n_cars': torch.tensor([n_cars])
                 }
                 for i in range(num_samples)

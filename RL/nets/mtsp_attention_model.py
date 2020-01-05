@@ -304,9 +304,10 @@ class MultiAttentionModel(nn.Module):
 
     def _select_nodes_all(self, selected, log_p_ff, state, step):
         probs_out = torch.zeros_like(log_p_ff)
+        log_p_ff_orig = log_p_ff.clone()
         for i_c in range(self.n_cars):
             mask = state.get_mask(i_c)
-            log_p_ff_temp = log_p_ff.clone()
+            log_p_ff_temp = log_p_ff_orig.clone()
             log_p_ff_temp[mask[None, ...].expand_as(log_p_ff_temp)] = -math.inf
             log_p_ff = log_p_ff_temp.clone()
             probs = F.log_softmax(log_p_ff, dim=3)
@@ -375,6 +376,8 @@ class MultiAttentionModel(nn.Module):
                 -1)).data.any(), "Decode greedy: infeasible action has maximum probability"
 
         elif self.decode_type == "sampling":
+            if mask.sum() == 1:
+                print("hi")
             selected = probs.multinomial(1).squeeze(1)
 
             # Check if sampling went OK, can go wrong due to bug on GPU

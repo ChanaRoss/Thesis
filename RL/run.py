@@ -74,6 +74,7 @@ def run(opts):
         tanh_clipping=opts.tanh_clipping,
         checkpoint_encoder=opts.checkpoint_encoder,
         shrink_size=opts.shrink_size,
+        allow_repeated_choices=opts.allow_repeated_choices,
     )
     model = model.to(opts.device)
 
