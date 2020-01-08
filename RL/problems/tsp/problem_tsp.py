@@ -60,27 +60,31 @@ class MTSP(object):
     @staticmethod
     def get_costs(dataset, pi):
         cost = 0
+        loc = torch.cat((dataset['depot'][:, None, :], dataset['loc']), -2)
         pi_assert = pi.permute(1, 0, 2)
-        batch_size, tour_length, n_cars = dataset['loc'].shape
+        batch_size, tour_length, _ = dataset['loc'].shape
+        n_cars = dataset['n_cars'][0].item()
         # Check that tours are valid, i.e. contain 0 to n -1
-        is_full_tour = True
-        for i in range(batch_size):
-            tour_ = pi_assert[i, ...].unique()
-            min_val = tour_.min().item()
-            max_val = tour_.max().item()
-            if (torch.arange(min_val, max_val+1).view(-1, 1) != tour_.view(-1, 1)).all():
-                is_full_tour = False
-                break
-        assert is_full_tour, "Invalid tour"
+        # is_full_tour = True
+        # for i in range(batch_size):
+        #     tour_ = pi_assert[i, ...].unique()
+        #     min_val = tour_.min().item()
+        #     max_val = tour_.max().item()
+        #     if (torch.arange(min_val, max_val+1, device=pi.device).view(-1, 1) != tour_.view(-1, 1)).all():
+        #         is_full_tour = False
+        #         break
+        # assert is_full_tour, "Invalid tour"
         data_size = pi.shape[2]
         for i in range(n_cars):
             pi_ = pi[i, ...]
             # Gather dataset in order of tour
-            d = dataset['loc'].gather(1, pi_.unsqueeze(-1).expand(batch_size, data_size, 2).type(torch.long))
+            d = loc.gather(1, pi_.unsqueeze(-1).expand(batch_size, data_size, 2).type(torch.long))
 
             # Length is distance (L2-norm of difference) from each next location from its prev and of last from first
             # Add all tour costs together for each car
-            cost += (d[:, 1:] - d[:, :-1]).norm(p=2, dim=2).sum(1) + (d[:, 0] - d[:, -1]).norm(p=2, dim=1)
+            cost += (d[:, 1:] - d[:, :-1]).norm(p=2, dim=2).sum(1) + \
+                    (loc[:, 0] - d[:, -1]).norm(p=2, dim=1) + \
+                    (loc[:, 0] - d[:, 0]).norm(p=2, dim=1)
         return cost, None
 
     @staticmethod

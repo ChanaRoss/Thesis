@@ -14,7 +14,6 @@ import seaborn as sns
 from matplotlib import pyplot as plt
 import imageio
 
-sns.set()
 
 
 def create_gif(file_loc, filenames, duration, out_name):
@@ -99,7 +98,7 @@ def create_events_distribution_uniform(grid_size, n_events):
     return events_pos
 
 
-def run_mtsp_opt(car_pos, event_pos, output_flag=1):
+def run_mtsp_opt(car_pos, event_pos, output_flag=0):
     """
     this function runs the optimization for determinist problem using gurobi as the optimizer
     :param car_pos: matrix of car positions [n_cars, 2]
@@ -118,7 +117,7 @@ def run_mtsp_opt(car_pos, event_pos, output_flag=1):
     # Create variables
     x = m.addVars(n_events, n_events, name='c_is_picked_up', vtype=GRB.BINARY)
     u = m.addVars(n_events - 1, name='u_latent_variables', vtype=GRB.INTEGER)
-    p = n_events - n_cars
+    p = np.floor(n_events/n_cars)  # - n_cars
     # all cars leave the depot node
     m.addConstr(sum(x[0, j+1] for j in range(n_events - 1)) == n_cars, "all_cars_depart_from_depot", None, "")
     # all cars return to depot node
@@ -267,17 +266,21 @@ def analysis_and_plot_results(m, cars_pos, events_pos, plot_figures, file_loc, f
     if is_three:
         for i in range(n_cars):
             G = nx.from_numpy_matrix(param['c_is_picked_up'][:, :, i])
-            plt.figure()
-            nx.draw(G, with_labels=True, pos=events_loc_dict)
+            if plot_figures:
+                plt.figure()
+                nx.draw(G, with_labels=True, pos=events_loc_dict)
     else:
         G = nx.from_numpy_matrix(param['c_is_picked_up'])
-        plt.figure()
-        nx.draw(G, with_labels=True, pos=events_loc_dict)
-    plt.show()
+        if plot_figures:
+            plt.figure()
+            nx.draw(G, with_labels=True, pos=events_loc_dict)
+    if plot_figures:
+        plt.show()
     return param['c_is_picked_up']
 
 
 def main():
+    sns.set()
     with open('config_unlimited_time.json') as f:
         param_dict = json.load(f)
 
@@ -296,32 +299,38 @@ def main():
     file_loc  = param_dict['file_loc']  # location of output file and figures
     file_name = param_dict['file_name']  # name of files
 
+    cost = np.zeros(param_dict['n_runs'])
+    for i in range(param_dict['n_runs']):
+        # create car initial positions
+        car_pos = np.reshape(np.random.rand(2 * n_cars)*grid_size[0], (n_cars, 2))
 
-    # create car initial positions
-    car_pos = np.reshape(np.random.rand(2 * n_cars)*grid_size[0], (n_cars, 2))
+        # create event positions and time
+        event_pos = create_events_distribution_uniform(grid_size, n_events)
 
-    # create event positions and time
-    event_pos = create_events_distribution_uniform(grid_size, n_events)
+        # run optimization using gurobi
+        s_time = time.time()
+        if is_three:
+            m, obj = run_mtsp_opt_three(car_pos, event_pos)
+        else:
+            m, obj = run_mtsp_opt(car_pos, event_pos)
+        e_time = time.time()
+        print("simulation run time is: " + str(e_time - s_time))
+        if print_logs:
+            # print results of optimization
+            for v in m.getVars():
+                print('%s %g' % (v.varName, v.x))
 
-    # run optimization using gurobi
-    s_time = time.time()
-    if is_three:
-        m, obj = run_mtsp_opt_three(car_pos, event_pos)
-    else:
-        m, obj = run_mtsp_opt(car_pos, event_pos)
-    e_time = time.time()
-    print("simulation run time is: " + str(e_time - s_time))
-    if print_logs:
-        # print results of optimization
-        for v in m.getVars():
-            print('%s %g' % (v.varName, v.x))
-
-        print('Obj: %g' % obj.getValue())
+            print('Obj: %g' % obj.getValue())
 
 
-    # # run analysis and plot results
-    data_out = analysis_and_plot_results(m, car_pos, event_pos,
-                                                            plot_figures, file_loc, file_name, grid_size, is_three)
+        # # run analysis and plot results
+        data_out = analysis_and_plot_results(m, car_pos, event_pos,
+                                                                plot_figures, file_loc, file_name, grid_size, is_three)
+
+        cost[i] = obj.getValue()
+    print("mean cost is:"+str(np.mean(cost)))
+    print("std cost : "+str(np.std(cost)))
+    print("max cost is:"+str(np.max(cost)))
 
 
 if __name__ == '__main__':
