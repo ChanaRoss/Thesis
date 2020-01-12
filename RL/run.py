@@ -150,11 +150,14 @@ def run(opts):
                                                             patience=4, verbose=True, min_lr=5e-5)
     else:
         lr_scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: opts.lr_decay ** epoch)
+
+
     # Start the actual training loop
     val_dataset = problem.make_dataset(
         size=opts.graph_size, n_cars=opts.n_cars, num_samples=opts.val_size, filename=opts.val_dataset, distribution=opts.data_distribution)
 
     if opts.resume:
+        optimizer.param_groups[0]['lr'] = opts.lr_model
         epoch_resume = int(os.path.splitext(os.path.split(opts.resume)[-1])[0].split("-")[1])
 
         torch.set_rng_state(load_data['rng_state'])

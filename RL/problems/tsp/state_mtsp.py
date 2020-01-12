@@ -24,7 +24,9 @@ class StateMTSP(NamedTuple):
     index_to_choices: torch.Tensor  # keeps track of choices based on index chosen by network
     allow_repeated_choices: bool
     mask: torch.Tensor  # this is the mask used by network for knowing which indexes are still feasible
-
+    can_repeat: torch.Tensor  # this is needed to see if a car can repeat its previous choice. makes sure there is
+    # no infinite loop (once network chooses to repeat node once, that is the choice for future times for this car +
+    # last car can't choose to repeat steps)
     @property
     def visited(self):
         if self.visited_.dtype == torch.bool:
@@ -54,6 +56,7 @@ class StateMTSP(NamedTuple):
         index_to_choices = create_index_to_choices(n_cars, n_loc, loc.device)
         index_size = index_to_choices.shape[0]
         mask = torch.zeros([batch_size, 1, index_size], dtype=torch.bool, device=loc.device)
+        can_repeat = torch.ones([batch_size, n_cars])
         visited_ = (  # Visited as mask is easier to understand, as long more memory efficient
             torch.zeros(
                 batch_size, 1, n_loc+1,
@@ -85,6 +88,7 @@ class StateMTSP(NamedTuple):
             n_cars=n_cars,
             index_to_choices=index_to_choices,
             allow_repeated_choices=allow_repeated_choices,
+            can_repeat=can_repeat,
             mask=mask
         )
 
@@ -158,13 +162,15 @@ class StateMTSP(NamedTuple):
     def get_nodes_mask(self, car_id):
         mask = self.visited
         if self.allow_repeated_choices:
-            prev_a_ = self.prev_a[car_id, ...]
-            mask = mask.scatter(-1, prev_a_[:, :, None], 0)
+
+            prev_a_ = self.prev_a[car_id, self.can_repeat, ...]
+            # update batches where repetition is allowed to mask = 0 (network can re-choose that node)
+            mask[self.can_repeat, ...]    = mask[self.can_repeat, ...].scatter(-1, prev_a_[:, :, None], 0)
         return mask
 
     def _update_mask(self, selected):
         batch_size = selected.shape[0]
-        n_cars  = self.n_cars.item()
+        n_cars    = self.n_cars.item()
         n_choices = self.index_to_choices.shape[0]
         expanded_selected = selected.expand([n_choices, n_cars, batch_size])
         # create addition to mask by checking which tuples include a location that is selected

@@ -81,23 +81,28 @@ def main():
 
     # ********************************** grid : 10 ********************************** #
     # model_loc.append('mtsp10_without_repeated_20200106T163908/epoch-22.pt')
-    model_loc.append('mtsp10_no_repeated_20200106T212507/epoch-141.pt')
-    model_loc.append('mtsp10_without_repeated_20200107T210944/epoch-168.pt')
+    # model_loc.append('mtsp10_no_repeated_20200106T212507/epoch-141.pt')
+    # model_loc.append('mtsp10_no_repeated_20200108T121907/epoch-225.pt')
+    model_loc.append('mtsp10_without_repeated_20200108T172503/epoch-349.pt')
 
+    #  ********************************** grid : 12 ********************************** #
+    # model_loc.append('mtsp12_cars3_no_repeated_20200108T110053/epoch-200.pt')
+    # model_loc.append('mtsp12_cars3_no_repeated_20200108T110053/epoch-399.pt')
 
     # ********************************** grid : 20 ********************************** #
-
+    # model_loc.append('mtsp20_no_repeated_20200110T101020/epoch-407.pt')
 
     # tsp_model = '/Users/chanaross/dev/Thesis/RL/pretrained/tsp_20/epoch-99.pt'
 
     seed = 1234
     # torch.manual_seed(1224)
     torch.manual_seed(seed)
-    n_samples = 4
+    n_samples = 3
     length_out = np.zeros([len(model_loc), n_samples])
     flag_plot_results = True
     fig2, ax2 = plt.subplots(1, 1)
     cmap2 = discrete_cmap(len(model_loc) + 1)
+    cost_models = np.zeros([len(model_loc), n_samples])
     for i_m in range(len(model_loc)):
         model, _ = load_model(problem_loc + model_loc[i_m])
         if i_m == 0:  # create dataset based on first model , then use the same nodes for all models to be checked
@@ -115,10 +120,14 @@ def main():
             length, log_p, pi = model(batch_data, return_pi=True)
             e_time = time.time()
             length_out[i_m, :] = length.detach().numpy()
+            print("***************************************************")
             print(model_loc[i_m] + ":")
             print("model run time:"+str(e_time-s_time))
-            print(length)
+            # print(length)
             print("average length is:" + str(length.mean()))
+            print("max length is: " + str(length.max()))
+            print("mean length is:" + str(length.min()))
+            print("std length is: " + str(length.std()))
         tours = pi.permute(1, 0, 2)  # new order is [batch_size, n_cars, tour_length]
         n_splots = int(np.ceil(n_samples / 2))
         if flag_plot_results:
@@ -133,12 +142,13 @@ def main():
 
         ax2.plot(range(n_samples), length.detach().numpy(), label='cost -' + model_loc[i_m], marker='*',
                  color=cmap2(i_m))
+        cost_models[i_m, :] = length.detach().numpy()
         if flag_plot_results:
             ax[0][0].legend()
 
     # run optimization for comparison
     opt_file_name = 'opt_results_' + str(n_samples) + '_seed' + str(seed)
-    car_loc = np.random.randint((2, model.n_cars))
+    car_loc = np.random.rand(model.n_cars, 2)
     events_batch_loc = batch_data['loc'].detach().numpy()
     events_batch_depot = batch_data['depot'].detach().numpy()
     opt_cost = np.zeros(n_samples)
@@ -148,6 +158,7 @@ def main():
     for i in range(events_batch_loc.shape[0]):
         events_loc = np.row_stack((events_batch_depot[i, ...], events_batch_loc[i, ...]))
         s_time = time.time()
+        print("starting opt num:"+str(i))
         m, obj = run_mtsp_opt(car_loc, events_loc)
         e_time = time.time()
         opt_time += e_time-s_time
@@ -164,18 +175,26 @@ def main():
             fig_opt.suptitle('Optimization results', fontsize=16)
     ax2.plot(range(n_samples), opt_cost, label='cost- optimization', marker='s', color=cmap2(i_m + 1))
     ax2.grid()
+    print("***************************************************")
     print("optimization results:")
     print("opt tot time:"+str(opt_time))
-    print("cost:"+str(opt_cost))
+    # print("cost:"+str(opt_cost))
     print("mean cost is:" + str(np.mean(opt_cost)))
     print("std cost : " + str(np.std(opt_cost)))
     print("max cost is:" + str(np.max(opt_cost)))
     fig2.legend()
-    plt.show()
 
+    fig_diff, ax_diff = plt.subplots(1, 1)
+    for i_m in range(len(model_loc)):
+        ax_diff.plot(range(n_samples), np.abs(opt_cost-cost_models[i_m, :])/np.mean(opt_cost), label=model_loc[i_m], marker='*')
+    ax_diff.grid()
+    ax_diff.set_xlabel('Run Num #')
+    ax_diff.set_ylabel('|C_model - C_opt|')
+    fig_diff.suptitle('Difference between baseline and models output')
+    fig_diff.legend()
     # fig.savefig(os.path.join('images', 'cvrp_{}.png'.format(i)))
 
-
+    plt.show()
 if __name__ == "__main__":
     main()
     print("done!")
