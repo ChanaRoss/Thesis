@@ -5,6 +5,7 @@ import pickle
 from problems.tsp.state_tsp import StateTSP
 from problems.tsp.state_mtsp import StateMTSP
 from utils.beam_search import beam_search
+from utils.functions import calc_distance
 
 
 class TSP(object):
@@ -60,7 +61,7 @@ class MTSP(object):
     @staticmethod
     def get_costs(dataset, pi):
         cost = 0
-        loc = torch.cat((dataset['depot'][:, None, :], dataset['loc']), -2)
+        loc = torch.cat((dataset['car_loc'].clone(), dataset['loc'].clone()), -2)
         pi_assert = pi.permute(1, 0, 2)
         batch_size, tour_length, _ = dataset['loc'].shape
         n_cars = dataset['n_cars'][0].item()
@@ -79,12 +80,12 @@ class MTSP(object):
             pi_ = pi[i, ...]
             # Gather dataset in order of tour
             d = loc.gather(1, pi_.unsqueeze(-1).expand(batch_size, data_size, 2).type(torch.long))
-
-            # Length is distance (L2-norm of difference) from each next location from its prev and of last from first
+            dist_mat = calc_distance(d)
+            # in order to get the total cost need to sum up the cost of each movement, d is already in the correct order
+            # therefore if we sum the first row we get the real distance each car did
+            cost += dist_mat[:, 0, :].sum(axis=1)
             # Add all tour costs together for each car
-            cost += (d[:, 1:] - d[:, :-1]).norm(p=2, dim=2).sum(1) + \
-                    (loc[:, 0] - d[:, -1]).norm(p=2, dim=1) + \
-                    (loc[:, 0] - d[:, 0]).norm(p=2, dim=1)
+            cost += (loc[:, i] - d[:, 0]).norm(p=1, dim=1)  # add the cost of going from car location to the first node
         return cost, None
 
     @staticmethod
@@ -140,7 +141,7 @@ class TSPDataset(Dataset):
 
 
 class MTSPDataset(Dataset):
-    def __init__(self, filename=None, size=50, num_samples=1000000, offset=0, n_cars=1, distribution=None):
+    def __init__(self, filename=None, gs=10, size=50, num_samples=1000000, offset=0, n_cars=1, distribution=None):
         super(MTSPDataset, self).__init__()
 
         self.data_set = []
@@ -154,8 +155,9 @@ class MTSPDataset(Dataset):
             # Sample points randomly in [0, 1] square
             self.data = [
                 {
-                    'loc': torch.FloatTensor(size, 2).uniform_(0, 1),
-                    'depot': torch.FloatTensor(2).uniform_(0, 1),
+                    'loc': torch.randint(0, gs, (size, 2)),
+                    'depot': torch.randint(0, gs, (1, 2)),
+                    'car_loc': torch.randint(0, gs, (n_cars, 2)),
                     'n_cars': torch.tensor([n_cars])
                 }
                 for i in range(num_samples)

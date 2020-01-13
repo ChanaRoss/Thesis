@@ -214,3 +214,8 @@ def sample_many(inner_func, get_cost_func, input, batch_rep=1, iter_rep=1):
 
     return minpis, mincosts
 
+
+def calc_distance(loc_vec):
+    mat_distance = torch.cdist(loc_vec, loc_vec, p=1)
+    return mat_distance
+

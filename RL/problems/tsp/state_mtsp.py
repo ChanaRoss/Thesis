@@ -1,8 +1,8 @@
 import torch
 from typing import NamedTuple
 from utils.boolmask import mask_long2bool, mask_long_scatter
+from utils.functions import calc_distance
 import itertools as iter
-
 
 class StateMTSP(NamedTuple):
     # Fixed input
@@ -48,7 +48,7 @@ class StateMTSP(NamedTuple):
 
     @staticmethod
     def initialize(input, allow_repeated_choices, visited_dtype=torch.bool):
-        depot = input['depot'].clone()
+        car_loc = input['car_loc'].clone()   # batch_size, n_cars, 2
         loc = input['loc'].clone()
         n_cars = input['n_cars'][0]
         batch_size, n_loc, _ = loc.size()
@@ -59,7 +59,7 @@ class StateMTSP(NamedTuple):
         can_repeat = torch.ones([batch_size, n_cars])
         visited_ = (  # Visited as mask is easier to understand, as long more memory efficient
             torch.zeros(
-                batch_size, 1, n_loc+1,
+                batch_size, 1, n_loc+n_cars,
                 dtype=torch.bool, device=loc.device
             )
             if visited_dtype == torch.bool
@@ -67,23 +67,25 @@ class StateMTSP(NamedTuple):
         )
 
         # mark first node as visited since it is now the depot and where all cars start
-        prev_a_ = prev_a[0, ...]
-        if visited_.dtype == torch.bool:
-            # Add one dimension since we write a single value
-            # add's 1 to wherever we visit now, this creates a vector of 1's wherever we have been already
-            visited_ = visited_.scatter(-1, prev_a_[:, :, None], 1)
-        else:
-            visited_ = mask_long_scatter(visited_, prev_a_)
+        for i_c in range(n_cars):
+            prev_a_ = torch.ones(batch_size, 1, dtype=torch.long, device=loc.device)*i_c
+            if visited_.dtype == torch.bool:
+                # Add one dimension since we write a single value
+                # add's 1 to wherever we visit now, this creates a vector of 1's wherever we have been already
+                visited_ = visited_.scatter(-1, prev_a_[:, :, None], 1)
+            else:
+                visited_ = mask_long_scatter(visited_, prev_a_)
+            prev_a[i_c, ...] = prev_a_
         return StateMTSP(
-            loc=torch.cat((depot[:, None, :], loc), -2),
-            dist=(loc[:, :, None, :] - loc[:, None, :, :]).norm(p=2, dim=-1),
+            loc=torch.cat((car_loc.view, loc), -2),
+            dist=calc_distance(loc),
             ids=torch.arange(batch_size, dtype=torch.int64, device=loc.device)[:, None],  # Add steps dimension
-            first_a=torch.zeros_like(prev_a, device=loc.device),
+            first_a=prev_a,
             prev_a=prev_a,
             # Keep visited with depot so we can scatter efficiently (if there is an action for depot)
             visited_=visited_,
-            lengths=torch.zeros(batch_size, 1, device=loc.device),
-            cur_coord=input['depot'].clone()[None, :, :].expand([n_cars, batch_size, 2]),
+            lengths=torch.zeros(batch_size, 1, device=loc.device),   # batch_size
+            cur_coord=car_loc.permute(1, 0, 2),     # n_cars, batch_size, 2
             i=torch.zeros(1, dtype=torch.int64, device=loc.device),  # Vector with length num_steps
             n_cars=n_cars,
             index_to_choices=index_to_choices,
@@ -201,3 +203,5 @@ class StateMTSP(NamedTuple):
 def create_index_to_choices(num_cars, num_nodes, device):
     choices_tensor = torch.tensor(list(iter.permutations(range(num_nodes), num_cars.item())), device=device)
     return choices_tensor
+
+
