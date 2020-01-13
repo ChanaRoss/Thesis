@@ -82,7 +82,7 @@ class MultiAttentionModel(nn.Module):
         self.problem = problem
         self.n_heads = n_heads
         self.n_cars = n_cars
-        self.n_nodes = n_nodes+1  # number of nodes in problem
+        self.n_nodes = n_nodes# number of nodes in problem
         self.checkpoint_encoder = checkpoint_encoder
         self.shrink_size = shrink_size
         # Problem specific context parameters (placeholder and step context dimension)
@@ -135,7 +135,7 @@ class MultiAttentionModel(nn.Module):
 
         assert embedding_dim % n_heads == 0
         # Note n_heads * val_dim == embedding_dim so input to project_out is embedding_dim
-        final_dim = n_cars*self.n_nodes   # this is the dimension of the output layer (soft max for each car and all nodes)
+        final_dim = n_cars*(self.n_nodes+self.n_cars)   # this is the dimension of the output layer (soft max for each car and all nodes)
         self.project_all_cars_out = torch.nn.Sequential(
           torch.nn.Linear(final_dim, embedding_dim),
           torch.nn.ReLU(),
@@ -243,7 +243,7 @@ class MultiAttentionModel(nn.Module):
             )
         # MTSP
         elif self.is_mtsp:
-            loc = torch.cat((input['depot'][:, None, :], input['loc']), -2)
+            loc = torch.cat((input['car_loc'], input['loc']), -2)
             return self.init_embed(loc)
         return self.init_embed(input)
 
@@ -263,7 +263,7 @@ class MultiAttentionModel(nn.Module):
         # Perform decoding steps
         i = 0
         while not (self.shrink_size is None and state.all_finished()):
-            log_p = torch.zeros(batch_size, self.n_cars, self.n_nodes, device=input_data['loc'].device)
+            log_p = torch.zeros(batch_size, self.n_cars, self.n_cars+ self.n_nodes, device=input_data['loc'].device)
             selected = torch.zeros(self.n_cars, batch_size, device=state.ids.device)
             for i_c in range(self.n_cars):
                 if self.shrink_size is not None:
@@ -291,7 +291,7 @@ class MultiAttentionModel(nn.Module):
             # Now make log_p, selected desired output size by 'unshrinking'
             if self.shrink_size is not None and state.ids.size(0) < batch_size:
                 log_p_, selected_ = probs, selected
-                log_p = log_p_.new_zeros((self.n_cars, batch_size, self.n_nodes), *log_p_.size()[1:])
+                log_p = log_p_.new_zeros((self.n_cars, batch_size, self.n_cars + self.n_nodes), *log_p_.size()[1:])
                 selected = selected_.new_zeros((self.n_cars, batch_size))
                 log_p[:, state.ids[:, 0], :] = log_p_
                 selected[:, state.ids[:, 0]] = selected_

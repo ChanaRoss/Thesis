@@ -117,7 +117,8 @@ class MTSP(object):
 
 class TSPDataset(Dataset):
     
-    def __init__(self, filename=None, size=50, num_samples=1000000, offset=0, n_cars=1, distribution=None):
+    def __init__(self, filename=None, size=50, num_samples=1000000, offset=0,
+                 coord_limit=1, n_cars=1, distribution=None):
         super(TSPDataset, self).__init__()
 
         self.data_set = []
@@ -141,7 +142,8 @@ class TSPDataset(Dataset):
 
 
 class MTSPDataset(Dataset):
-    def __init__(self, filename=None, gs=10, size=50, num_samples=1000000, offset=0, n_cars=1, distribution=None):
+    def __init__(self, filename=None, coord_limit=10, size=50, num_samples=1000000,
+                 offset=0, n_cars=1, distribution=None):
         super(MTSPDataset, self).__init__()
 
         self.data_set = []
@@ -155,9 +157,9 @@ class MTSPDataset(Dataset):
             # Sample points randomly in [0, 1] square
             self.data = [
                 {
-                    'loc': torch.randint(0, gs, (size, 2)),
-                    'depot': torch.randint(0, gs, (1, 2)),
-                    'car_loc': torch.randint(0, gs, (n_cars, 2)),
+                    'loc': torch.randint(0, coord_limit, (size, 2)).type(torch.FloatTensor),
+                    'depot': torch.randint(0, coord_limit, (1, 2)).type(torch.FloatTensor),
+                    'car_loc': torch.randint(0, coord_limit, (n_cars, 2)).type(torch.FloatTensor),
                     'n_cars': torch.tensor([n_cars])
                 }
                 for i in range(num_samples)

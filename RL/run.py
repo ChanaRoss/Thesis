@@ -154,7 +154,8 @@ def run(opts):
 
     # Start the actual training loop
     val_dataset = problem.make_dataset(
-        size=opts.graph_size, n_cars=opts.n_cars, num_samples=opts.val_size, filename=opts.val_dataset, distribution=opts.data_distribution)
+        size=opts.graph_size, n_cars=opts.n_cars, num_samples=opts.val_size, filename=opts.val_dataset,
+        distribution=opts.data_distribution, coord_limit=opts.coord_limit)
 
     if opts.resume:
         optimizer.param_groups[0]['lr'] = opts.lr_model

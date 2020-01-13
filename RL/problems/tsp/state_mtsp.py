@@ -77,7 +77,7 @@ class StateMTSP(NamedTuple):
                 visited_ = mask_long_scatter(visited_, prev_a_)
             prev_a[i_c, ...] = prev_a_
         return StateMTSP(
-            loc=torch.cat((car_loc.view, loc), -2),
+            loc=torch.cat((car_loc, loc), -2),
             dist=calc_distance(loc),
             ids=torch.arange(batch_size, dtype=torch.int64, device=loc.device)[:, None],  # Add steps dimension
             first_a=prev_a,
@@ -123,7 +123,7 @@ class StateMTSP(NamedTuple):
         prev_a_ = prev_a[car_id, ...]
         cur_coord_ = self.loc[self.ids, prev_a_].view(batch_size, -1)
         if self.cur_coord is not None:  # Don't add length for first action (selection of start node)
-            lengths = lengths + (cur_coord_ - self.cur_coord[car_id, ...]).norm(p=2, dim=-1).view(-1, 1)  # (batch_dim, 1)
+            lengths = lengths + (cur_coord_ - self.cur_coord[car_id, ...]).norm(p=1, dim=-1).view(-1, 1)  # (batch_dim, 1)
         if self.visited_.dtype == torch.bool:
             # Add one dimension since we write a single value
             # add's 1 to wherever we visit now, this creates a vector of 1's wherever we have been already
