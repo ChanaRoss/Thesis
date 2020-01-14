@@ -76,11 +76,12 @@ class StateMTSP(NamedTuple):
             else:
                 visited_ = mask_long_scatter(visited_, prev_a_)
             prev_a[i_c, ...] = prev_a_
+        concat_loc = torch.cat((car_loc, loc), -2)
         return StateMTSP(
-            loc=torch.cat((car_loc, loc), -2),
-            dist=calc_distance(loc),
+            loc=concat_loc,
+            dist=calc_distance(concat_loc),
             ids=torch.arange(batch_size, dtype=torch.int64, device=loc.device)[:, None],  # Add steps dimension
-            first_a=prev_a,
+            first_a=prev_a.clone(),
             prev_a=prev_a,
             # Keep visited with depot so we can scatter efficiently (if there is an action for depot)
             visited_=visited_,

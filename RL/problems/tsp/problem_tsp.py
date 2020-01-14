@@ -82,8 +82,8 @@ class MTSP(object):
             d = loc.gather(1, pi_.unsqueeze(-1).expand(batch_size, data_size, 2).type(torch.long))
             dist_mat = calc_distance(d)
             # in order to get the total cost need to sum up the cost of each movement, d is already in the correct order
-            # therefore if we sum the first row we get the real distance each car did
-            cost += dist_mat[:, 0, :].sum(axis=1)
+            # therefore if we sum the [i, i+1] value from each row i and column i+1
+            cost += torch.stack([dist_mat[:, i, i+1] for i in range(dist_mat.shape[1]-1)], dim=1).sum(axis=1)
             # Add all tour costs together for each car
             cost += (loc[:, i] - d[:, 0]).norm(p=1, dim=1)  # add the cost of going from car location to the first node
         return cost, None
