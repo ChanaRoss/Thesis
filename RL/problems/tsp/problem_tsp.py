@@ -63,7 +63,7 @@ class MTSP(object):
         loc = torch.cat((dataset['car_loc'].clone(), dataset['loc'].clone()), -2)
         pi_assert = pi.permute(1, 0, 2)
         batch_size, tour_length, _ = dataset['loc'].shape
-        cost = torch.zeros(batch_size)
+        cost = torch.zeros(batch_size, device=loc.device)
         n_cars = dataset['n_cars'][0].item()
         # Check that tours are valid, i.e. contain 0 to n -1
         # is_full_tour = True
