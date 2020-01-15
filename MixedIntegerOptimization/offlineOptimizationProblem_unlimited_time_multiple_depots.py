@@ -210,7 +210,7 @@ def run_mtsp_opt(car_pos, event_loc, fake_depot, output_flag=0):
 
     for i in range(n_events):
         for j in range(n_events):
-            if (i != 0) or (j != 0):
+            if (i != 0) and (j != 0):
                 total_cost += distance_matrix[i, j] * x[i, j]
 
     # find the final objective of optimization problem (maximum since we are looking at the rewards)
@@ -364,7 +364,7 @@ def main():
         fake_depot = np.zeros((1, 2))
         # run optimization using gurobi
         s_time = time.time()
-        m, obj = run_mtsp_opt(car_pos, event_pos, fake_depot, True)
+        m, obj = run_mtsp_opt(car_pos, event_pos, fake_depot, False)
         e_time = time.time()
         print("simulation run time is: " + str(e_time - s_time))
         if print_logs:

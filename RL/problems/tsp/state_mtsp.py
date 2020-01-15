@@ -96,15 +96,10 @@ class StateMTSP(NamedTuple):
         )
 
     def get_final_cost(self):
-
         assert self.all_finished()
         # assert self.visited_.
         tot_cost = self.lengths
         n_cars = self.n_cars
-        for i in range(n_cars):
-            cur_coord_ = self.cur_coord[i, ...]  # current coordinate of car i
-            first_a_ = self.first_a[i, ...]  # initial location of car i
-            tot_cost += (self.loc[self.ids, first_a_, :] - cur_coord_).norm(p=2, dim=-1)
         return tot_cost
 
     def update(self, selected, car_id, step):

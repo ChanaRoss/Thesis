@@ -60,10 +60,10 @@ class MTSP(object):
 
     @staticmethod
     def get_costs(dataset, pi):
-        cost = 0
         loc = torch.cat((dataset['car_loc'].clone(), dataset['loc'].clone()), -2)
         pi_assert = pi.permute(1, 0, 2)
         batch_size, tour_length, _ = dataset['loc'].shape
+        cost = torch.zeros(batch_size)
         n_cars = dataset['n_cars'][0].item()
         # Check that tours are valid, i.e. contain 0 to n -1
         # is_full_tour = True
@@ -83,9 +83,10 @@ class MTSP(object):
             dist_mat = calc_distance(d)
             # in order to get the total cost need to sum up the cost of each movement, d is already in the correct order
             # therefore if we sum the [i, i+1] value from each row i and column i+1
-            cost += torch.stack([dist_mat[:, i, i+1] for i in range(dist_mat.shape[1]-1)], dim=1).sum(axis=1)
+            cost1 = torch.stack([dist_mat[:, i, i+1] for i in range(dist_mat.shape[1]-1)], dim=1).sum(axis=1)
             # Add all tour costs together for each car
-            cost += (loc[:, i] - d[:, 0]).norm(p=1, dim=1)  # add the cost of going from car location to the first node
+            cost2 = (loc[:, i] - d[:, 0]).norm(p=1, dim=1)  # add the cost of going from car location to the first node
+            cost += cost1 + cost2
         return cost, None
 
     @staticmethod
