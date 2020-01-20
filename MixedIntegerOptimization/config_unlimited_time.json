@@ -1,11 +1,11 @@
 {
-  "sim_seed": 22,
+  "sim_seed": 1234,
   "grid_size": 10,
   "n_cars": 3,
   "n_events": 18,
   "length_sim": 25,
   "lam": 1.5,
-  "n_runs": 10,
+  "n_runs": 15,
   "plot_figures": false,
   "is_three": false,
   "print_logs": false,

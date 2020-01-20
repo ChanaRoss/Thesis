@@ -76,18 +76,19 @@ def plot_opt_results(adj_mat, loc, ax1):
 
 def main():
     figures_loc = '/Users/chanaross/dev/Thesis/RL/figures/'
-    problem_loc = '/Users/chanaross/dev/Thesis/RL/outputs/mtsp_10/'
+    problem_loc = '/Users/chanaross/dev/Thesis/RL/outputs/mtsp_12/'
     model_loc = []
 
     # ********************************** grid : 10 ********************************** #
     # model_loc.append('mtsp10_without_repeated_20200106T163908/epoch-22.pt')
     # model_loc.append('mtsp10_no_repeated_20200106T212507/epoch-141.pt')
     # model_loc.append('mtsp10_no_repeated_20200108T121907/epoch-225.pt')
-    model_loc.append('mtsp10_without_repeated_20200108T172503/epoch-349.pt')
+    # model_loc.append('mtsp10_without_repeated_20200108T172503/epoch-349.pt')
 
     #  ********************************** grid : 12 ********************************** #
     # model_loc.append('mtsp12_cars3_no_repeated_20200108T110053/epoch-200.pt')
     # model_loc.append('mtsp12_cars3_no_repeated_20200108T110053/epoch-399.pt')
+    model_loc.append('mtsp12_cars3_no_repeated_20200112T094241/epoch-799.pt')
 
     # ********************************** grid : 20 ********************************** #
     # model_loc.append('mtsp20_no_repeated_20200110T101020/epoch-407.pt')
@@ -97,9 +98,9 @@ def main():
     seed = 1234
     # torch.manual_seed(1224)
     torch.manual_seed(seed)
-    n_samples = 3
+    n_samples = 100
     length_out = np.zeros([len(model_loc), n_samples])
-    flag_plot_results = True
+    flag_plot_results = False
     fig2, ax2 = plt.subplots(1, 1)
     cmap2 = discrete_cmap(len(model_loc) + 1)
     cost_models = np.zeros([len(model_loc), n_samples])
@@ -186,11 +187,11 @@ def main():
 
     fig_diff, ax_diff = plt.subplots(1, 1)
     for i_m in range(len(model_loc)):
-        ax_diff.plot(range(n_samples), np.abs(opt_cost-cost_models[i_m, :])/np.mean(opt_cost), label=model_loc[i_m], marker='*')
+        ax_diff.plot(range(n_samples), cost_models[i_m, :]/opt_cost, label=model_loc[i_m], marker='*')
     ax_diff.grid()
     ax_diff.set_xlabel('Run Num #')
-    ax_diff.set_ylabel('|C_model - C_opt|')
-    fig_diff.suptitle('Difference between baseline and models output')
+    ax_diff.set_ylabel('|C_model/C_opt|')
+    fig_diff.suptitle('baseline vs. models output')
     fig_diff.legend()
     # fig.savefig(os.path.join('images', 'cvrp_{}.png'.format(i)))
 

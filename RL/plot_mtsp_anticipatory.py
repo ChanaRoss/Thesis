@@ -79,22 +79,26 @@ def plot_opt_results(adj_mat, event_loc, car_loc, ax1):
 
 def main():
     figures_loc = '/Users/chanaross/dev/Thesis/RL/figures/'
-    problem_loc = '/Users/chanaross/dev/Thesis/RL/outputs/mtsp_10/'
+    problem_loc = '/Users/chanaross/dev/Thesis/RL/outputs/mtsp_18/'
     model_loc = []
 
     # ********************************** grid : 10 ********************************** #
-    model_loc.append('mtsp10_anticipatory_20200114T114437/epoch-181.pt')
+    # model_loc.append('mtsp10_anticipatory_20200114T114437/epoch-194.pt')
 
     #  ********************************** grid : 12 ********************************** #
     # model_loc.append('mtsp12_cars3_no_repeated_20200108T110053/epoch-200.pt')
     # model_loc.append('mtsp12_cars3_no_repeated_20200108T110053/epoch-399.pt')
+
+    # ********************************** grid : 18 ********************************** #
+    model_loc.append('mtsp18_cars3_anticipitaroy_20200115T104159/epoch-28.pt')
+
 
     # ********************************** grid : 20 ********************************** #
     # model_loc.append('mtsp20_no_repeated_20200110T101020/epoch-407.pt')
 
     # tsp_model = '/Users/chanaross/dev/Thesis/RL/pretrained/tsp_20/epoch-99.pt'
 
-    seed = 555
+    seed = 5
     # torch.manual_seed(1224)
     torch.manual_seed(seed)
     n_samples = 4
@@ -118,9 +122,21 @@ def main():
         model.set_decode_type('sampling')
         with torch.no_grad():
             s_time = time.time()
-            length, log_p, pi = model(batch_data, return_pi=True)
+            tour_length = int(model.n_nodes/model.n_cars)
+            n_repeats = 10
+            pi_out = torch.zeros([n_repeats, model.n_cars, n_samples, tour_length])
+            length_out = torch.zeros([n_repeats, n_samples])
+            for i in range(n_repeats):
+                length_temp, log_p_temp, pi_temp = model(batch_data, return_pi=True)
+                length_out[i, ...] = length_temp
+                pi_out[i, ...] = pi_temp
+            length = torch.zeros_like(length_temp)
+            pi = torch.zeros_like(pi_temp)
+            best_indexs = torch.argmin(length_out, axis=0)
+            for i_b in range(n_samples):
+                length[i_b] = length_out[best_indexs[i_b], i_b]
+                pi[:, i_b, :] = pi_out[best_indexs[i_b], :, i_b, :]
             e_time = time.time()
-            length_out[i_m, :] = length.detach().numpy()
             print("***************************************************")
             print(model_loc[i_m] + ":")
             print("model run time:"+str(e_time-s_time))

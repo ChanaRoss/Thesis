@@ -14,6 +14,7 @@ from train import train_epoch, validate, get_inner_model
 from reinforce_baselines import NoBaseline, ExponentialBaseline, CriticBaseline, RolloutBaseline, WarmupBaseline
 from nets.attention_model import AttentionModel
 from nets.mtsp_attention_model_multiple_options import MultiAttentionModelMultipleOptions
+from nets.mtsp_attention_model_single_decoder import MultiAttentionModelSingleDecoder
 from nets.mtsp_attention_model import MultiAttentionModel
 from nets.pointer_network import PointerNetwork, CriticNetworkLSTM
 from utils import torch_load_cpu, load_problem
@@ -58,6 +59,7 @@ def run(opts):
     model_class = {
         'multi_attention': MultiAttentionModel,
         'multi_attention_multiple_options': MultiAttentionModelMultipleOptions,
+        'multi_attention_single_decoder': MultiAttentionModelSingleDecoder,
         'attention': AttentionModel,
         'pointer': PointerNetwork
     }.get(opts.model, None)

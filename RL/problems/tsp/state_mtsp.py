@@ -27,6 +27,8 @@ class StateMTSP(NamedTuple):
     can_repeat: torch.Tensor  # this is needed to see if a car can repeat its previous choice. makes sure there is
     # no infinite loop (once network chooses to repeat node once, that is the choice for future times for this car +
     # last car can't choose to repeat steps)
+    finished_route: torch.Tensor  # this is needed in order to ensure that cars that finished their route always choose the previous node
+
     @property
     def visited(self):
         if self.visited_.dtype == torch.bool:
@@ -56,7 +58,8 @@ class StateMTSP(NamedTuple):
         index_to_choices = create_index_to_choices(n_cars, n_loc, loc.device)
         index_size = index_to_choices.shape[0]
         mask = torch.zeros([batch_size, 1, index_size], dtype=torch.bool, device=loc.device)
-        can_repeat = torch.ones([batch_size, n_cars])
+        can_repeat = torch.ones([n_cars, batch_size], device=loc.device)
+        finished_route = torch.zeros_like(can_repeat, device=loc.device)
         visited_ = (  # Visited as mask is easier to understand, as long more memory efficient
             torch.zeros(
                 batch_size, 1, n_loc+n_cars,
@@ -92,6 +95,7 @@ class StateMTSP(NamedTuple):
             index_to_choices=index_to_choices,
             allow_repeated_choices=allow_repeated_choices,
             can_repeat=can_repeat,
+            finished_route=finished_route,
             mask=mask
         )
 
@@ -106,7 +110,9 @@ class StateMTSP(NamedTuple):
         # selected shape is: [batch_size, graph_size]
         # Update the state
         batch_size = selected.shape[0]
+        finished_route = self.finished_route
         prev_a = self.prev_a
+        can_repeat = self.can_repeat
         prev_a[car_id, ...] = selected[:, None].view(batch_size, -1).type(torch.LongTensor)
         # Update should only be called with just 1 parallel step,
         # in which case we can check this way if we should update
@@ -131,9 +137,24 @@ class StateMTSP(NamedTuple):
         else:
             new_mask = self.mask
         cur_coord[car_id, ...] = cur_coord_
+
+        for i in range(batch_size):
+            # if car repeates the same location we assume it finished its route and from now on should always
+            # choose that location
+            if prev_a[car_id, i] == selected[i]:
+                finished_route[car_id, i] = 1
+            # the route was finished since all nodes are already taken by other cars
+            if visited_[i, 0, :].sum() == self.loc.shape[1]:
+                finished_route[:, i] = 1
+            # check if all cars finished their route than the last one can't choose the same location and must go to all
+            # other locations
+            if finished_route[:, i].sum() == self.n_cars - 1:
+                can_repeat[:, i] = 0
+
         return self._replace(first_a=first_a, prev_a=prev_a,
                              cur_coord=cur_coord, i=torch.tensor(step),
-                             visited_=visited_, lengths=lengths, mask=new_mask)
+                             visited_=visited_, lengths=lengths, mask=new_mask,
+                             finished_route=finished_route, can_repeat=can_repeat)
 
     def all_finished(self):
         # all locations have been visited (dont need n steps since now there are multiple cars)
@@ -158,12 +179,29 @@ class StateMTSP(NamedTuple):
         return mask
 
     def get_nodes_mask(self, car_id):
-        mask = self.visited
+        mask = self.visited.clone()
         if self.allow_repeated_choices:
+            batch_size = self.prev_a.shape[1]
+            for i in range(batch_size):
+                # has repeated location already, therefore only node possible is the one that was last visited
+                if self.finished_route[car_id, i]:
+                    mask[i, ...] = torch.ones_like(self.visited[i, ...])
+                    mask[i, 0, self.prev_a[car_id, i]] = 0
+                # has not repeated locations therefore all nodes in graph are possible including the previous node
+                elif self.can_repeat[car_id, i]:
+                    prev_a_ = self.prev_a[car_id, i, ...]
+                    mask[i, ...] = mask[i, ...].scatter(-1, prev_a_[:, None], 0)
+                # last car therefore can't repeat previous location, needs to pick up all the other nodes
+                else:
+                    mask[i, ...] = mask[i, ...]
 
-            prev_a_ = self.prev_a[car_id, self.can_repeat, ...]
-            # update batches where repetition is allowed to mask = 0 (network can re-choose that node)
-            mask[self.can_repeat, ...]    = mask[self.can_repeat, ...].scatter(-1, prev_a_[:, :, None], 0)
+            # # allow cars that can repeat to stay in same location:
+            # prev_a_ = self.prev_a[car_id, self.can_repeat, ...]
+            # # update batches where repetition is allowed to mask = 0 (network can re-choose that node)
+            # mask[self.can_repeat, ...]    = mask[self.can_repeat, ...].scatter(-1, prev_a_[:, :, None], 0)
+            # # force cars that finished their route to only stay at current location
+            # prev_a_ = self.prev_a[car_id, self.finished_route, ...]
+            # mask[self.finished_route, ...] = mask[self.finished_route, ...].scatter(-1, prev_a_[:, :, None], 0)
         return mask
 
     def _update_mask(self, selected):

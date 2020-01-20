@@ -99,6 +99,7 @@ def create_events_distribution_uniform(grid_size, n_events):
 
 
 def run_mtsp_online_def(car_pos, events_loc, fake_depot, output_flag = 0):
+## doesnt' work yet, need to add a constraint to not allow sub routes (or circular routes)
     event_pos = np.row_stack([events_loc, fake_depot])
     n_events = event_pos.shape[0]
     n_cars = car_pos.shape[0]
@@ -184,7 +185,7 @@ def run_mtsp_opt(car_pos, event_loc, fake_depot, output_flag=0):
     # Create variables
     x = m.addVars(n_events, n_events, name='c_is_picked_up', vtype=GRB.BINARY)
     u = m.addVars(n_events, name='u_latent_variables', vtype=GRB.INTEGER)
-    p = np.floor((n_events - 1)/n_cars)
+    p = n_events - n_cars  # np.floor((n_events - 1)/n_cars)
     # all cars leave the depot node
     for i_c in range(n_cars):
         m.addConstr(x[0, i_c+1]  == 1, "all_cars_leave_depot", None, "")
@@ -217,74 +218,6 @@ def run_mtsp_opt(car_pos, event_loc, fake_depot, output_flag=0):
     obj = total_cost
 
     # adding constraints and objective to gurobi model
-    m.setObjective(obj, GRB.MINIMIZE)
-    m.setParam('OutputFlag', output_flag)
-    m.setParam('LogFile', "")
-    m.optimize()
-    return m, obj
-
-def run_mtsp_opt_three(car_pos, event_pos, output_flag=1):
-    """
-    this function runs the optimization for determinist problem using gurobi as the optimizer 
-    :param car_pos: matrix of car positions [n_cars, 2]
-    :param event_pos: matrix of event positions [n_events, 2]
-    :param output_flag: should output gurobi log
-    :return: 
-    """
-    n_events = event_pos.shape[0]
-    n_cars   = car_pos.shape[0]
-    
-    distance_matrix = cdist(event_pos, event_pos, metric='euclidean')
-    
-    # Create optimization model
-    m = Model('OfflineOpt')
-    
-    # Create variables
-    x = m.addVars(n_events, n_events, n_cars, name='c_is_picked_up', vtype=GRB.BINARY)
-    u = m.addVars(n_events-1, name='u_latent_variables', vtype=GRB.INTEGER)
-
-    # add constraint - for each car
-    for k in range(n_cars):
-        # leave depot exactly once
-        m.addConstr(sum(x[i+1, 0, k] for i in range(n_events-1)) == 1,
-                    "leave_depot_once", None, "")
-        # return to depot exaclty once
-        m.addConstr(sum(x[0, i+1, k] for i in range(n_events-1)) == 1,
-                    "return_depot_once", None, "")
-        for r in range(n_events-1):
-            # for each non depot event, number of times it is visited equals the number of times its left
-            m.addConstr(sum(x[i, r+1, k] for i in range(n_events)) == sum(x[r+1, j, k] for j in range(n_events)),
-                        "visit_event_once", None, "")
-
-    for i in range(n_events-1):
-        # number of times a non depot event is left is exactly one
-        m.addConstr(sum(sum(x[i+1, j, k] for k in range(n_cars)) for j in range(n_events)) == 1,
-                    "leave_event_once", None, "")
-        m.addConstr(sum(x[i+1, i+1, k] for k in range(n_cars)) == 0, "cant_pickup_same_event", None, "")
-
-        for j in range(n_events-1):
-            if i != j:
-                m.addConstr(u[i]-u[j] + (n_events - n_cars)*sum(x[i+1, j+1, k] for k in range(n_cars)) <=
-                            (n_events - n_cars -1), "no_subrouts", None, "")
-
-    for j in range(n_events-1):
-        # number of times a non depot event is picked up is exactly one
-        m.addConstr(sum(sum(x[i, j+1, k] for k in range(n_cars)) for i in range(n_events)) == 1,
-                    "return_event_once", None, "")
-
-
-    total_cost       = 0   # reward for events that are closed after an event
-
-    for k in range(n_cars):
-        for i in range(n_events):
-            for j in range(n_events):
-                total_cost += distance_matrix[i, j]*x[i, j, k]
-
-
-    # find the final objective of optimization problem (maximum since we are looking at the rewards)
-    obj = total_cost
-
-    # adding constraints and objective to gurobi model 
     m.setObjective(obj, GRB.MINIMIZE)
     m.setParam('OutputFlag', output_flag)
     m.setParam('LogFile', "")
