@@ -111,7 +111,7 @@ class StateMTSP(NamedTuple):
         # Update the state
         batch_size = selected.shape[0]
         finished_route = self.finished_route
-        prev_a = self.prev_a
+        prev_a = self.prev_a.clone()
         can_repeat = self.can_repeat
         prev_a[car_id, ...] = selected[:, None].view(batch_size, -1).type(torch.LongTensor)
         # Update should only be called with just 1 parallel step,
@@ -125,7 +125,7 @@ class StateMTSP(NamedTuple):
         prev_a_ = prev_a[car_id, ...]
         cur_coord_ = self.loc[self.ids, prev_a_].view(batch_size, -1)
         if self.cur_coord is not None:  # Don't add length for first action (selection of start node)
-            lengths = lengths + (cur_coord_ - self.cur_coord[car_id, ...]).norm(p=1, dim=-1).view(-1, 1)  # (batch_dim, 1)
+            lengths = lengths + (cur_coord_ - self.cur_coord[car_id, ...]).norm(p=1, dim=-1).view(-1, 1)  #  (batch_dim, 1)
         if self.visited_.dtype == torch.bool:
             # Add one dimension since we write a single value
             # add's 1 to wherever we visit now, this creates a vector of 1's wherever we have been already
@@ -141,7 +141,7 @@ class StateMTSP(NamedTuple):
         for i in range(batch_size):
             # if car repeates the same location we assume it finished its route and from now on should always
             # choose that location
-            if prev_a[car_id, i] == selected[i]:
+            if self.prev_a[car_id, i] == selected[i]:
                 finished_route[car_id, i] = 1
             # the route was finished since all nodes are already taken by other cars
             if visited_[i, 0, :].sum() == self.loc.shape[1]:

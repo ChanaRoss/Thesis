@@ -81,6 +81,8 @@ def load_model(path, epoch=None):
     from nets.attention_model import AttentionModel
     from nets.pointer_network import PointerNetwork
     from nets.mtsp_attention_model import MultiAttentionModel
+    from nets.mtsp_attention_model_single_decoder import MultiAttentionModelSingleDecoder
+    from nets.mtsp_attention_model_multiple_options import MultiAttentionModelMultipleOptions
 
     if os.path.isfile(path):
         model_filename = path
@@ -104,7 +106,9 @@ def load_model(path, epoch=None):
     model_class = {
         'attention': AttentionModel,
         'pointer': PointerNetwork,
-        'multi_attention': MultiAttentionModel
+        'multi_attention': MultiAttentionModel,
+        'multi_attention_single_decoder': MultiAttentionModelSingleDecoder,
+        'multi_attention_multiple_options': MultiAttentionModelMultipleOptions
     }.get(args.get('model', 'multi_attention'), None)
     assert model_class is not None, "Unknown model: {}".format(model_class)
 

@@ -165,7 +165,7 @@ def run_mtsp_online_def(car_pos, events_loc, fake_depot, output_flag = 0):
     return m, obj
 
 
-def run_mtsp_opt(car_pos, event_loc, fake_depot, output_flag=0):
+def run_mtsp_opt(car_pos, event_loc, fake_depot, same_length_tours = False, output_flag=0):
     """
     this function runs the optimization for determinist problem using gurobi as the optimizer
     :param car_pos: matrix of car positions [n_cars, 2]
@@ -185,7 +185,10 @@ def run_mtsp_opt(car_pos, event_loc, fake_depot, output_flag=0):
     # Create variables
     x = m.addVars(n_events, n_events, name='c_is_picked_up', vtype=GRB.BINARY)
     u = m.addVars(n_events, name='u_latent_variables', vtype=GRB.INTEGER)
-    p = n_events - n_cars  # np.floor((n_events - 1)/n_cars)
+    if same_length_tours:
+        p = np.floor((n_events - 1)/n_cars)
+    else:
+        p = n_events - n_cars
     # all cars leave the depot node
     for i_c in range(n_cars):
         m.addConstr(x[0, i_c+1]  == 1, "all_cars_leave_depot", None, "")
@@ -213,6 +216,68 @@ def run_mtsp_opt(car_pos, event_loc, fake_depot, output_flag=0):
         for j in range(n_events):
             if (i != 0) and (j != 0):
                 total_cost += distance_matrix[i, j] * x[i, j]
+
+    # find the final objective of optimization problem (maximum since we are looking at the rewards)
+    obj = total_cost
+
+    # adding constraints and objective to gurobi model
+    m.setObjective(obj, GRB.MINIMIZE)
+    m.setParam('OutputFlag', output_flag)
+    m.setParam('LogFile', "")
+    m.optimize()
+    return m, obj
+
+
+def run_mtsp_vip_opt(car_pos, event_loc, event_cost, fake_depot, output_flag=0):
+    """
+    this function runs the optimization for determinist problem using gurobi as the optimizer
+    :param car_pos: matrix of car positions [n_cars, 2]
+    :param event_pos: matrix of event positions [n_events, 2]
+    :param output_flag: should output gurobi log
+    :return:
+    """
+    event_pos = np.row_stack([fake_depot, car_pos, event_loc])
+    n_events = event_pos.shape[0]
+    n_cars = car_pos.shape[0]
+
+    distance_matrix = cdist(event_pos, event_pos, metric='cityblock')
+
+    # Create optimization model
+    m = Model('OfflineOpt')
+
+    # Create variables
+    x = m.addVars(n_events, n_events, name='c_is_picked_up', vtype=GRB.BINARY)
+    u = m.addVars(n_events, name='u_latent_variables', vtype=GRB.INTEGER)
+    p = np.floor((n_events - 1)/n_cars)   # n_events - n_cars  #
+    # all cars leave the depot node
+    for i_c in range(n_cars):
+        m.addConstr(x[0, i_c+1]  == 1, "all_cars_leave_depot", None, "")
+    m.addConstr(sum(x[0, j + 1] for j in range(n_events - 1)) == n_cars, "num_leaving_depot_is_n_cars", None, "")
+    # all cars return to depot node
+    m.addConstr(sum(x[i + 1, 0] for i in range(n_events - 1)) == n_cars, "num_returning_depot_is_n_cars", None, "")
+    # nodes can't enter themselves
+    m.addConstr(sum(x[i, i] for i in range(n_events)) == 0, "all_cars_return_to_depot", None, "")
+    # only one tour enters each event
+    for j in range(n_events - 1):
+        m.addConstr(sum(x[i, j + 1] for i in range(n_events)) == 1, "one_tour_enters", None, "")
+    # only one tour exits each event
+    for i in range(n_events - 1):
+        m.addConstr(sum(x[i + 1, j] for j in range(n_events)) == 1, "one_tour_exits", None, "")
+
+    # no sub-tour is included
+    for i in range(n_events - 1):
+        for j in range(n_events - 1):
+            if i != j:
+                m.addConstr(u[i] - u[j] + p * x[i + 1, j + 1] <= p - 1, "no_subtours", None, "")
+
+    total_cost = 0  # reward for events that are closed after an event
+
+    for i in range(n_events):
+        for j in range(n_events):
+            if (i != 0) and (j != 0):
+                # j is an event and need to take into consideration if its a real or fake event
+                order_cost = (u[j-1]+1)*event_cost[j-1]
+                total_cost += distance_matrix[i, j] * x[i, j] + order_cost
 
     # find the final objective of optimization problem (maximum since we are looking at the rewards)
     obj = total_cost
@@ -273,11 +338,10 @@ def main():
 
     # load parameters form json file
     sim_seed       = param_dict['sim_seed']  # seed for event and car data
-    is_three       = param_dict['is_three']  # should use three code or two
     grid_size            = [param_dict['grid_size'], param_dict['grid_size']]  # size of environment
     n_cars               = param_dict['n_cars']  # number of cars in simulation
     n_events             = param_dict['n_events']  # number of events in simulation
-    length_sim           = param_dict['length_sim']  # full length of simulation
+    same_length_routes   = param_dict['same_length_routes']  # if true all cars have routes of the same length
     # set random seed for problem
     np.random.seed(sim_seed)
     plot_figures = param_dict['plot_figures']  # flag if should plot figures [0 - don't plot, 1 - plot]
@@ -286,6 +350,7 @@ def main():
     file_loc  = param_dict['file_loc']  # location of output file and figures
     file_name = param_dict['file_name']  # name of files
 
+    n_real_events = 2
     cost = np.zeros(param_dict['n_runs'])
     for i in range(param_dict['n_runs']):
         # create car initial positions
@@ -293,11 +358,18 @@ def main():
 
         # create event positions and time
         event_pos = create_events_distribution_uniform(grid_size, n_events)
-
+        event_cost = np.zeros(n_events+n_cars)
+        for i_n in range(n_cars + n_events):
+            if i_n < n_cars:
+                event_cost[i_n] = 0
+            elif i_n < n_cars+n_real_events:
+                event_cost[i_n] = 1
+            else:
+                event_cost[i_n] = 10
         fake_depot = np.zeros((1, 2))
         # run optimization using gurobi
         s_time = time.time()
-        m, obj = run_mtsp_opt(car_pos, event_pos, fake_depot, False)
+        m, obj = run_mtsp_opt(car_pos, event_pos, fake_depot, same_length_routes, False)
         e_time = time.time()
         print("simulation run time is: " + str(e_time - s_time))
         if print_logs:

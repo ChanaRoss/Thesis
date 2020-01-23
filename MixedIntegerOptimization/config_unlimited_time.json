@@ -1,14 +1,15 @@
 {
   "sim_seed": 1234,
   "grid_size": 10,
-  "n_cars": 3,
-  "n_events": 18,
+  "n_cars": 2,
+  "n_events": 10,
   "length_sim": 25,
   "lam": 1.5,
-  "n_runs": 15,
-  "plot_figures": false,
+  "n_runs": 1,
+  "same_length_routes": false,
+  "plot_figures": true,
   "is_three": false,
-  "print_logs": false,
+  "print_logs": true,
   "file_loc": "/Users/chanaross/dev/Thesis/MixedIntegerOptimization/unlimited_results/",
   "file_name": "optimization_results_unlimited_time"
 }

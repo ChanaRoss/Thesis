@@ -1206,7 +1206,7 @@ def main():
     # y limits are : (0 , 52)
     # t limits are : (0 , 9024)
     xLim    = [0, 10]
-    yLim    = [20, 50]
+    yLim    = [30, 40]
     # take from each matrix only the grid points of interest
     eventsMatrix        = eventsMatrix[xLim[0]:xLim[1], yLim[0]: yLim[1], :]
     probabilityMatrix   = probabilityMatrix[xLim[0]:xLim[1], yLim[0]: yLim[1], :, :]
@@ -1214,7 +1214,7 @@ def main():
     # params
     epsilon                     = 0.001  # distance between locations to be considered same location
     simStartTime                = 48   # time from which to start looking at the data
-    lengthSim                   = 24     # 12 hours, each time step is 30 min. of real time
+    lengthSim                   = 20     # 12 hours, each time step is 30 min. of real time
     numStochasticRuns           = 20
     lengthPrediction            = 5    # how many time steps should it use for prediction
     deltaTimeForCommit          = 10   # not useful for now
@@ -1224,8 +1224,8 @@ def main():
     openedNotCommitedPenalty    = 5    # penalty for event being opened
 
     gridSize            = [probabilityMatrix.shape[0], probabilityMatrix.shape[1]]
-    deltaOpenTime       = 4
-    numCars             = 15
+    deltaOpenTime       = 40
+    numCars             = 4
     carPosX             = np.random.randint(0, gridSize[0], numCars)
     carPosY             = np.random.randint(0, gridSize[1], numCars)
     carPos              = np.column_stack((carPosX, carPosY)).reshape(numCars, 2)
@@ -1234,9 +1234,9 @@ def main():
     eventStartTime      = eventTimes[:, 0]
     eventEndTime        = eventTimes[:, 1]
 
-        # plt.scatter(eventPos[:, 0], eventPos[:, 1], c= 'r')
-        # plt.scatter(carPos[:, 0], carPos[:, 1], c='k')
-        # plt.show()
+    # plt.scatter(eventPos[:, 0], eventPos[:, 1], c= 'r')
+    # plt.scatter(carPos[:, 0], carPos[:, 1], c='k')
+    # plt.show()
     uncommitedCarDict   = {}
     commitedCarDict     = {}
     uncommitedEventDict = {}
@@ -1258,7 +1258,7 @@ def main():
     fileName        = str(lengthPrediction) + 'lpred_' + str(deltaOpenTime)+'delOpen_' + str(simStartTime) + 'startTime_' + str(gridSize[0]) + 'gridX_' +\
                       str(gridSize[1]) + 'gridY_' + str(eventTimes.shape[0]) + 'numEvents_' + \
                       str(numStochasticRuns) + 'nStochastic_' + str(numCars) + 'numCars_' + distMethod + '_' + optimizationMethod
-    fileLoc         = '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/with_machine_learning/Results_presentation/'
+    fileLoc         = '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/with_machine_learning/Results_no_time_limit/'
 
     # if loading from pickle, should load this file from this location
     pickleName  = 'SimAnticipatoryMio_BruteForce_limitedNN0p9_5lpred_4delOpen_1000startTime_10gridX_15gridY_55numEvents_20nStochastic_4numCars_Bm_MaxFlow'

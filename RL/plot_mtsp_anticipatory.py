@@ -60,50 +60,59 @@ def plot_opt_results(adj_mat, event_loc, car_loc, ax1):
     mat_indexs = np.array(range(n_cars))
     n_nodes = event_loc.shape[0]
     route_length = np.floor(n_nodes/n_cars).astype(int)
-    car_route = np.zeros([n_cars, route_length])
+    car_route = np.zeros([n_cars, n_nodes])
     # car_route[:, 0] = mat_indexs
     for i, index in enumerate(mat_indexs):
         next_node = np.where(adj_mat[index, :].reshape(-1) > 0)[0]
-        car_route[i, 0] = next_node
-        j = 1
-        flag_route_finished = False
-        while(not flag_route_finished):
-            next_node = np.where(adj_mat[next_node, :].reshape(-1) > 0)[0]
-            if next_node.size  == 0:
-                flag_route_finished = True
-            else:
-                car_route[i, j] = next_node
-            j += 1
+        if next_node.size > 0:
+            car_route[i, 0] = next_node
+            j = 1
+            flag_route_finished = False
+            while(not flag_route_finished):
+                next_node = np.where(adj_mat[next_node, :].reshape(-1) > 0)[0]
+                if next_node.size == 0:
+                    flag_route_finished = True
+                    car_route[i, j:] = car_route[i, j-1]
+                else:
+                    car_route[i, j] = next_node
+                j += 1
+        else:
+            car_route[i, 0] = i
+
     plot_vehicle_routes(data_plot, torch.tensor(car_route), ax1, markersize=5)
 
 
 def main():
     figures_loc = '/Users/chanaross/dev/Thesis/RL/figures/'
-    problem_loc = '/Users/chanaross/dev/Thesis/RL/outputs/mtsp_18/'
+    problem_loc = '/Users/chanaross/dev/Thesis/RL/outputs/mtsp_10/'
     model_loc = []
 
     # ********************************** grid : 10 ********************************** #
-    # model_loc.append('mtsp10_anticipatory_20200114T114437/epoch-194.pt')
+    # model_loc.append('mtsp10_anticipatory_20200114T114437/epoch-299.pt')
+    # model_loc.append('mtsp10_single_decoder_20200115T133653/epoch-299.pt')
+    model_loc.append('mtsp10_anticipatory_allow_repeated_20200121T232650/epoch-12.pt')
 
     #  ********************************** grid : 12 ********************************** #
     # model_loc.append('mtsp12_cars3_no_repeated_20200108T110053/epoch-200.pt')
     # model_loc.append('mtsp12_cars3_no_repeated_20200108T110053/epoch-399.pt')
 
     # ********************************** grid : 18 ********************************** #
-    model_loc.append('mtsp18_cars3_anticipitaroy_20200115T104159/epoch-28.pt')
+    # model_loc.append('mtsp18_cars3_anticipitaroy_20200115T104159/epoch-28.pt')
+    # model_loc.append('mtsp18_cars3_one_decoder_anticipitaroy_20200115T194914/epoch-225.pt')
 
-
+    #
     # ********************************** grid : 20 ********************************** #
     # model_loc.append('mtsp20_no_repeated_20200110T101020/epoch-407.pt')
 
     # tsp_model = '/Users/chanaross/dev/Thesis/RL/pretrained/tsp_20/epoch-99.pt'
 
-    seed = 5
+    seed = 1234
     # torch.manual_seed(1224)
     torch.manual_seed(seed)
     n_samples = 4
     length_out = np.zeros([len(model_loc), n_samples])
     flag_plot_results = True
+
     fig2, ax2 = plt.subplots(1, 1)
     cmap2 = discrete_cmap(len(model_loc) + 1)
     cost_models = np.zeros([len(model_loc), n_samples])
@@ -123,7 +132,7 @@ def main():
         with torch.no_grad():
             s_time = time.time()
             tour_length = int(model.n_nodes/model.n_cars)
-            n_repeats = 10
+            n_repeats = 40
             pi_out = torch.zeros([n_repeats, model.n_cars, n_samples, tour_length])
             length_out = torch.zeros([n_repeats, n_samples])
             for i in range(n_repeats):
@@ -143,7 +152,7 @@ def main():
             print(length)
             print("average length is:" + str(length.mean()))
             print("max length is: " + str(length.max()))
-            print("mean length is:" + str(length.min()))
+            print("min length is:" + str(length.min()))
             print("std length is: " + str(length.std()))
         tours = pi.permute(1, 0, 2)  # new order is [batch_size, n_cars, tour_length]
         n_splots = int(np.ceil(n_samples / 2))
@@ -169,8 +178,10 @@ def main():
     events_batch_depot = batch_data['depot'].detach().numpy()
     events_batch_car_loc = batch_data['car_loc'].detach().numpy()
     opt_cost = np.zeros(n_samples)
+    opt_cost_same_length = np.zeros(n_samples)
     if flag_plot_results:
         fig_opt, ax_opt = plt.subplots(n_splots, 2)
+        fig_same_length, ax_same_length = plt.subplots(n_splots, 2)
     opt_time = 0
     for i in range(events_batch_loc.shape[0]):
         car_loc = events_batch_car_loc[i, ...]
@@ -178,9 +189,28 @@ def main():
         events_loc = events_batch_loc[i, ...]
         s_time = time.time()
         print("starting opt num:"+str(i))
-        m, obj = run_mtsp_opt(car_loc, events_loc, depot, False)
+        # run optimization for same length routes -
+        same_length_routes = True
+        m, obj = run_mtsp_opt(car_loc, events_loc, depot, same_length_routes, False)
         e_time = time.time()
         opt_time += e_time-s_time
+        # # run analysis and plot results
+        data_out = analysis_and_plot_results(m, car_loc, events_loc, depot,
+                                             False, figures_loc, opt_file_name, 10)
+
+        opt_cost_same_length[i] = obj.getValue()
+        if flag_plot_results:
+            x_p = i // 2
+            y_p = i % 2
+            plot_opt_results(data_out[1:, 1:], events_loc, car_loc, ax_opt[x_p][y_p])
+            ax_opt[x_p][y_p].grid()
+            fig_opt.suptitle('Optimization results - same length', fontsize=16)
+
+        # run optimization for differnt length routes
+        same_length_routes = False
+        m, obj = run_mtsp_opt(car_loc, events_loc, depot, same_length_routes, False)
+        e_time = time.time()
+        opt_time += e_time - s_time
         # # run analysis and plot results
         data_out = analysis_and_plot_results(m, car_loc, events_loc, depot,
                                              False, figures_loc, opt_file_name, 10)
@@ -191,15 +221,22 @@ def main():
             y_p = i % 2
             plot_opt_results(data_out[1:, 1:], events_loc, car_loc, ax_opt[x_p][y_p])
             ax_opt[x_p][y_p].grid()
-            fig_opt.suptitle('Optimization results', fontsize=16)
-    ax2.plot(range(n_samples), opt_cost, label='cost- optimization', marker='s', color=cmap2(i_m + 1))
+            fig_opt.suptitle('Optimization results - same length', fontsize=16)
+
+
+    ax2.plot(range(n_samples), opt_cost_same_length, label='cost- optimization same length', marker='s',
+             color=cmap2(i_m + 1))
+    ax2.plot(range(n_samples), opt_cost, label='cost- optimization different length', marker='s',
+             color=cmap2(i_m + 1))
     ax2.grid()
+    ax2.set_ylim([0, 80])
     print("***************************************************")
     print("optimization results:")
     print("opt tot time:"+str(opt_time))
     print("cost:"+str(opt_cost))
-    print("mean cost is:" + str(np.mean(opt_cost)))
+    print("average cost is:" + str(np.mean(opt_cost)))
     print("std cost : " + str(np.std(opt_cost)))
+    print("min cost : " + str(np.min(opt_cost)))
     print("max cost is:" + str(np.max(opt_cost)))
     fig2.legend()
 
