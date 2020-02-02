@@ -328,12 +328,12 @@ def main():
     openedPenalty = 5
     sim_seed      = 1
     np.random.seed(sim_seed)
-    gridSize            = [4, 4]
+    gridSize            = [10, 10]
     nCars               = 2
     tStart              = 0
-    deltaOpenTime       = 5
+    deltaOpenTime       = 12
     lengthSim           = 15
-    lam                 = 0.7  # 2/3
+    lam                 = 1.7  # 2/3
 
     plotFigures = True
     fileLoc = '/Users/chanaross/dev/Thesis/MixedIntegerOptimization/'

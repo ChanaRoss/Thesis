@@ -56,11 +56,11 @@ def calcReward(eventPos,carPos,closeReward,cancelPenalty,openedPenalty):
     distEventsToEvents = cdist(eventPos,eventPos,metric = 'cityblock')
     distCarsToEvents   = cdist(carPos,eventPos,metric='cityblock')
 
-    rewardCarsToEvents   = -distCarsToEvents + np.ones(shape = (nCars,nEvents))*closeReward
-    rewardEventsToEvents = -distEventsToEvents + np.ones(shape = (nEvents,nEvents))*closeReward
+    rewardCarsToEvents   = -distCarsToEvents + np.ones(shape=(nCars, nEvents))*closeReward
+    rewardEventsToEvents = -distEventsToEvents + np.ones(shape=(nEvents, nEvents))*closeReward
     timeEventsToEvents    = distEventsToEvents
     timeCarsToEvents     = distCarsToEvents
-    return rewardCarsToEvents,rewardEventsToEvents,timeCarsToEvents,timeEventsToEvents
+    return rewardCarsToEvents, rewardEventsToEvents, timeCarsToEvents, timeEventsToEvents
 
 
 

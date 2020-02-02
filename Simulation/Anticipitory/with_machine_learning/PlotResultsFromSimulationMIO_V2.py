@@ -20,6 +20,13 @@ sns.set()
 pickleNames = []
 
 # test results on new code
+
+pickleNames.append('SimAnticipatoryMio_RandomChoice_5lpred_20delOpen_48startTime_10gridX_10gridY_24numEvents_20nStochastic_4numCars_Bm_MaxFlow')
+pickleNames.append('SimGreedy_5lpred_20delOpen_48startTime_10gridX_10gridY_24numEvents_20nStochastic_4numCars_Bm_MaxFlow')
+pickleNames.append('SimOptimization_MaxFlow_5lpred_20delOpen_48startTime_10gridX_10gridY_24numEvents_20nStochastic_4numCars_Bm_MaxFlow')
+pickleNames.append('SimOptimization_TimeWindow_5lpred_20delOpen_48startTime_10gridX_10gridY_24numEvents_20nStochastic_4numCars_Bm_MaxFlow')
+
+
 # pickleNames.append('SimAnticipatory_SingleTime_OptimalActionChoice_MioFinalResults_4lpred_50startTime_10gridX_20gridY_42numEvents_5nStochastic_5numCars_NN')
 # pickleNames.append('SimGreedyFinalResults_4lpred_50startTime_10gridX_20gridY_42numEvents_5nStochastic_5numCars_uberData')
 # pickleNames.append('SimOptimizationFinalResults_4lpred_50startTime_10gridX_20gridY_42numEvents_5nStochastic_5numCars_uberData')
@@ -53,13 +60,13 @@ pickleNames = []
 # pickleNames.append('SimGreedy_7lpred_1000startTime_10gridX_15gridY_55numEvents_10nStochastic_2numCars_Bm_easy_MaxFlow')
 
 # 3 cars:
-pickleNames.append('SimOptimization_TimeWindow_7lpred_1000startTime_10gridX_15gridY_55numEvents_10nStochastic_3numCars_Bm_easy_MaxFlow')
-pickleNames.append('SimOptimization_MaxFlow_7lpred_1000startTime_10gridX_15gridY_55numEvents_10nStochastic_3numCars_Bm_easy_MaxFlow')
-pickleNames.append('SimAnticipatoryMio_RandomChoice_7lpred_1000startTime_10gridX_15gridY_55numEvents_10nStochastic_3numCars_Bm_easy_MaxFlow')
-# pickleNames.append('SimAnticipatoryMio_RandomChoice_7lpred_1000startTime_10gridX_15gridY_55numEvents_5nStochastic_3numCars_NN_MaxFlow')
-# pickleNames.append('SimAnticipatoryMio_RandomChoice_limitedNN0p9_7lpred_1000startTime_10gridX_15gridY_55numEvents_40nStochastic_3numCars_NN_MaxFlow')
-pickleNames.append('SimAnticipatoryMio_RandomChoice_limitedNN0p8_7lpred_1000startTime_10gridX_15gridY_55numEvents_40nStochastic_3numCars_NN_MaxFlow')
-pickleNames.append('SimGreedy_7lpred_1000startTime_10gridX_15gridY_55numEvents_10nStochastic_3numCars_Bm_easy_MaxFlow')
+# pickleNames.append('SimOptimization_TimeWindow_7lpred_1000startTime_10gridX_15gridY_55numEvents_10nStochastic_3numCars_Bm_easy_MaxFlow')
+# pickleNames.append('SimOptimization_MaxFlow_7lpred_1000startTime_10gridX_15gridY_55numEvents_10nStochastic_3numCars_Bm_easy_MaxFlow')
+# pickleNames.append('SimAnticipatoryMio_RandomChoice_7lpred_1000startTime_10gridX_15gridY_55numEvents_10nStochastic_3numCars_Bm_easy_MaxFlow')
+# # pickleNames.append('SimAnticipatoryMio_RandomChoice_7lpred_1000startTime_10gridX_15gridY_55numEvents_5nStochastic_3numCars_NN_MaxFlow')
+# # pickleNames.append('SimAnticipatoryMio_RandomChoice_limitedNN0p9_7lpred_1000startTime_10gridX_15gridY_55numEvents_40nStochastic_3numCars_NN_MaxFlow')
+# pickleNames.append('SimAnticipatoryMio_RandomChoice_limitedNN0p8_7lpred_1000startTime_10gridX_15gridY_55numEvents_40nStochastic_3numCars_NN_MaxFlow')
+# pickleNames.append('SimGreedy_7lpred_1000startTime_10gridX_15gridY_55numEvents_10nStochastic_3numCars_Bm_easy_MaxFlow')
 
 # # 72 timesteps -
 # pickleNames.append('SimOptimization_TimeWindow_7lpred_1000startTime_10gridX_15gridY_67numEvents_5nStochastic_3numCars_NN_MaxFlow')
@@ -375,7 +382,7 @@ def main():
     imageList = []
 
     FlagCreateGif = 0
-    fileLoc = '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/with_machine_learning/NumCars/Results/'
+    fileLoc = '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/with_machine_learning/Results_no_time_limit/'
     # fileLoc = '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/with_machine_learning/Results_presentation/'
     fig, ax = plt.subplots(1, 1)
     for pickleName in pickleNames:

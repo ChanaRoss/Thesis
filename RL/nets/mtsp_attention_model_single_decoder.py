@@ -73,6 +73,7 @@ class MultiAttentionModelSingleDecoder(nn.Module):
         self.is_orienteering = problem.NAME == 'op'
         self.is_pctsp = problem.NAME == 'pctsp'
         self.is_mtsp = problem.NAME == 'mtsp'
+        self.is_tmtsp = problem.NAME == 'tmtsp'
 
         self.tanh_clipping = tanh_clipping
 
@@ -100,9 +101,12 @@ class MultiAttentionModelSingleDecoder(nn.Module):
             if self.is_vrp and self.allow_partial:  # Need to include the demand if split delivery allowed
                 self.project_node_step = nn.Linear(1, 3 * embedding_dim, bias=False)
         else:  # TSP
-            assert problem.NAME == "tsp" or problem.NAME == "mtsp", "Unsupported problem: {}".format(problem.NAME)
+            assert problem.NAME == "tsp" or problem.NAME == "mtsp" or problem.NAME == 'tmtsp', "Unsupported problem: {}".format(problem.NAME)
             step_context_dim = 2 * embedding_dim  # Embedding of first and last node
-            node_dim = 2  # x, y
+            if self.is_tmtsp:
+                node_dim = 4  # x, y, t_start, t_end
+            else:
+                node_dim = 2  # x, y
 
         self.init_embed = nn.Linear(node_dim, embedding_dim)
         self.init_embed_depot = nn.Linear(2, embedding_dim)
@@ -236,6 +240,10 @@ class MultiAttentionModelSingleDecoder(nn.Module):
         elif self.is_mtsp:
             loc = torch.cat((input['car_loc'], input['loc']), -2)
             return self.init_embed(loc)
+        elif self.is_tmtsp:
+            loc = torch.cat((input['car_loc'], input['loc']), -2)
+            loc_time_input = torch.cat((loc, input['time']), -1)
+            return self.init_embed(loc_time_input)
         return self.init_embed(input)
 
     def _inner(self, input_data, embeddings):
@@ -252,7 +260,7 @@ class MultiAttentionModelSingleDecoder(nn.Module):
         # Perform decoding steps
         i = 0
         while not (self.shrink_size is None and state.all_finished()):
-            if i>20:
+            if i > 20:
                 print("large i")
             log_p = torch.zeros(batch_size, self.n_cars, self.n_cars+ self.n_nodes, device=input_data['loc'].device)
             selected = torch.zeros(self.n_cars, batch_size, device=state.ids.device)

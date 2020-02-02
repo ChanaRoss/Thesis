@@ -89,8 +89,8 @@ def main():
 
     # ********************************** grid : 10 ********************************** #
     # model_loc.append('mtsp10_anticipatory_20200114T114437/epoch-299.pt')
-    # model_loc.append('mtsp10_single_decoder_20200115T133653/epoch-299.pt')
-    model_loc.append('mtsp10_anticipatory_allow_repeated_20200121T232650/epoch-12.pt')
+    model_loc.append('mtsp10_single_decoder_20200122T142429/epoch-599.pt')
+    model_loc.append('mtsp10_anticipatory_allow_repeated_20200122T181701/epoch-176.pt')
 
     #  ********************************** grid : 12 ********************************** #
     # model_loc.append('mtsp12_cars3_no_repeated_20200108T110053/epoch-200.pt')
@@ -202,9 +202,9 @@ def main():
         if flag_plot_results:
             x_p = i // 2
             y_p = i % 2
-            plot_opt_results(data_out[1:, 1:], events_loc, car_loc, ax_opt[x_p][y_p])
-            ax_opt[x_p][y_p].grid()
-            fig_opt.suptitle('Optimization results - same length', fontsize=16)
+            plot_opt_results(data_out[1:, 1:], events_loc, car_loc, ax_same_length[x_p][y_p])
+            ax_same_length[x_p][y_p].grid()
+            fig_same_length.suptitle('Optimization results - same length', fontsize=16)
 
         # run optimization for differnt length routes
         same_length_routes = False
@@ -221,7 +221,7 @@ def main():
             y_p = i % 2
             plot_opt_results(data_out[1:, 1:], events_loc, car_loc, ax_opt[x_p][y_p])
             ax_opt[x_p][y_p].grid()
-            fig_opt.suptitle('Optimization results - same length', fontsize=16)
+            fig_opt.suptitle('Optimization results - different length', fontsize=16)
 
 
     ax2.plot(range(n_samples), opt_cost_same_length, label='cost- optimization same length', marker='s',

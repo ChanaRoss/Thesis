@@ -98,9 +98,9 @@ def main():
     seed = 1234
     # torch.manual_seed(1224)
     torch.manual_seed(seed)
-    n_samples = 100
+    n_samples = 4
     length_out = np.zeros([len(model_loc), n_samples])
-    flag_plot_results = False
+    flag_plot_results = True
     fig2, ax2 = plt.subplots(1, 1)
     cmap2 = discrete_cmap(len(model_loc) + 1)
     cost_models = np.zeros([len(model_loc), n_samples])

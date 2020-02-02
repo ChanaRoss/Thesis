@@ -771,7 +771,7 @@ def anticipatorySimulation_bruteForce(initState, nStochastic, gs, tPred, eTimeWi
                                                         optionalState.closeReward, optionalState.cancelPenalty,
                                                         optionalState.openedNotCommitedPenalty, 0)
                     else:
-                        m, obj = runMaxFlowOpt(0, carsPos, eventsPos, eventsEndTime,
+                        m, obj = runMaxFlowOpt(0, carsPos, eventsPos, eventsStartTime+eTimeWindow,
                                                optionalState.closeReward, optionalState.cancelPenalty,
                                                optionalState.openedNotCommitedPenalty)
                     etime = time.process_time()
@@ -911,7 +911,7 @@ def anticipatorySimulation_optimalActionChoice(initState, nStochastic, gs, tPred
                                                              tempOptionalState.closeReward, tempOptionalState.cancelPenalty,
                                                              tempOptionalState.openedNotCommitedPenalty, 0)
                         else:
-                            m, obj = runMaxFlowOpt(0, carsPos, eventsPos, eventsEndTime,
+                            m, obj = runMaxFlowOpt(0, carsPos, eventsPos, eventsStartTime+eTimeWindow,
                                                    tempOptionalState.closeReward, tempOptionalState.cancelPenalty,
                                                    tempOptionalState.openedNotCommitedPenalty)
                         etime   = time.process_time()
@@ -1029,7 +1029,7 @@ def anticipatorySimulation_randomChoice(initState, nStochastic, gs, tPred, eTime
                                                              tempState.closeReward, tempState.cancelPenalty,
                                                              tempState.openedNotCommitedPenalty, 0)
                         else:
-                            m, obj = runMaxFlowOpt(0, carsPos, eventsPos, eventsEndTime,
+                            m, obj = runMaxFlowOpt(0, carsPos, eventsPos, eventsStartTime+eTimeWindow,
                                                    tempState.closeReward, tempState.cancelPenalty,
                                                    tempState.openedNotCommitedPenalty)
                         etime = time.process_time()
@@ -1157,7 +1157,7 @@ def optimizedSimulation(initialState, fileLoc, fileName, gridSize, shouldRunMaxF
         m, obj = runMaxFlowOptTimeWindow(0, carsPos, np.array(eventsPos), np.array(eventsStartTime),
                                          np.array(eventsEndTime), initialState.closeReward,
                                          initialState.cancelPenalty, initialState.openedNotCommitedPenalty, 0)
-        dataOut = plotResultsTimeWindow(m, carsPos, np.array(eventsPos), np.array(eventsStartTime),
+        dataOut, _, _ = plotResultsTimeWindow(m, carsPos, np.array(eventsPos), np.array(eventsStartTime),
                                         np.array(eventsEndTime),
                                         plotFigures, fileLoc, fileName, gridSize)
     dataOut['cost'] = -obj.getValue()
@@ -1198,7 +1198,7 @@ def main():
     # data real values are between 0 and k (k is the maximum amount of concurrent events at each x,y,t)
     # data dist have values that are the probability of having k events at x, y, t
     eventsMatrix = np.load(dataPath + fileNameReal, allow_pickle=True)  # matrix size is : [xsize , ysize, timeseq]
-    probabilityMatrix = np.load(dataPath + fileNameDist, allow_pickle=True)  # matrix size is : [xsize , ysize, timeseq, probability for k events]
+    probabilityMatrix = np.load(dataPath + fileNameDist, allow_pickle=True)   #  matrix size is : [xsize , ysize, timeseq, probability for k events]
 
     # load NN for uber distribution -
     my_net              = torch.load(netPath + fileNameNetwork, map_location=lambda storage, loc: storage)
@@ -1224,7 +1224,7 @@ def main():
     openedNotCommitedPenalty    = 5    # penalty for event being opened
 
     gridSize            = [probabilityMatrix.shape[0], probabilityMatrix.shape[1]]
-    deltaOpenTime       = 40
+    deltaOpenTime       = 20
     numCars             = 4
     carPosX             = np.random.randint(0, gridSize[0], numCars)
     carPosY             = np.random.randint(0, gridSize[1], numCars)
@@ -1357,6 +1357,7 @@ def main():
 
     if shouldRunOptimization:
         shouldRunMaxFlow = False
+
         dataOptimization = optimizedSimulation(initState, fileLoc, fileName, gridSize, shouldRunMaxFlow)
         # optimization output:
         with open(fileLoc + 'SimOptimization_TimeWindow_' + fileName + '.p', 'wb') as out:
