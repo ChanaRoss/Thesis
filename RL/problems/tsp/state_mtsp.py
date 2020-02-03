@@ -4,6 +4,7 @@ from utils.boolmask import mask_long2bool, mask_long_scatter
 from utils.functions import calc_distance
 import itertools as iter
 
+
 class StateMTSP(NamedTuple):
     # Fixed input
     loc: torch.Tensor

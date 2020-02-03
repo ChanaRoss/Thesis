@@ -73,9 +73,9 @@ class UberGraph:
         return mat_out
 
 
-class MyOwnDataset(Dataset):
+class AnticipatoryDataset(Dataset):
     def __init__(self, root, data_list, transform=None, pre_transform=None, n_samples=100):
-        super(MyOwnDataset, self).__init__(root, transform, pre_transform)
+        super(AnticipatoryDataset, self).__init__(root, transform, pre_transform)
         self.n_samples = n_samples
         self.data = data_list
 
@@ -119,7 +119,7 @@ def main():
     # draw graph to see that it makes sense
     nx.draw(G, vertices[:, 0:2].numpy(),  with_labels=True)
     plt.show()
-    dataset = MyOwnDataset(root="./dataset", data_list=data_list, n_samples=n_graphs)
+    dataset = AnticipatoryDataset(root="./dataset", data_list=data_list, n_samples=n_graphs)
     loader = DataLoader(dataset, batch_size=55)
     print(vertices.shape)
     print(edges.shape)
