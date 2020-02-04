@@ -10,6 +10,7 @@ from torch_geometric.data import Data, DataLoader, Dataset
 class AnticipatoryState:
     def __init__(self, data_input, dim):
         self.batch_size, self.n_cars, _ = data_input['car_loc'].shape
+        self.time = 0  # simulation starts at time 0
         self.n_events = data_input['events_loc'].shape[1]
         self.dim = dim
         self.events_loc = data_input['events_loc'].clone()
@@ -17,14 +18,18 @@ class AnticipatoryState:
         self.car_init_loc = data_input['car_loc'].clone()
         self.car_cur_loc = data_input['car_loc'].clone()
         self.actions_to_move_tensor = self.get_actions_tensor()
-        self.events_status = torch.zeros((self.batch_size, self.n_events, 1), device=data_input['car_loc'].device)
+        self.graph_list = []  # this is the input to the network
+        for i in range(self.batch_size):
+            self.graph_list.append(self.create_init_graph())
+        self.events_status = {'answered': torch.zeros((self.batch_size, self.n_events, 1), device=data_input['car_loc'].device),
+                              'canceled': torch.zeros((self.batch_size, self.n_events, 1), device=data_input['car_loc'].device)}
 
     def get_actions_tensor(self):
         actions_tensor = torch.tensor([[0, 0],
-                                    [0, 1],
-                                    [1, 0],
-                                    [0, -1],
-                                    [-1, 0]])
+                                       [0, 1],
+                                       [1, 0],
+                                       [0, -1],
+                                       [-1, 0]])
         return actions_tensor
 
     def create_init_graph(self):
@@ -35,11 +40,34 @@ class AnticipatoryState:
 
     def update_state(self, actions):
         car_cur_loc = self.car_cur_loc.clone()
+        events_status = self.events_status.clone()
         for i_b in range(self.batch_size):
             for i_c in range(self.n_cars):
                 cur_loc_temp = car_cur_loc[i_b, i_c, ...]
                 new_loc_temp = cur_loc_temp + self.get_action_from_index(actions[i_b, i_c])
                 car_cur_loc[i_b, i_c, ...] = new_loc_temp
+            events_loc_ = self.events_loc[i_b, ...]
+            distance_matrix = torch.cdist(car_cur_loc[i_b, ...].type(torch.float), events_loc_.type(torch.float), p=1)
+            for i_e in range(self.n_events):
+                is_event_opened = (not self.events_status['canceled'][i_b, i_e]) and \
+                                  (not self.events_status['answered'][i_b, i_e]) and \
+                                  (self.events_time[i_b, i_e, 0] >= self.time) and \
+                                  (self.events_time[i_b, i_e, 1] <= self.time)
+                if is_event_opened:
+                    # in this case the event is opened , so we need to see if a car reached it's location
+                    is_answered = torch.where(distance_matrix[:, i_e] <= 0.1)[0]
+                    if is_answered.size() > 0:
+                        car_index = is_answered[0]  # this is the car chosen to answer this specific event
+                        distance_matrix[car_index, :] = 9999  # makes sure you dont use the same car for other events
+                        events_status['answered'][i_b, i_e] = True
+                    else:
+                        print("hi")
+                should_cancel = (self.events_time[i_b, i_e, 1] == self.time)
+                if should_cancel:
+                    events_status['canceled'][i_b, i_e] = True
+
+
+
 
         new_state = []
         return new_state
@@ -119,12 +147,13 @@ class AnticipatoryState:
 
 
 class AnticipatoryDataset(Dataset):
-    def __init__(self, root, n_cars, n_events, events_time_window, graph_size,
+    def __init__(self, root, n_cars, n_events, events_time_window, end_time, graph_size,
                  transform=None, pre_transform=None, n_samples=100):
         super(AnticipatoryDataset, self).__init__(root, transform, pre_transform)
         self.n_samples = n_samples
         self.n_cars = n_cars
         self.n_events = n_events
+        self.end_time = end_time
         self.events_time_window = events_time_window
         self.graph_size = graph_size
         self.data = [
@@ -183,30 +212,30 @@ class AnticipatoryDataset(Dataset):
 def main():
     graph_size = 10
     n_graphs = 100
+    end_time = 24
     events_time_window = 5
     n_cars = 3
     n_events = 10
     data_list = []
-    for i in range(n_graphs):
-        # create random event and car locations
-        events_loc = np.random.randint(0, graph_size, [n_events, 2])
-        car_loc = np.random.randint(0, graph_size, [n_cars, 2])
-        # create graph nodes and edges
-        net_graph = UberGraph(graph_size, events_loc, car_loc)
-        vertices = net_graph.vertices
-        edges = net_graph.edges
-        adj_mat = net_graph.adj_mat
-        # save graph to list for dataloder
-        data_list.append(Data(x=vertices, edge_index=edges))
-        # create graph as nx graph for plotting reasons
-        G = nx.from_numpy_matrix(adj_mat)
-    # draw graph to see that it makes sense
-    nx.draw(G, vertices[:, 0:2].numpy(),  with_labels=True)
-    plt.show()
-    dataset = AnticipatoryDataset("/data", n_cars, n_events, events_time_window, graph_size, None, None, n_graphs)
+    # for i in range(n_graphs):
+    #     # create random event and car locations
+    #     events_loc = np.random.randint(0, graph_size, [n_events, 2])
+    #     car_loc = np.random.randint(0, graph_size, [n_cars, 2])
+    #     # create graph nodes and edges
+    #     net_graph = UberGraph(graph_size, events_loc, car_loc)
+    #     vertices = net_graph.vertices
+    #     edges = net_graph.edges
+    #     adj_mat = net_graph.adj_mat
+    #     # save graph to list for dataloder
+    #     data_list.append(Data(x=vertices, edge_index=edges))
+    #     # create graph as nx graph for plotting reasons
+    #     G = nx.from_numpy_matrix(adj_mat)
+    # # draw graph to see that it makes sense
+    # nx.draw(G, vertices[:, 0:2].numpy(),  with_labels=True)
+    # plt.show()
+    dataset = AnticipatoryDataset("/data", n_cars, n_events, events_time_window, end_time, graph_size, None, None, n_graphs)
     loader = DataLoader(dataset, batch_size=55)
-    print(vertices.shape)
-    print(edges.shape)
+    print("hi")
     return
 
 

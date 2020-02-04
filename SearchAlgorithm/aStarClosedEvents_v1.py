@@ -211,7 +211,7 @@ def calcNewEventStatus(distanceMatrix, eventsCanceled,eventsAnswered, newEventTi
     """
     # convert distance matrix to boolean of approx zero (picked up events)
     step1 = np.sum((distanceMatrix <= epsilon), axis=1) >= 1
-    eventsOpened = np.logical_and(np.logical_not(eventsAnswered),np.logical_not(eventsCanceled))
+    eventsOpened = np.logical_and(np.logical_not(eventsAnswered), np.logical_not(eventsCanceled))
     # condition on event being open
     step2 = np.logical_and(step1, np.tile(eventsOpened, reps=(distanceMatrix.shape[0], 1)))
     # condition on event started (time<=0)
