@@ -19,15 +19,20 @@ class AnticipatoryState:
         self.car_cur_loc = torch.zeros(self.batch_size, self.n_cars, 2)
         self.events_loc = torch.zeros(self.batch_size, self.n_events, 2)
         self.events_time = torch.zeros(self.batch_size, self.n_events, 2)
-        for i_b in range(self.n_batches):
+        self.movement_cost = torch.zeros(self.batch_size, device=data_input['car_loc'].device)
+        self.events_cost = torch.zeros_like(self.movement_cost, device=data_input['car_loc'].device)
+        self.anticipatory_cost = torch.zeros_like(self.movement_cost, device=data_input['car_loc'].device)
+        for i_b in range(self.batch_size):
             graph = data_list[i_b]
             self.car_cur_loc[i_b, ...] = graph.car_loc
             self.events_loc[i_b, ...] = graph.events_loc
             self.events_time[i_b, ...] = graph.events_time
         self.actions_to_move_tensor = self.get_actions_tensor()
-
-        self.events_status = {'answered': torch.zeros((self.batch_size, self.n_events, 1), device=data_input['car_loc'].device),
-                              'canceled': torch.zeros((self.batch_size, self.n_events, 1), device=data_input['car_loc'].device)}
+        self.events_answer_time = torch.ones((self.batch_size, self.n_events), device=data_input['car_loc'].device)*999
+        self.events_status = {'answered': torch.zeros((self.batch_size, self.n_events, 1),
+                                                      device=data_input['car_loc'].device, dtype=torch.bool),
+                              'canceled': torch.zeros((self.batch_size, self.n_events, 1),
+                                                      device=data_input['car_loc'].device, dtype=torch.bool)}
 
     def get_actions_tensor(self):
         actions_tensor = torch.tensor([[0, 0],
@@ -38,22 +43,27 @@ class AnticipatoryState:
         return actions_tensor
 
     def update_state(self, actions):
+        """
+        this function updates the state after a set of actions is chosen for all cars
+        :param actions: torch tensor of size [batch_size, n_cars] where each value represents the action chosen
+        :return:
+        """
         car_cur_loc = self.car_cur_loc.clone()
-        events_status = self.events_status
         for i_b in range(self.batch_size):
+            # move each car to the new location -
             for i_c in range(self.n_cars):
-                cur_loc_temp = car_cur_loc[i_b, i_c, ...]
-                # subtract 1 from graph where the car came from in feature tensor
-                loc_row = cur_loc_temp[0]*self.dim + cur_loc_temp[1]
-                self.data_input.x[loc_row + i_b * self.dim * self.dim, 2] -= 1
-                new_loc_temp = cur_loc_temp + self.get_action_from_index(actions[i_b, i_c])
-                car_cur_loc[i_b, i_c, ...] = new_loc_temp
-                # add 1 to graph where the new car location is in feature tensor
-                loc_row = cur_loc_temp[0]*self.dim + cur_loc_temp[1]
-                self.data_input.x[loc_row + i_b * self.dim * self.dim, 2] += 1
+                car_cur_loc = self.update_car_state(i_b, i_c, car_cur_loc, actions)
             events_loc_ = self.events_loc[i_b, ...]
             distance_matrix = torch.cdist(car_cur_loc[i_b, ...].type(torch.float), events_loc_.type(torch.float), p=1)
-            for i_e in range(self.n_events):  # TODO stopped here, need to update graph when event is closed/canceled, also need to update cost
+            for i_e in range(self.n_events):
+                # find row of relevant event in graph
+                loc_row = events_loc_[i_e, 0] * self.dim + events_loc_[i_e, 1]
+                graph_row = loc_row + i_b * self.dim * self.dim
+                # if event close time is equal to current time - event should be canceled
+                should_cancel = (self.events_time[i_b, i_e, 1] == self.time)
+                if should_cancel:
+                    self.cancel_event(i_b, i_e, graph_row)
+                # check if event is opened - (not canceled, not answered and time is within time window)
                 is_event_opened = (not self.events_status['canceled'][i_b, i_e]) and \
                                   (not self.events_status['answered'][i_b, i_e]) and \
                                   (self.events_time[i_b, i_e, 0] >= self.time) and \
@@ -64,26 +74,75 @@ class AnticipatoryState:
                     if is_answered.size() > 0:
                         car_index = is_answered[0]  # this is the car chosen to answer this specific event
                         distance_matrix[car_index, :] = 9999  # makes sure you dont use the same car for other events
-                        events_status['answered'][i_b, i_e] = True
+                        self.close_event(i_b, i_e, graph_row)
                     else:
-                        print("hi")
-                should_cancel = (self.events_time[i_b, i_e, 1] == self.time)
-                if should_cancel:
-                    events_status['canceled'][i_b, i_e] = True
+                        self.events_cost[i_b] += self.data_input['open_cost'][i_b]
+                # if event open time is equal to current time , open event
+                should_open = (self.events_time[i_b, i_e, 0] == self.time)
+                # add 1 to graph if event is opened now for the 1st time -
+                if should_open:
+                    self.data_input.x[graph_row, 3] += 1
+            # calculate anticipatory cost for batch i_b after moving cars (known events and future events)
+            self.anticipatory_cost[i_b] += self.calc_anticipatory_cost()
+        # update current car location to new locations
+        self.car_cur_loc = car_cur_loc
 
+    def update_car_state(self, i_b, i_c, car_cur_loc, actions):
+        cur_loc_temp = car_cur_loc[i_b, i_c, ...]
+        # subtract 1 from graph where the car came from in feature tensor
+        loc_row = cur_loc_temp[0] * self.dim + cur_loc_temp[1]
+        self.data_input.x[loc_row + i_b * self.dim * self.dim, 2] -= 1
+        delta_movement = self.get_action_from_index(actions[i_b, i_c])
+        new_loc_temp = cur_loc_temp + delta_movement
+        # add this cars movement cost to total movement cost
+        self.movement_cost[i_b] += self.data_input['movement_cost'][i_b] * torch.sum(delta_movement)
+        car_cur_loc[i_b, i_c, ...] = new_loc_temp
+        # add 1 to graph where the new car location is in feature tensor
+        loc_row = cur_loc_temp[0] * self.dim + cur_loc_temp[1]
+        self.data_input.x[loc_row + i_b * self.dim * self.dim, 2] += 1
+        return car_cur_loc
 
+    def cancel_event(self, i_b, i_e, graph_row):
+        self.events_status['canceled'][i_b, i_e] = True
+        self.events_cost[i_b] -= self.data_input['cancel_cost'][i_b]
+        self.data_input.x[graph_row, 3] -= 1
+        assert (self.data_input.x[graph_row, 3] >= 0), \
+            "trying to cancel event from row with no events!!"
 
-
-        new_state = []
-        return new_state
+    def close_event(self, i_b, i_e, graph_row):
+        self.events_status['answered'][i_b, i_e] = True
+        # subtract reward for closing event from total cost
+        self.events_cost[i_b] -= self.data_input['close_reward'][i_b]
+        # close event in graph - subtract one from relevant node
+        self.data_input.x[graph_row, 3] -= 1
+        assert (self.data_input.x[graph_row, 3] >= 0), \
+            "trying to close event from row with no events!!"
+        self.events_answer_time[i_b, i_e] = self.time
 
     def get_action_from_index(self, i):
         car_movement = self.actions_to_move_tensor[i, ...]
         return car_movement
 
+    def get_cost(self):
+        """
+        this function combines all costs in problem and returns the total cost of updating state
+        :return:
+        """
+        cost = self.movement_cost + self.events_cost + self.anticipatory_cost
+        return cost
+
+    def calc_anticipatory_cost(self):
+        """
+        this function calculates the anticipatory cost assuming cars are in known location and future events are from future matrix
+        :return:
+        """
+        cost = 0
+        return cost
+
 
 class AnticipatoryDataset(Dataset):
     def __init__(self, root, n_cars, n_events, events_time_window, end_time, graph_size,
+                 cancel_cost, close_reward, movement_cost, open_cost,
                  transform=None, pre_transform=None, n_samples=100):
         super(AnticipatoryDataset, self).__init__(root, transform, pre_transform)
         self.n_samples = n_samples
@@ -95,8 +154,12 @@ class AnticipatoryDataset(Dataset):
         self.data = []
         for i in range(self.n_samples):
             all_data = {'car_loc': self.get_car_loc(),
-                    'events_loc': self.get_events_loc(),
-                    'events_time': self.get_events_times()}
+                        'events_loc': self.get_events_loc(),
+                        'events_time': self.get_events_times(),
+                        'cancel_cost': cancel_cost,  # should be positive (cost is added to total cost)
+                        'close_reward': close_reward,  # should be positive (rewards are subtracted from total cost)
+                        'movement_cost': movement_cost,  # should be positive (cost is added to total cost)
+                        'open_cost': open_cost}
             self.data.append(self.create_init_graph(all_data))
 
     def create_init_graph(self, all_data):
@@ -106,6 +169,7 @@ class AnticipatoryDataset(Dataset):
         graph.car_loc = all_data['car_loc']
         graph.events_loc = all_data['events_loc']
         graph.events_time = all_data['events_time']
+        graph.cancel_cost = all_data['cancel_cost']
         return graph
 
     def create_vertices(self, all_data):
@@ -131,13 +195,16 @@ class AnticipatoryDataset(Dataset):
             y = car_loc[i, 1].type(torch.long)
             features_out[x * self.graph_size + y, 2] += 1
         for i in range(events_loc.shape[0]):
-            x = events_loc[i, 0].type(torch.long)
-            y = events_loc[i, 1].type(torch.long)
-            delta_t = events_time[i, 1] - events_time[i, 0]  # TODO correct that it will be only for events that are opened when simulation is starting
-            features_out[x * self.graph_size + y, 3] += 1
-            if features_out[x * self.graph_size + y, 4] < delta_t:
-                features_out[x * self.graph_size + y, 4] = delta_t
-        # features out is [x, y, car_loc, events_loc] and is of size [dim*dim, 4]
+            if events_time[i, 0] == 0:
+                # if event start time is 0 , should add the event to graph and add the event time window to time feature
+                x = events_loc[i, 0].type(torch.long)
+                y = events_loc[i, 1].type(torch.long)
+                delta_t = events_time[i, 1] - events_time[i, 0]
+                features_out[x * self.graph_size + y, 3] += 1
+                # if event is opened until later than other events, need to update time feature
+                if features_out[x * self.graph_size + y, 4] < delta_t:
+                    features_out[x * self.graph_size + y, 4] = delta_t
+        # features out is [x, y, car_loc, events_loc, max_event_time_window] and is of size [dim*dim, 5]
         return features_out
 
     def create_edges(self, vertices):
@@ -231,26 +298,15 @@ def main():
     events_time_window = 5
     n_cars = 3
     n_events = 10
-    data_list = []
-    # for i in range(n_graphs):
-    #     # create random event and car locations
-    #     events_loc = np.random.randint(0, graph_size, [n_events, 2])
-    #     car_loc = np.random.randint(0, graph_size, [n_cars, 2])
-    #     # create graph nodes and edges
-    #     net_graph = UberGraph(graph_size, events_loc, car_loc)
-    #     vertices = net_graph.vertices
-    #     edges = net_graph.edges
-    #     adj_mat = net_graph.adj_mat
-    #     # save graph to list for dataloder
-    #     data_list.append(Data(x=vertices, edge_index=edges))
-    #     # create graph as nx graph for plotting reasons
-    #     G = nx.from_numpy_matrix(adj_mat)
-    # # draw graph to see that it makes sense
-    # nx.draw(G, vertices[:, 0:2].numpy(),  with_labels=True)
-    # plt.show()
-    dataset = AnticipatoryDataset("/data", n_cars, n_events, events_time_window, end_time, graph_size, None, None, n_graphs)
+    cancel_cost = 10  # should be positive since all costs are added to total cost
+    close_reward = 5  # should be positive since all rewards are subtracted from total cost
+    movement_cost = 1  # should be positive since all costs are added to total cost
+    open_cost = 1  # should be positive since all costs are added to total cost
+    dataset = AnticipatoryDataset("/data", n_cars, n_events, events_time_window, end_time, graph_size,
+                                  cancel_cost, close_reward, movement_cost, open_cost, None, None, n_graphs)
     dataloader = DataLoader(dataset, batch_size=55)
     for data in dataloader:
+        state = AnticipatoryState(data, graph_size)
         print(data)
     return
 
