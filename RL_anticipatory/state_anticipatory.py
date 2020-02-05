@@ -9,18 +9,23 @@ from torch_geometric.data import Data, DataLoader, Dataset
 
 class AnticipatoryState:
     def __init__(self, data_input, dim):
-        self.batch_size, self.n_cars, _ = data_input['car_loc'].shape
+        self.data_input = data_input
+        self.batch_size = data_input.num_graphs
+        data_list = data_input.to_data_list()
+        self.n_cars = data_list[0].car_loc.shape[0]
+        self.n_events = data_list[0].events_loc.shape[0]
         self.time = 0  # simulation starts at time 0
-        self.n_events = data_input['events_loc'].shape[1]
         self.dim = dim
-        self.events_loc = data_input['events_loc'].clone()
-        self.events_time = data_input['events_time'].clone()
-        self.car_init_loc = data_input['car_loc'].clone()
-        self.car_cur_loc = data_input['car_loc'].clone()
+        self.car_cur_loc = torch.zeros(self.batch_size, self.n_cars, 2)
+        self.events_loc = torch.zeros(self.batch_size, self.n_events, 2)
+        self.events_time = torch.zeros(self.batch_size, self.n_events, 2)
+        for i_b in range(self.n_batches):
+            graph = data_list[i_b]
+            self.car_cur_loc[i_b, ...] = graph.car_loc
+            self.events_loc[i_b, ...] = graph.events_loc
+            self.events_time[i_b, ...] = graph.events_time
         self.actions_to_move_tensor = self.get_actions_tensor()
-        self.graph_list = []  # this is the input to the network
-        for i in range(self.batch_size):
-            self.graph_list.append(self.create_init_graph())
+
         self.events_status = {'answered': torch.zeros((self.batch_size, self.n_events, 1), device=data_input['car_loc'].device),
                               'canceled': torch.zeros((self.batch_size, self.n_events, 1), device=data_input['car_loc'].device)}
 
@@ -32,23 +37,23 @@ class AnticipatoryState:
                                        [-1, 0]])
         return actions_tensor
 
-    def create_init_graph(self):
-        vertices = self.create_vertices()
-        edges = self.create_edges()
-        graph = Data(x=vertices, edge_index=edges)
-        return graph
-
     def update_state(self, actions):
         car_cur_loc = self.car_cur_loc.clone()
-        events_status = self.events_status.clone()
+        events_status = self.events_status
         for i_b in range(self.batch_size):
             for i_c in range(self.n_cars):
                 cur_loc_temp = car_cur_loc[i_b, i_c, ...]
+                # subtract 1 from graph where the car came from in feature tensor
+                loc_row = cur_loc_temp[0]*self.dim + cur_loc_temp[1]
+                self.data_input.x[loc_row + i_b * self.dim * self.dim, 2] -= 1
                 new_loc_temp = cur_loc_temp + self.get_action_from_index(actions[i_b, i_c])
                 car_cur_loc[i_b, i_c, ...] = new_loc_temp
+                # add 1 to graph where the new car location is in feature tensor
+                loc_row = cur_loc_temp[0]*self.dim + cur_loc_temp[1]
+                self.data_input.x[loc_row + i_b * self.dim * self.dim, 2] += 1
             events_loc_ = self.events_loc[i_b, ...]
             distance_matrix = torch.cdist(car_cur_loc[i_b, ...].type(torch.float), events_loc_.type(torch.float), p=1)
-            for i_e in range(self.n_events):
+            for i_e in range(self.n_events):  # TODO stopped here, need to update graph when event is closed/canceled, also need to update cost
                 is_event_opened = (not self.events_status['canceled'][i_b, i_e]) and \
                                   (not self.events_status['answered'][i_b, i_e]) and \
                                   (self.events_time[i_b, i_e, 0] >= self.time) and \
@@ -72,7 +77,38 @@ class AnticipatoryState:
         new_state = []
         return new_state
 
-    def create_vertices(self):
+    def get_action_from_index(self, i):
+        car_movement = self.actions_to_move_tensor[i, ...]
+        return car_movement
+
+
+class AnticipatoryDataset(Dataset):
+    def __init__(self, root, n_cars, n_events, events_time_window, end_time, graph_size,
+                 transform=None, pre_transform=None, n_samples=100):
+        super(AnticipatoryDataset, self).__init__(root, transform, pre_transform)
+        self.n_samples = n_samples
+        self.n_cars = n_cars
+        self.n_events = n_events
+        self.end_time = end_time
+        self.events_time_window = events_time_window
+        self.graph_size = int(graph_size)
+        self.data = []
+        for i in range(self.n_samples):
+            all_data = {'car_loc': self.get_car_loc(),
+                    'events_loc': self.get_events_loc(),
+                    'events_time': self.get_events_times()}
+            self.data.append(self.create_init_graph(all_data))
+
+    def create_init_graph(self, all_data):
+        vertices = self.create_vertices(all_data)
+        edges = self.create_edges(vertices)
+        graph = Data(x=vertices, edge_index=edges)
+        graph.car_loc = all_data['car_loc']
+        graph.events_loc = all_data['events_loc']
+        graph.events_time = all_data['events_time']
+        return graph
+
+    def create_vertices(self, all_data):
         """
         this function creates the vertices for the graph assuming 5 features:
         1. x location
@@ -82,28 +118,30 @@ class AnticipatoryState:
         5. num time steps until all events at node close
         :return:
         """
+        car_loc = all_data['car_loc']
+        events_loc = all_data['events_loc']
+        events_time = all_data['events_time']
         # feature matrix is [x, y, n_cars, n_events, n_time steps until last event in this node is opened]
-        features_out = torch.zeros([self.dim*self.dim, 5])
-        m = torch.ones((self.dim, self.dim))
+        features_out = torch.zeros([self.graph_size*self.graph_size, 5])
+        m = torch.ones((self.graph_size, self.graph_size))
         (row, col) = torch.where(m == 1)
-        features_out[:, 0:2] = torch.stack((row[:, None], col[:, None]), dim=1).view(self.dim*self.dim, -1)
-        for i in range(self.car_loc.shape[0]):
-            x = self.car_loc[i, 0]
-            y = self.car_loc[i, 1]
-            features_out[x * self.dim + y, 2] += 1
-        for i in range(self.events_loc.shape[0]):
-            x = self.events_loc[i, 0]
-            y = self.events_loc[i, 1]
-            delta_t = self.events_time[i, 1] - self.events_time[i, 0]
-            features_out[x * self.dim + y, 3] += 1
-            if features_out[x * self.dim + y, 4] < delta_t:
-                features_out[x * self.dim + y, 4] = delta_t
+        features_out[:, 0:2] = torch.stack((row[:, None], col[:, None]), dim=1).view(self.graph_size*self.graph_size, -1)
+        for i in range(car_loc.shape[0]):
+            x = car_loc[i, 0].type(torch.long)
+            y = car_loc[i, 1].type(torch.long)
+            features_out[x * self.graph_size + y, 2] += 1
+        for i in range(events_loc.shape[0]):
+            x = events_loc[i, 0].type(torch.long)
+            y = events_loc[i, 1].type(torch.long)
+            delta_t = events_time[i, 1] - events_time[i, 0]  # TODO correct that it will be only for events that are opened when simulation is starting
+            features_out[x * self.graph_size + y, 3] += 1
+            if features_out[x * self.graph_size + y, 4] < delta_t:
+                features_out[x * self.graph_size + y, 4] = delta_t
         # features out is [x, y, car_loc, events_loc] and is of size [dim*dim, 4]
         return features_out
 
-    def create_edges(self):
-        vertices = self.vertices
-        dim = self.dim
+    def create_edges(self, vertices):
+        dim = self.graph_size
         # create all edges of [x, y] and [x-1, y]
         rows = torch.where(vertices[:, 0] > 0)[0]
         edges_start = vertices[rows, 0]*dim + vertices[rows, 1]
@@ -134,35 +172,12 @@ class AnticipatoryState:
 
         return torch.cat((edges1, edges2, edges3, edges4), dim=0).type(torch.int)
 
-    def create_adjacency_matrix(self):
-        dim = self.dim
+    def create_adjacency_matrix(self, edges):
+        dim = self.graph_size
         mat_out = np.zeros((dim+1, dim+1))
-        for row in self.edges:
+        for row in edges:
             mat_out[row[0], row[1]] = 1
         return mat_out
-
-    def get_action_from_index(self, i):
-        car_movement = self.actions_to_move_tensor[i, ...]
-        return car_movement
-
-
-class AnticipatoryDataset(Dataset):
-    def __init__(self, root, n_cars, n_events, events_time_window, end_time, graph_size,
-                 transform=None, pre_transform=None, n_samples=100):
-        super(AnticipatoryDataset, self).__init__(root, transform, pre_transform)
-        self.n_samples = n_samples
-        self.n_cars = n_cars
-        self.n_events = n_events
-        self.end_time = end_time
-        self.events_time_window = events_time_window
-        self.graph_size = graph_size
-        self.data = [
-            {'car_loc': self.get_car_loc(),
-             'event_loc': self.get_events_loc(),
-             'event_time_window': self.get_events_times(),
-             }
-            for i in range(n_samples)
-        ]
 
     def get_car_loc(self):
         """
@@ -234,8 +249,9 @@ def main():
     # nx.draw(G, vertices[:, 0:2].numpy(),  with_labels=True)
     # plt.show()
     dataset = AnticipatoryDataset("/data", n_cars, n_events, events_time_window, end_time, graph_size, None, None, n_graphs)
-    loader = DataLoader(dataset, batch_size=55)
-    print("hi")
+    dataloader = DataLoader(dataset, batch_size=55)
+    for data in dataloader:
+        print(data)
     return
 
 
