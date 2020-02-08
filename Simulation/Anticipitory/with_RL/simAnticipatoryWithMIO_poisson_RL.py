@@ -5,7 +5,6 @@ from copy import deepcopy
 import os
 # for mathematical calculations and statistical distributions
 from scipy.optimize import linear_sum_assignment
-from scipy.stats import truncnorm
 from scipy.spatial.distance import cdist
 from scipy.special import comb
 import math
@@ -24,12 +23,10 @@ from offlineOptimizationProblem_TimeWindow import runMaxFlowOpt as runMaxFlowOpt
 from offlineOptimizationProblem_TimeWindow import plotResults as plotResultsTimeWindow
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/UtilsCode/')
 from createGif import create_gif
-sys.path.insert(0, '/Users/chanaross/dev/Thesis/MachineLearning/finalNetwork/')
-from LSTM_inputFullGrid_multiClassSmooth import Model
-sys.path.insert(0, '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/with_machine_learning/')
-from createUberDistribution_ML import getPreviousEventMatRealData, createProbabilityMatrix_ML, createEventsFrom_ML, \
-    createProbabilityMatrix_seq, createEventsFrom_seq
-
+# sys.path.insert(0, '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/with_machine_learning/')
+# from createUberDistribution_ML import getPreviousEventMatRealData, createProbabilityMatrix_ML, createEventsFrom_ML, \
+#     createProbabilityMatrix_seq, createEventsFrom_seq
+from create_distributions import *
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/')
 from calculateOptimalActions import runActionOpt, getActions
 
@@ -518,191 +515,8 @@ def calculateCost(state, possibleMoves):
     return tempState.gval
 
 
-def poissonRandomEvents(startTime,endSimTime,lam):
-    """
-    creates time line assuming poisson distribution
-    :param startTime: start time wanted for timeline
-    :param endSimTime: end time wanted for timeline
-    :param lam: lambda of poisson distribution (how often will an event appear?)
-    :return: list of times for events
-    """
-    lengthTimeLine = int(endSimTime - startTime)
-    numEventsPerTime = np.random.poisson(lam = lam,size = lengthTimeLine)
-    eventTime = []
-    for i in range(lengthTimeLine):
-        nTime = numEventsPerTime[i]
-        if nTime>0:
-            for num in range(nTime):
-                eventTime.append(i+startTime)
-    return np.array(eventTime)
-
-
-def createEventsDistribution(gridSize, startTime, endTime, lam, eventTimeWindow):
-    locX        = gridSize / 2
-    scaleX      = gridSize / 3
-    locY        = gridSize / 2
-    scaleY      = gridSize / 3
-    # randomize event times
-    eventTimes  = poissonRandomEvents(startTime, endTime, lam)
-    eventPosX   = truncnorm.rvs((0 - locX) / scaleX, (gridSize - locX) / scaleX, loc=locX, scale=scaleX,
-                              size=len(eventTimes)).astype(np.int64)
-    eventPosY   = truncnorm.rvs((0 - locY) / scaleY, (gridSize - locY) / scaleY, loc=locY, scale=scaleY,
-                              size=len(eventTimes)).astype(np.int64)
-
-    eventsPos           = np.column_stack([eventPosX,eventPosY])
-    eventsTimeWindow    = np.column_stack([eventTimes,eventTimes+eventTimeWindow])
-    return eventsPos,eventsTimeWindow
-
-
-def createEventDistributionMl(simstartTime, startTime, endTime, previousMat, eventTimeWindow, simTime, my_net):
-    """
-    this function finds the future events from start time to end time using ML approach.
-    the results of this function assume there is a NN that learned the event matrix prior to the use here.
-    the NN learned the number of events but we will assume the binary result:
-    0: no events in this location
-    1: at least 1 event in this location
-    :param simstartTime: time at which simulation started
-    :param startTime: time from which to start giving events (from current time)
-    :param endTime: last time to give events
-    :param previousMat: matrix of previous events actually opened
-    :param eventTimeWindow: number of minutes event should stay opened , assuming it exists
-    :param simTime: current time in simulation
-    :param my_net: NN network
-    :return:
-    eventsPos           : position of opened events,
-    eventsTimeWindow    : time at which each event opens and closes,
-    """
-    # previous mat is of shape : [seq, x, y]
-    tempPrevious    = previousMat
-    numTimeSteps    = endTime - startTime
-    x_size          = previousMat.shape[1]
-    y_size          = previousMat.shape[2]
-    net_output      = np.zeros(shape=[x_size, y_size])
-    eventPos        = []
-    eventTimes      = []
-    num_events_created = 0
-    for t in range(numTimeSteps):
-        for x in range(x_size):
-            for y in range(y_size):
-                net_input = torch.Tensor(tempPrevious[:, x, y].reshape(1, 1, -1))
-                # input size is: [1, 1, seq_len]
-                testOut = my_net.forward(net_input)
-                testOut = testOut.view(1, my_net.class_size, 1)
-                _, net_labels = torch.max(torch.exp(testOut.data), 1)
-                net_labelsNp = net_labels.long().detach().numpy()
-                net_output[x, y] = net_labelsNp
-                if net_labelsNp > 0:
-                    # there is at least one event at this time and position
-                    eventPos.append(np.array([x, y]))
-                    eventTimes.append(t + startTime)
-                    num_events_created += 1
-        mat_to_add = tempPrevious[1:, :, :]
-        tempPrevious[:-1, :, :] = mat_to_add
-        tempPrevious[-1, :, :] = net_output
-    eventsPos           = np.array(eventPos)
-    eventTimes          = np.array(eventTimes)
-    eventsTimeWindow    = np.column_stack([eventTimes, eventTimes + eventTimeWindow])
-    return eventsPos, eventsTimeWindow
-
-
-
-def createEventDistributionUber(simStartTime, startTime, endTime, probabilityMatrix, eventTimeWindow, simTime):
-    eventPos = []
-    eventTimes = []
-    firstTime = startTime + simTime + simStartTime  # each time is a 5 min
-    numTimeSteps = endTime - startTime
-    for t in range(numTimeSteps):
-        #numEventsCreated = 0
-        for x in range(probabilityMatrix.shape[0]):
-            for y in range(probabilityMatrix.shape[1]):
-                randNum = np.random.uniform(0, 1)
-                _, actualTime = np.divmod(t + firstTime, 2 * 24 * 7)
-                cdfNumEvents = probabilityMatrix[x, y, actualTime, :]
-                # find how many events are happening at the same time
-                numEvents = np.searchsorted(cdfNumEvents, randNum, side='left')
-                numEvents = np.floor(numEvents).astype(int)
-                # print('at loc:' + str(x) + ',' + str(y) + ' num events:' + str(numEvents))
-                #for n in range(numEvents):
-                if numEvents > 0:
-                    eventPos.append(np.array([x, y]))
-                    eventTimes.append(t + startTime)
-                    #numEventsCreated += 1
-        #print("num events created for time : " + str(t + startTime) + ", is:" + str(numEventsCreated))
-
-    eventsPos  = np.array(eventPos)
-    eventTimes = np.array(eventTimes)
-    eventsTimeWindow = np.column_stack([eventTimes, eventTimes + eventTimeWindow])
-    print('number of events created:'+str(eventsPos.shape[0]))
-    return eventsPos, eventsTimeWindow
-
-
-def createRealEventsDistributionUber(simStartTime, startTime, endTime, eventsMatrix,eventTimeWindow,simTime):
-    eventPos = []
-    eventTimes = []
-    firstTime = startTime + simTime + simStartTime  # each time is a 5 min
-    numTimeSteps = endTime - startTime
-    for t in range(numTimeSteps):
-        for x in range(eventsMatrix.shape[0]):
-            for y in range(eventsMatrix.shape[1]):
-                numEvents = eventsMatrix[x, y, t + firstTime]
-                # print('at loc:' + str(x) + ',' + str(y) + ' num events:' + str(numEvents))
-                # for n in range(numEvents):
-                if numEvents > 0:
-                    eventPos.append(np.array([x, y]))
-                    eventTimes.append(t + startTime)
-    eventsPos = np.array(eventPos)
-    eventTimes = np.array(eventTimes)
-    eventsTimeWindow = np.column_stack([eventTimes, eventTimes + eventTimeWindow])
-    print('number of events created:' + str(eventsPos.shape[0]))
-    return eventsPos, eventsTimeWindow
-
-
-def createStochasticEvents(simStartTime, numStochasticRuns, startTime, endTime, probabilityMatrix, my_net,
-                           eventsTimeWindow, simTime, distMethod, previousEventMat):
-    """
-    created stochastic distribution of events based on distribution method chosen (benchmark or NN)
-    :param simStartTime: the time from which to start assuming events, not relevant for NN approach
-    :param numStochasticRuns: number of stochastic runs to create
-    :param startTime: number of time steps past current sim time to start creating events (usually 1)
-    :param endTime: last time for creating events (end time - start time = number of time steps)
-    :param probabilityMatrix: prob matrix used for benchmark
-    :param my_net: network used for NN approach
-    :param eventsTimeWindow: number of time steps each event is opened
-    :param simTime: current time in simulation
-    :param distMethod: distribution method (either benchmark or NN)
-    :return: Dictionary of stochastic runs, in each stochastic run is the dictionary of events
-    """
-    stochasticEventsDict = {}
-
-    if distMethod == 'NN':
-        events_distribution_matrix, events_cdf_matrix_ML = createProbabilityMatrix_ML(startTime, endTime,
-                                                                                      previousEventMat, my_net)
-        for i in range(numStochasticRuns):
-            eventPos, eventTimeWindow = createEventsFrom_ML(events_cdf_matrix_ML, startTime, eventsTimeWindow)
-            stochasticEventsDict[i] = {'eventsPos': eventPos, 'eventsTimeWindow': eventTimeWindow}
-    elif distMethod == 'NN_max':
-        for i in range(numStochasticRuns):
-            eventPos, eventTimeWindow = createEventDistributionMl(simStartTime, startTime, endTime,
-                                                                  previousEventMat, eventsTimeWindow, simTime,
-                                                                  my_net)
-    elif distMethod == 'Bm':
-        for i in range(numStochasticRuns):
-            eventPos, eventTimeWindow = createEventDistributionUber(simStartTime, startTime, endTime,
-                                                                        probabilityMatrix, eventsTimeWindow, simTime)
-            stochasticEventsDict[i] = {'eventsPos': eventPos, 'eventsTimeWindow': eventTimeWindow}
-
-    elif distMethod == 'Bm_easy':
-        events_distribution_matrix_seq, events_cdf_matrix_seq = createProbabilityMatrix_seq(startTime, endTime,
-                                                                             previousEventMat, my_net.class_size,
-                                                                                            my_net.sequence_size)
-        for i in range(numStochasticRuns):
-            eventPos, eventTimeWindow = createEventsFrom_seq(events_cdf_matrix_seq, startTime, eventsTimeWindow)
-            stochasticEventsDict[i] = {'eventsPos': eventPos, 'eventsTimeWindow': eventTimeWindow}
-    return stochasticEventsDict
-
-
-def anticipatorySimulation_bruteForce(initState, nStochastic, gs, tPred, eTimeWindow, simStartTime,
-                                      probabilityMatrix, realMatrix, my_net, distMethod, optimizationMethod, shouldPrint=False):
+def anticipatorySimulation_bruteForce(initState, nStochastic, gs, lam, tPred, eTimeWindow, simStartTime,
+                                      probabilityMatrix, realMatrix, distMethod, optimizationMethod, shouldPrint=False):
     """
     this function is the anticipatory simulation
     :param initState: initial state of the system (cars and events)
@@ -722,16 +536,8 @@ def anticipatorySimulation_bruteForce(initState, nStochastic, gs, tPred, eTimeWi
         optionalStatesList   = []
         optionalTotalCost    = []
         optionalActualCost   = []
-        if distMethod == 'NN' or distMethod == 'Bm_easy' or distMethod == 'NN_max':
-            previousEventMat = getPreviousEventMatRealData(simStartTime, 1, 1 + tPred,
-                                                           realMatrix, eTimeWindow, currentTime, my_net.sequence_size)
-            # previousEventMat = getPreviousEventMat(current, my_net.sequence_size,
-            #                                        gs)  # get number of events previously created
-        else:
-            previousEventMat = []
-            stochasticEventsDict = createStochasticEvents(simStartTime, nStochastic, 1, 1 + tPred,
-                                                      probabilityMatrix, my_net, eTimeWindow, currentTime, distMethod,
-                                                      previousEventMat)
+        stochasticEventsDict = createStochasticEvents(simStartTime, nStochastic, 1, 1 + tPred,
+                                                  probabilityMatrix, eTimeWindow, currentTime, distMethod, gs, lam)
         for i, optionalState in enumerate(descendantGenerator(current)):
             optionalStatesList.append(optionalState)
             # initialize variables for stochastic optimization
@@ -846,14 +652,8 @@ def anticipatorySimulation_optimalActionChoice(initState, nStochastic, gs, tPred
                               (-1, 0): 4}
     while not isGoal:
         currentTime = current.time
-        if distMethod == 'NN' or distMethod == 'Bm_easy' or distMethod == 'NN_max':
-            previousEventMat = getPreviousEventMatRealData(simStartTime, 1, 1 + tPred,
-                                                           realMatrix, eTimeWindow, currentTime, my_net.sequence_size)
-        else:
-            previousEventMat = []
         stochasticEventsDict = createStochasticEvents(simStartTime, nStochastic, 1, 1 + tPred,
-                                                      probabilityMatrix, my_net, eTimeWindow, currentTime, distMethod,
-                                                      previousEventMat)
+                                                      probabilityMatrix, eTimeWindow, currentTime, distMethod, gs, lam)
         nCars                = current.cars.length()
         moveOptions          = np.array(list(moveGeneratorIndexs(2, optionalActions)))
         possibleMoves        = np.zeros(shape=(nCars, 2))
@@ -948,8 +748,9 @@ def anticipatorySimulation_optimalActionChoice(initState, nStochastic, gs, tPred
     return current.path()
 
 
-def anticipatorySimulation_randomChoice(initState, nStochastic, gs, tPred, eTimeWindow, simStartTime,
-                                               probabilityMatrix, realMatrix, my_net, distMethod, optimizationMethod, shouldPrint=False):
+def anticipatorySimulation_randomChoice(initState, nStochastic, gs, lam, tPred, eTimeWindow, simStartTime,
+                                        probabilityMatrix, realMatrix, distMethod, optimizationMethod,
+                                        shouldPrint=False):
     """
     this function is the anticipatory simulation
     :param initState: initial state of the system (cars and events)
@@ -971,14 +772,8 @@ def anticipatorySimulation_randomChoice(initState, nStochastic, gs, tPred, eTime
                               (-1, 0): 4}
     while not isGoal:
         currentTime = current.time
-        if distMethod == 'NN' or distMethod == 'Bm_easy' or distMethod == 'NN_max':
-            previousEventMat = getPreviousEventMatRealData(simStartTime, 1, 1 + tPred,
-                                                           realMatrix, eTimeWindow, currentTime, my_net.sequence_size)
-        else:
-            previousEventMat = []
         stochasticEventsDict = createStochasticEvents(simStartTime, nStochastic, 1, 1 + tPred,
-                                                      probabilityMatrix, my_net, eTimeWindow, currentTime, distMethod,
-                                                      previousEventMat)
+                                                      probabilityMatrix, eTimeWindow, currentTime, distMethod, gs, lam)
         nCars                = current.cars.length()
         carOrder = np.array(range(nCars))
         np.random.shuffle(carOrder)
@@ -1166,16 +961,14 @@ def optimizedSimulation(initialState, fileLoc, fileName, gridSize, shouldRunMaxF
 
 def main():
     # choose methods:
-    # NN : use neural network
-    # NN_max : use neural network with maximum distribution value
-    # Bm : use probability benchmark
-    # Bm_easy : use probability based on NN sequence length benchmark
-    distMethod = 'Bm'
+    # Bm_uber : load data from uber data
+    # Bm_poisson : load data from poisson distribution
+    distMethod = 'Bm_poisson'
     # TimeWindow : run deterministic algorithm with time window algorithm
     # MaxFlow    : run deterministic algorithm with max flow algorithm
-    optimizationMethod = 'MaxFlow'
+    optimizationMethod = 'TimeWindow'
     # BruteForce    : calculate all possible moves and choose the combination with highest reward
-    # RandomChoice  : choose car movement order randomally and calculate the optimal reward for each car
+    # RandomChoice  : choose car movement order randomly and calculate the optimal reward for each car
     # OptimalChoice : find optimal choice for each couple of cars and choose optimal reward
     algorithmType = 'RandomChoice'
     np.random.seed(100)
@@ -1185,36 +978,33 @@ def main():
     loadFromPickle          = 0
     shouldPrint             = False
 
-    # loading probability matrix from uber data. matrix is: x,y,h where x,y are the grid size and h is the time (sunday to friday)
+    ### loading probability matrix from uber data. matrix is: x,y,h where x,y are the grid size and h is the time (sunday to friday)
     # data loader -
-    dataPath = '/Users/chanaross/dev/Thesis/UberData/'
-    netPath = '/Users/chanaross/dev/Thesis/MachineLearning/finalNetwork/'
-    # fileNameNetwork = 'smooth_30_seq_50_bs_40_hs_256_lr_0.01_ot_1_wd_0.002_torch.pkl'
-    fileNameNetwork = 'smooth_30_seq_50_bs_40_hs_128_lr_0.5_ot_1_wd_0.002_torch.pkl'
-    # fileNameNetwork = 'smooth_10_seq_5_bs_40_hs_128_lr_0.05_ot_1_wd_0.002_torch.pkl'
-    fileNameReal = '3D_allDataLatLonCorrected_20MultiClass_500gridpickle_30min.p'
-    fileNameDist = '4D_ProbabilityMat_allDataLatLonCorrected_20MultiClass_CDF_500gridpickle_30min.p'
+    # dataPath = '/Users/chanaross/dev/Thesis/UberData/'
+    # fileNameReal = '3D_allDataLatLonCorrected_20MultiClass_500gridpickle_30min.p'
+    # fileNameDist = '4D_ProbabilityMat_allDataLatLonCorrected_20MultiClass_CDF_500gridpickle_30min.p'
 
     # data real values are between 0 and k (k is the maximum amount of concurrent events at each x,y,t)
     # data dist have values that are the probability of having k events at x, y, t
-    eventsMatrix = np.load(dataPath + fileNameReal, allow_pickle=True)  # matrix size is : [xsize , ysize, timeseq]
-    probabilityMatrix = np.load(dataPath + fileNameDist, allow_pickle=True)   #  matrix size is : [xsize , ysize, timeseq, probability for k events]
+    # eventsMatrix = np.load(dataPath + fileNameReal, allow_pickle=True)  # matrix size is : [xsize , ysize, timeseq]
+    # probabilityMatrix = np.load(dataPath + fileNameDist, allow_pickle=True)   #  matrix size is : [xsize , ysize, timeseq, probability for k events]
+    lam = 2/3
+    eventsMatrix = np.zeros([10, 10, 20])
+    probabilityMatrix = np.zeros([10, 10, 20, 20])
 
-    # load NN for uber distribution -
-    my_net              = torch.load(netPath + fileNameNetwork, map_location=lambda storage, loc: storage)
     # x limits are : (0 , 11)
     # y limits are : (0 , 52)
     # t limits are : (0 , 9024)
     xLim    = [0, 10]
     yLim    = [30, 40]
     # take from each matrix only the grid points of interest
-    eventsMatrix        = eventsMatrix[xLim[0]:xLim[1], yLim[0]: yLim[1], :]
-    probabilityMatrix   = probabilityMatrix[xLim[0]:xLim[1], yLim[0]: yLim[1], :, :]
+    # eventsMatrix        = eventsMatrix[xLim[0]:xLim[1], yLim[0]: yLim[1], :]
+    # probabilityMatrix   = probabilityMatrix[xLim[0]:xLim[1], yLim[0]: yLim[1], :, :]
 
     # params
     epsilon                     = 0.001  # distance between locations to be considered same location
     simStartTime                = 48   # time from which to start looking at the data
-    lengthSim                   = 20     # 12 hours, each time step is 30 min. of real time
+    lengthSim                   = 48     # 12 hours, each time step is 30 min. of real time
     numStochasticRuns           = 20
     lengthPrediction            = 5    # how many time steps should it use for prediction
     deltaTimeForCommit          = 10   # not useful for now
@@ -1223,18 +1013,19 @@ def main():
     openedCommitedPenalty       = 1    # penalty for event being opened and commited (not relevant)
     openedNotCommitedPenalty    = 5    # penalty for event being opened
 
-    gridSize            = [probabilityMatrix.shape[0], probabilityMatrix.shape[1]]
-    deltaOpenTime       = 20
+    # gridSize            = [probabilityMatrix.shape[0], probabilityMatrix.shape[1]]
+    gridSize            = [20, 20]
+    deltaOpenTime       = 5
     numCars             = 4
     carPosX             = np.random.randint(0, gridSize[0], numCars)
     carPosY             = np.random.randint(0, gridSize[1], numCars)
     carPos              = np.column_stack((carPosX, carPosY)).reshape(numCars, 2)
 
-    eventPos, eventTimes= createRealEventsDistributionUber(simStartTime, 0, lengthSim, eventsMatrix, deltaOpenTime, 0)
+    eventPos, eventTimes= createEventsDistribution(gridSize, 0, lengthSim, lam, deltaOpenTime)
     eventStartTime      = eventTimes[:, 0]
     eventEndTime        = eventTimes[:, 1]
 
-    # plt.scatter(eventPos[:, 0], eventPos[:, 1], c= 'r')
+    # plt.scatter(eventPos[:, 0], eventPos[:, 1], c='r')
     # plt.scatter(carPos[:, 0], carPos[:, 1], c='k')
     # plt.show()
     uncommitedCarDict   = {}
@@ -1243,7 +1034,7 @@ def main():
     commitedEventDict   = {}
     numEvents           = eventStartTime.shape[0]
     for i in range(numCars):
-        tempCar = Car(carPos[i,:], i)
+        tempCar = Car(carPos[i, :], i)
         uncommitedCarDict[i]   = tempCar
     for i in range(numEvents):
         tempEvent = Event(eventPos[i,:], i, eventStartTime[i], eventEndTime[i])
@@ -1258,11 +1049,11 @@ def main():
     fileName        = str(lengthPrediction) + 'lpred_' + str(deltaOpenTime)+'delOpen_' + str(simStartTime) + 'startTime_' + str(gridSize[0]) + 'gridX_' +\
                       str(gridSize[1]) + 'gridY_' + str(eventTimes.shape[0]) + 'numEvents_' + \
                       str(numStochasticRuns) + 'nStochastic_' + str(numCars) + 'numCars_' + distMethod + '_' + optimizationMethod
-    fileLoc         = '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/with_machine_learning/Results_no_time_limit/'
+    fileLoc         = '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/with_RL/Results/'
 
     # if loading from pickle, should load this file from this location
     pickleName  = 'SimAnticipatoryMio_BruteForce_limitedNN0p9_5lpred_4delOpen_1000startTime_10gridX_15gridY_55numEvents_20nStochastic_4numCars_Bm_MaxFlow'
-    pathName    = '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/with_machine_learning/NumCars/Results/'
+    pathName    = '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/with_RL/Results/'
 
     if loadFromPickle:
         dataPickle  = pickle.load(open(pathName + pickleName + '.p', 'rb'))
@@ -1279,22 +1070,22 @@ def main():
         eventsMatrixTemp = np.swapaxes(eventsMatrixTemp, 0, 1)
         eventsMatrixTemp = np.swapaxes(eventsMatrixTemp, 0, 2)
         if algorithmType == 'BruteForce':
-            pAnticipatory = anticipatorySimulation_bruteForce(initState, numStochasticRuns, gridSize,
+            pAnticipatory = anticipatorySimulation_bruteForce(initState, numStochasticRuns, gridSize, lam,
                                                                 lengthPrediction,deltaOpenTime, simStartTime,
-                                                                probabilityMatrix, eventsMatrixTemp, my_net,
+                                                                probabilityMatrix, eventsMatrixTemp,
                                                                 distMethod, optimizationMethod, shouldPrint=shouldPrint)
             anticipatoryFileName = 'SimAnticipatoryMio_' + 'BruteForce_' + fileName
         elif algorithmType == 'OptimalChoice':
-            pAnticipatory = anticipatorySimulation_optimalActionChoice(initState, numStochasticRuns, gridSize,
+            pAnticipatory = anticipatorySimulation_optimalActionChoice(initState, numStochasticRuns, gridSize, lam,
                                                                 lengthPrediction,deltaOpenTime, simStartTime,
-                                                                probabilityMatrix, eventsMatrixTemp, my_net,
+                                                                probabilityMatrix, eventsMatrixTemp,
                                                                 distMethod, optimizationMethod, shouldPrint=shouldPrint)
             anticipatoryFileName = 'SimAnticipatoryMio_' + 'OptimalChoice_' + fileName
 
         else:
-            pAnticipatory = anticipatorySimulation_randomChoice(initState, numStochasticRuns, gridSize,
+            pAnticipatory = anticipatorySimulation_randomChoice(initState, numStochasticRuns, gridSize, lam,
                                                                 lengthPrediction,deltaOpenTime, simStartTime,
-                                                                probabilityMatrix, eventsMatrixTemp, my_net,
+                                                                probabilityMatrix, eventsMatrixTemp,
                                                                 distMethod, optimizationMethod, shouldPrint=shouldPrint)
             anticipatoryFileName = 'SimAnticipatoryMio_' + 'RandomChoice_' + fileName
         etime           = time.process_time()

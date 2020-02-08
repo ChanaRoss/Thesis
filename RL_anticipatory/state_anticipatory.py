@@ -1,16 +1,26 @@
 import torch
 import numpy as np
+from scipy.stats import truncnorm
 import os.path as osp
 from matplotlib import pyplot as plt
 import networkx as nx
+import sys
 # imports from torch -
 from torch_geometric.data import Data, DataLoader, Dataset
-
+sys.path.insert(0, '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/with_RL/')
+from create_distributions import *
 
 class AnticipatoryState:
-    def __init__(self, data_input, dim):
+    def __init__(self, data_input, dim,
+                 stochastic_mat, n_stochastic_runs, sim_length, dist_lambda, n_prediction_steps, events_open_time):
         self.data_input = data_input
+        self.stochastic_mat = stochastic_mat  # of shape [x, y, t, p(n events)]
+        self.n_stochastic_runs = n_stochastic_runs
         self.batch_size = data_input.num_graphs
+        self.sim_length = sim_length
+        self.dist_lambda = dist_lambda
+        self.n_prediction_steps = n_prediction_steps
+        self.events_open_time = events_open_time
         data_list = data_input.to_data_list()
         self.n_cars = data_list[0].car_loc.shape[0]
         self.n_events = data_list[0].events_loc.shape[0]
@@ -136,8 +146,18 @@ class AnticipatoryState:
         this function calculates the anticipatory cost assuming cars are in known location and future events are from future matrix
         :return:
         """
+        # create stochastic events
+        stochastic_event_dict = create_stochastic_events(0, self.n_stochastic_runs, 0, self.sim_length,
+                                                         self.stochastic_mat, self.events_open_time, self.time, 'Bm_poisson', self.dim,
+                                                         self.lam)
+
+
+
         cost = 0
         return cost
+
+
+
 
 
 class AnticipatoryDataset(Dataset):
