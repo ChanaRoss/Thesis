@@ -762,7 +762,7 @@ def anticipatorySimulation_bruteForce(initState, nStochastic, gs, tPred, eTimeWi
                     temp = [eventsPos.append(e) for e in stochasticEventsDict[j]['eventsPos']]
                     temp = [eventsStartTime.append(e[0]) for e in stochasticEventsDict[j]['eventsTimeWindow']]
                     temp = [eventsEndTime.append(e[1]) for e in stochasticEventsDict[j]['eventsTimeWindow']]
-                    eventsPos        = np.array(eventsPos).reshape(len(eventsPos),2)
+                    eventsPos        = np.array(eventsPos).reshape(len(eventsPos), 2)
                     eventsStartTime  = np.array(eventsStartTime)
                     eventsEndTime    = np.array(eventsEndTime)
                     stime = time.process_time()

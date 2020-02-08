@@ -23,20 +23,29 @@ def poissonRandomEvents(startTime, endSimTime, lam):
 
 
 def createEventsDistribution(gridSize, startTime, endTime, lam, eventTimeWindow):
-    locX        = gridSize[0] / 2
-    scaleX      = gridSize[0] / 5
-    locY        = gridSize[1] / 10
-    scaleY      = gridSize[1] / 5
-    # randomize event times
-    eventTimes  = poissonRandomEvents(startTime, endTime, lam)
-    eventPosX   = truncnorm.rvs((0 - locX) / scaleX, (gridSize[0] - locX) / scaleX, loc=locX, scale=scaleX,
-                              size=len(eventTimes)).astype(np.int64)
-    eventPosY   = truncnorm.rvs((0 - locY) / scaleY, (gridSize[1] - locY) / scaleY, loc=locY, scale=scaleY,
-                              size=len(eventTimes)).astype(np.int64)
+    eventsTimes = create_events_times(startTime, endTime, lam, eventTimeWindow)
+    eventsPos = create_events_position(gridSize, eventsTimes.shape[0])
+    return eventsPos, eventsTimes
 
-    eventsPos           = np.column_stack([eventPosX,eventPosY])
-    eventsTimeWindow    = np.column_stack([eventTimes,eventTimes+eventTimeWindow])
-    return eventsPos, eventsTimeWindow
+
+def create_events_times(start_time, end_time, lam, eventTimeWindow):
+    # randomize event times
+    eventTimes = poissonRandomEvents(start_time, end_time, lam)
+    eventsTimes = np.column_stack([eventTimes, eventTimes + eventTimeWindow])
+    return eventsTimes
+
+
+def create_events_position(gridSize, n_points):
+    locX = gridSize[0] / 2
+    scaleX = gridSize[0] / 5
+    locY = gridSize[1] / 10
+    scaleY = gridSize[1] / 5
+    eventPosX = truncnorm.rvs((0 - locX) / scaleX, (gridSize[0] - locX) / scaleX, loc=locX, scale=scaleX,
+                              size=n_points).astype(np.int64)
+    eventPosY = truncnorm.rvs((0 - locY) / scaleY, (gridSize[1] - locY) / scaleY, loc=locY, scale=scaleY,
+                              size=n_points).astype(np.int64)
+    eventsPos = np.column_stack([eventPosX, eventPosY])
+    return eventsPos
 
 
 def createEventDistributionMl(simstartTime, startTime, endTime, previousMat, eventTimeWindow, simTime, my_net):
