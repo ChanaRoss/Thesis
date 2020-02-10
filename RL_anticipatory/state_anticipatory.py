@@ -1,8 +1,11 @@
 import torch
+from torch import nn
 import numpy as np
 import time
 import sys
 from torch_geometric.data import Data, DataLoader, Dataset
+import torch_geometric.transforms as T
+from torch_geometric.nn import GATConv
 # import my own code:
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/with_RL/')
 from create_distributions import *
@@ -13,20 +16,19 @@ from offlineOptimizationProblem_TimeWindow import plotResults as plotResultsTime
 
 
 class AnticipatoryState:
-    def __init__(self, data_input, dim, stochastic_mat, n_stochastic_runs, sim_length, dist_lambda,
-                 n_prediction_steps, events_open_time):
+    def __init__(self, data_input, stochastic_input_dict, sim_input_dict):
         self.data_input = data_input
-        self.stochastic_mat = stochastic_mat  # of shape [x, y, t, p(n events)]
-        self.n_stochastic_runs = n_stochastic_runs
+        self.stochastic_mat = stochastic_input_dict['future_mat']  # of shape [x, y, t, p(n events)]
+        self.n_stochastic_runs = stochastic_input_dict['n_stochastic_runs']
         self.batch_size = data_input.num_graphs
-        self.sim_length = sim_length
-        self.dist_lambda = dist_lambda
-        self.n_prediction_steps = n_prediction_steps
-        self.events_open_time = events_open_time
+        self.sim_length = sim_input_dict['sim_length']
+        self.dist_lambda = sim_input_dict['dist_lambda']
+        self.n_prediction_steps = sim_input_dict['n_prediction_steps']
+        self.events_open_time = sim_input_dict['events_open_time']
         data_list = data_input.to_data_list()
         self.n_cars = data_list[0].car_loc.shape[0]
         self.time = 0  # simulation starts at time 0
-        self.dim = dim
+        self.dim = sim_input_dict['graph_dim']
         self.car_cur_loc = torch.zeros(self.batch_size, self.n_cars, 2)
         self.events_loc_dict = {}
         self.events_time_dict = {}
@@ -210,6 +212,12 @@ class AnticipatoryState:
         expected_cost = np.mean(stochastic_cost)
         return expected_cost
 
+    def all_finished(self):
+        if self.sim_length >= self.time:
+            return False
+        else:
+            return True
+
 
 class AnticipatoryDataset(Dataset):
     def __init__(self, root, n_cars, events_time_window, end_time, graph_size,
@@ -369,11 +377,60 @@ class AnticipatoryDataset(Dataset):
         return data
 
 
+class ModelRL(torch.nn.Module):
+    def __init__(self, data_input, embedding_dim, dp, stochastic_input_dict, sim_input_dict):
+        super(ModelRL, self).__init__()
+        self.dropout = dp
+        self.sim_input_dict = sim_input_dict
+        self.stochastic_input_dict = stochastic_input_dict
+        self.n_cars = sim_input_dict['n_cars']
+        # self.embedding = nn.Linear(data_input.num_features, embedding_dim)
+        self.encoder = GATConv(data_input.num_features, 128, heads=8, dropout=self.dropout, bias=True)
+        self.decoder = GATConv(128, 5*self.n_cars, heads=8, dropout=self.dropout, bias=True)
+
+    def forward(self, data_input):
+        state = AnticipatoryState(data_input, self.stochastic_input_dict, self.sim_input_dict)
+        all_actions = []
+        all_logits = []
+        while not state.all_finished():
+            # x = self.embedding(state.data_input.x)
+            x = self.encoder(state.data_input.x, state.data_input.edge_index)
+            # run model decoder and find next action for each car.
+            logit_ff = self.decoder(x, state.data_input.edge_index)
+            # get action for each car
+            actions, logits_selected = self.get_actions(logit_ff)
+            # update state to new locations -
+            state.update_state(actions)
+            # add chosen actions and logit to list for output and final calculation
+            all_actions.append(actions)
+            all_logits.append(logits_selected)
+        cost = state.get_cost()
+        all_logits = torch.stack(all_logits, 1)
+        all_actions = torch.stack(all_actions, 1)
+        ll = self.calc_log_likelihood(all_logits)
+        # all_actions output is : [n_time_steps, n_batches, n_cars, 5]
+        # all_logits output is : [n_time_steps, n_batches, n_cars, 5]
+        # cost output is: [n_batches, 1]
+        return all_actions, ll, cost
+
+    def calc_log_likelihood(self, all_logits):
+        ll = all_logits.sum(1)
+        return ll
+
+    def get_actions(self, logit_ff):
+        logit_ff = logit_ff.view(self.batch_size, self.n_cars, -1)
+        probs = logit_ff.exp()
+        selected_actions = probs.multinomial(2).squeeze(1)
+        logit_selected = logit_ff.gather(2, selected_actions.unsqueeze(-1).type(torch.long)).squeeze(-1)
+        return selected_actions, logit_selected
+
+
+
 def main():
     # problem parameters -
     graph_size = 10
     n_graphs = 100
-    end_time = 24
+    end_time = 5
     events_time_window = 5
     n_cars = 2
     # anticipatory parameters -
@@ -389,11 +446,20 @@ def main():
     dataset = AnticipatoryDataset("/data", n_cars, events_time_window, end_time, graph_size,
                                   cancel_cost, close_reward, movement_cost, open_cost, dist_lambda,
                                   None, None, n_graphs)
-    dataloader = DataLoader(dataset, batch_size=55)
+    dataloader = DataLoader(dataset, batch_size=10)
+    stochastic_input_dict = {'future_mat': stochastic_mat,
+                             'n_stochastic_runs': n_stochastic_runs}
+    sim_input_dict = {'graph_dim': graph_size,
+                      'sim_length': end_time,
+                      'events_open_time': events_time_window,
+                      'n_prediction_steps': n_prediction_steps,
+                      'dist_lambda': dist_lambda,
+                      'n_cars': n_cars}
     for data in dataloader:
-        state = AnticipatoryState(data, graph_size, stochastic_mat, n_stochastic_runs,
-                                  end_time, dist_lambda, n_prediction_steps, events_time_window)
-        actions = torch.randint(0, 5, [55, n_cars])
+        state = AnticipatoryState(data, stochastic_input_dict, sim_input_dict)
+        model_rl = ModelRL(data, 128, 0, stochastic_input_dict, sim_input_dict)
+        model_rl.forward(data)
+        actions = torch.randint(0, 5, [10, n_cars])
         s_time = time.time()
         state.update_state(actions)
         e_time = time.time()
