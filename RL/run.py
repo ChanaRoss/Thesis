@@ -8,16 +8,16 @@ import torch
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 
-from nets.critic_network import CriticNetwork
-from options import get_options
-from train import train_epoch, validate, get_inner_model
-from reinforce_baselines import NoBaseline, ExponentialBaseline, CriticBaseline, RolloutBaseline, WarmupBaseline
-from nets.attention_model import AttentionModel
-from nets.mtsp_attention_model_multiple_options import MultiAttentionModelMultipleOptions
-from nets.mtsp_attention_model_single_decoder import MultiAttentionModelSingleDecoder
-from nets.mtsp_attention_model import MultiAttentionModel
-from nets.pointer_network import PointerNetwork, CriticNetworkLSTM
-from utils import torch_load_cpu, load_problem
+from RL.nets.critic_network import CriticNetwork
+from RL.options import get_options
+from RL.train import train_epoch, validate, get_inner_model
+from RL.reinforce_baselines import NoBaseline, ExponentialBaseline, CriticBaseline, RolloutBaseline, WarmupBaseline
+from RL.nets.attention_model import AttentionModel
+from RL.nets.mtsp_attention_model_multiple_options import MultiAttentionModelMultipleOptions
+from RL.nets.mtsp_attention_model_single_decoder import MultiAttentionModelSingleDecoder
+from RL.nets.mtsp_attention_model import MultiAttentionModel
+from RL.nets.pointer_network import PointerNetwork, CriticNetworkLSTM
+from RL.utils import torch_load_cpu, load_problem
 
 
 def run(opts):
