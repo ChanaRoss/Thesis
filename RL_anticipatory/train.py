@@ -4,8 +4,8 @@ import torch
 import math
 import tqdm
 from torch_geometric.data import DataLoader
-from utils import set_decode_type, get_inner_model, move_to
-
+from RL_anticipatory.utils import set_decode_type, get_inner_model, move_to
+from RL_anticipatory.utils.log_utils import log_values_step, log_values_epoch
 
 def clip_grad_norms(param_groups, max_norm=math.inf):
     """
@@ -27,10 +27,10 @@ def clip_grad_norms(param_groups, max_norm=math.inf):
     return grad_norms, grad_norms_clipped
 
 
-def validate(model, dataset):
+def validate(model, dataset, opts):
     # Validate
     print('Validating...')
-    cost = rollout(model, dataset)
+    cost = rollout(model, dataset, opts)
     avg_cost = cost.mean()
     print('Validation overall avg_cost: {} +- {}'.format(
         avg_cost, torch.std(cost) / math.sqrt(len(cost))))
@@ -38,45 +38,42 @@ def validate(model, dataset):
     return avg_cost
 
 
-def rollout(model, dataset, decode_type):
+def rollout(model, dataset, opts):
     # Put in greedy evaluation mode!
-    set_decode_type(model, decode_type)
+    set_decode_type(model, opts['decode_type'])
     model.eval()
 
     def eval_model_bat(bat):
         with torch.no_grad():
-            cost, _ = model(move_to(bat, opts.device))
+            _, _, cost, _ = model(move_to(bat, opts['device']))
         return cost.data.cpu()
 
     return torch.cat([
         eval_model_bat(bat)
         for bat
-        in tqdm(DataLoader(dataset, batch_size=opts.eval_batch_size), disable=opts.no_progress_bar)
+        in tqdm(DataLoader(dataset, batch_size=opts['eval_batch_size']), disable=opts['no_progress_bar'])
     ], 0)
 
 
-def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, state, tb_logger, opts):
-    print("Start train epoch {}, lr={} for run {}".format(epoch, optimizer.param_groups[0]['lr'], opts.run_name))
-    step = epoch * (opts.epoch_size // opts.batch_size)
+def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, problem, tb_logger, opts):
+    print("Start train epoch {}, lr={} for run {}".format(epoch, optimizer.param_groups[0]['lr'], opts['run_name']))
+    step = epoch * (opts['epoch_size'] // opts['batch_size'])
     start_time = time.time()
 
     if not opts.no_tensorboard:
         tb_logger.add_scalar('optimizer/learnrate_pg0', optimizer.param_groups[0]['lr'], step)
 
     # Generate new training data for each epoch
-    training_dataset = baseline.wrap_dataset(state.make_dataset(
-        size=opts.graph_size, n_cars=opts.n_cars, num_samples=opts.epoch_size,
-        distribution=opts.data_distribution, coord_limit=opts.coord_limit))
-    training_dataloader = DataLoader(training_dataset, batch_size=opts.batch_size, num_workers=1)
+    training_dataset = baseline.wrap_dataset(problem.make_dataset(num_samples=opts['epoch_size']))
+    training_dataloader = DataLoader(training_dataset, batch_size=opts['batch_size'], num_workers=1)
 
     # Put model in train mode!
     model.train()
-    set_decode_type(model, opts.decode_type)
+    set_decode_type(model, opts['decode_type'])
     avg_cost_epoch = 0
     avg_ll_epoch = 0
     avg_loss_epoch = 0
     for batch_id, batch in enumerate(tqdm(training_dataloader, disable=opts.no_progress_bar)):
-
         avg_cost, loss_batch, avg_ll = train_batch(
             model,
             optimizer,
@@ -102,7 +99,7 @@ def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, st
     avg_ll_epoch = avg_ll_epoch / batch_size
     log_values_epoch(avg_cost_epoch, epoch,
                avg_ll_epoch, avg_loss_epoch, tb_logger, opts, model)
-    if (opts.checkpoint_epochs != 0 and epoch % opts.checkpoint_epochs == 0) or epoch == opts.n_epochs - 1:
+    if (opts['checkpoint_epochs'] != 0 and epoch % opts['checkpoint_epochs'] == 0) or epoch == opts['n_epochs'] - 1:
         print('Saving model and state...')
         torch.save(
             {
@@ -112,16 +109,16 @@ def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, st
                 'cuda_rng_state': torch.cuda.get_rng_state_all(),
                 'baseline': baseline.state_dict()
             },
-            os.path.join(opts.save_dir, 'epoch-{}.pt'.format(epoch))
+            os.path.join(opts['save_dir'], 'epoch-{}.pt'.format(epoch))
         )
 
     avg_reward = validate(model, val_dataset, opts)
 
-    if not opts.no_tensorboard:
+    if not opts['no_tensorboard']:
         tb_logger.add_scalar('validation/val_avg_reward', avg_reward, step)
 
     baseline_epoch, baseline_mean = baseline.epoch_callback(model, epoch)
-    if not opts.no_tensorboard:
+    if not opts['no_tensorboard']:
         print("*****************************************")
         print(baseline_mean, baseline_epoch)
         tb_logger.add_scalar('baseline/cost_epoch', baseline_mean, epoch)
@@ -140,11 +137,11 @@ def train_batch(
         opts
 ):
     x, bl_val = baseline.unwrap_batch(batch)
-    x = move_to(x, opts.device)
-    bl_val = move_to(bl_val, opts.device) if bl_val is not None else None
+    x = move_to(x, opts['device'])
+    bl_val = move_to(bl_val, opts['device']) if bl_val is not None else None
 
     # Evaluate model, get costs and log probabilities
-    cost, log_likelihood = model(x)
+    all_actions, log_likelihood, cost, state = model(x)
 
     # Evaluate baseline, get baseline loss if any (only for critic)
     bl_val, bl_loss = baseline.eval(x, cost) if bl_val is None else (bl_val, 0)

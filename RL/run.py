@@ -35,7 +35,6 @@ def run(opts):
         # log the configuration for this run
         tb_logger.add_text("config/" + os.path.join("{}_{}".format(opts.problem, opts.graph_size), opts.run_name),
                            json.dumps(vars(opts), indent=True), 0)
-
     os.makedirs(opts.save_dir)
     # Save arguments so exact configuration can always be found
     with open(os.path.join(opts.save_dir, "args.json"), 'w') as f:
@@ -54,7 +53,6 @@ def run(opts):
     if load_path is not None:
         print('  [*] Loading data from {}'.format(load_path))
         load_data = torch_load_cpu(load_path)
-
     # Initialize model
     model_class = {
         'multi_attention': MultiAttentionModel,

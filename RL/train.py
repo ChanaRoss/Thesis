@@ -7,9 +7,9 @@ import math
 from torch.utils.data import DataLoader
 from torch.nn import DataParallel
 
-from nets.attention_model import set_decode_type
-from utils.log_utils import log_values_step, log_values_epoch
-from utils import move_to
+from RL.nets.attention_model import set_decode_type
+from RL.utils.log_utils import log_values_step, log_values_epoch
+from RL.utils import move_to
 
 from utils.plot_results import *
 
