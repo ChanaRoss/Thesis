@@ -4,6 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from RL_anticipatory.problems.state_anticipatory import AnticipatoryState
 
+
 class AnticipatoryModel(torch.nn.Module):
     def __init__(self, num_features, num_nodes, embedding_dim, dp, stochastic_input_dict, sim_input_dict):
         super(AnticipatoryModel, self).__init__()

@@ -1,6 +1,7 @@
 from torch.nn import DataParallel
 import torch
 
+
 def get_inner_model(model):
     return model.module if isinstance(model, DataParallel) else model
 

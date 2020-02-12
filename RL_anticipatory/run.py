@@ -15,7 +15,8 @@ from RL_anticipatory.nets.RL_Model import AnticipatoryModel
 from RL_anticipatory.utils import torch_load_cpu
 from RL_anticipatory.train import train_epoch, validate, get_inner_model
 
-def main():
+
+def run():
     torch.manual_seed(1)
     # network parameters -
     n_features = 5
@@ -26,6 +27,7 @@ def main():
     graph_size = 10
     epoch_size = 500
     batch_size = 10
+    val_size = 10
     end_time = 5
     events_time_window = 5
     n_cars = 2
@@ -51,6 +53,7 @@ def main():
         'lam': dist_lambda,
         'batch_size': batch_size,
         'epoch_size': epoch_size,
+        'val_size': val_size,
         'n_epochs': n_epochs,
         'lr_model': 1e-4,
         'lr_critic': 1e-4,
@@ -59,6 +62,7 @@ def main():
         'lr_scheduler': 'reduce',
         'baseline': 'rollout',
         'no_progress_bar': True,
+        'no_tensorboard': False,
         'no_cuda': True,
         'eval_only': False,
         'bl_warmup_epochs': None,
@@ -79,6 +83,7 @@ def main():
                       'dist_lambda': dist_lambda,
                       'n_cars': n_cars}
 
+
     opts['run_name'] = "{}_{}".format(opts['run_name'], time.strftime("%Y%m%dT%H%M%S"))
     opts['save_dir'] = os.path.join(
         opts['output_dir'],
@@ -95,19 +100,17 @@ def main():
         tb_logger = SummaryWriter(os.path.join(opts['log_dir'], "{}".format(opts['problem']), opts['run_name']))
         # log the configuration for this run
         tb_logger.add_text("config/" + os.path.join(opts['log_dir'], "{}".format(opts['problem']), opts['run_name']),
-                           json.dumps(vars(opts), indent=True), 0)
+                           json.dumps(opts, indent=True), 0)
 
     # create save location -
     os.makedirs(opts['save_dir'])
 
     # Save arguments so exact configuration can always be found
     with open(os.path.join(opts['save_dir'], "args.json"), 'w') as f:
-        json.dump(vars(opts), f, indent=True)
-
+        json.dump(opts, f, indent=True)
     # Set the device
-    opts['device'] = torch.device("cuda:0" if opts['use_cuda'] else "cpu")
     opts['use_cuda'] = torch.cuda.is_available() and not opts['no_cuda']
-
+    opts['device'] = torch.device("cuda:0" if opts['use_cuda'] else "cpu")
     # create problem
     problem = AnticipatoryProblem(opts)
 
@@ -217,6 +220,6 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    run()
     print("done!")
 
