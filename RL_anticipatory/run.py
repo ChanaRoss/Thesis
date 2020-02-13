@@ -20,15 +20,14 @@ def run():
     torch.manual_seed(1)
     # network parameters -
     n_features = 5
-    num_samples = 100
-    eval_batch_size = 10
-    n_epochs = 10
+    eval_batch_size = 100
+    n_epochs = 50
     # problem parameters -
     graph_size = 10
-    epoch_size = 500
-    batch_size = 10
-    val_size = 10
-    end_time = 5
+    epoch_size = 2800
+    batch_size = 28
+    val_size = 100
+    end_time = 15
     events_time_window = 5
     n_cars = 2
     # anticipatory parameters -
@@ -58,15 +57,19 @@ def run():
         'lr_model': 1e-4,
         'lr_critic': 1e-4,
         'lr_decay': 0.9,
+        'exp_beta': 0.9,
+        'max_grad_norm': 1,
         'decode_type': 'sampling',
         'lr_scheduler': 'reduce',
         'baseline': 'rollout',
+        'bl_alpha': 0.05,
         'no_progress_bar': True,
         'no_tensorboard': False,
         'no_cuda': True,
         'eval_only': False,
         'bl_warmup_epochs': None,
         'checkpoint_epochs': 1,
+        'log_step': 1,
         'eval_batch_size': eval_batch_size,
         'run_name': 'anticipatory_rl',
         'problem': 'anticipatory_rl',
@@ -82,7 +85,6 @@ def run():
                       'n_prediction_steps': n_prediction_steps,
                       'dist_lambda': dist_lambda,
                       'n_cars': n_cars}
-
 
     opts['run_name'] = "{}_{}".format(opts['run_name'], time.strftime("%Y%m%dT%H%M%S"))
     opts['save_dir'] = os.path.join(
@@ -137,7 +139,7 @@ def run():
     elif opts['baseline'] == 'rollout':
         baseline = RolloutBaseline(model, problem, opts)
     else:
-        assert opts['baseline'] is None, "Unknown baseline: {}".format(opts['baseline'] )
+        assert opts['baseline'] is None, "Unknown baseline: {}".format(opts['baseline'])
         baseline = NoBaseline()
     if opts['bl_warmup_epochs'] > 0:
         baseline = WarmupBaseline(baseline, opts['bl_warmup_epochs'] , warmup_exp_beta=opts['exp_beta'])
@@ -207,15 +209,6 @@ def run():
             )
 
     tb_logger.close()
-    # dataset = problem.make_dataset(num_samples)
-    # dataloader = DataLoader(dataset, batch_size=batch_size)
-    # for data in dataloader:
-    #     s_time = time.time()
-    #     all_actions, ll, cost, state = model(data)
-    #     e_time = time.time()
-    #     print("batch run time is:"+str(e_time-s_time))
-    #     print("total cost of batchs is:")
-    #     print(cost)
     return
 
 

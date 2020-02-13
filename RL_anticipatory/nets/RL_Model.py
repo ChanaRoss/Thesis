@@ -1,18 +1,28 @@
 import torch
 from torch_geometric.nn import GATConv
+from torch_geometric.nn.data_parallel import DataParallel
 import torch.nn as nn
 import torch.nn.functional as F
 from RL_anticipatory.problems.state_anticipatory import AnticipatoryState
+
+
+def set_decode_type(model, decode_type):
+    if isinstance(model, DataParallel):
+        model = model.module
+    model.set_decode_type(decode_type)
 
 
 class AnticipatoryModel(torch.nn.Module):
     def __init__(self, num_features, num_nodes, embedding_dim, dp, stochastic_input_dict, sim_input_dict):
         super(AnticipatoryModel, self).__init__()
         self.dropout = dp
+        self.decode_type = None
         self.sim_input_dict = sim_input_dict
         self.stochastic_input_dict = stochastic_input_dict
         self.n_cars = sim_input_dict['n_cars']
-        self.embedding = nn.Linear(num_features, embedding_dim)
+        self.embedding = nn.Sequential(nn.Linear(num_features, embedding_dim),
+                                       nn.ReLU(),
+                                       nn.Linear(embedding_dim, embedding_dim))
         self.encoder = GATConv(embedding_dim, 16, heads=8, dropout=self.dropout, bias=True)
         self.decoder = GATConv(embedding_dim, self.n_cars, heads=1, dropout=self.dropout, bias=True)
         self.proj_choose_out = nn.Sequential(
@@ -22,20 +32,25 @@ class AnticipatoryModel(torch.nn.Module):
             nn.ReLU(),
             nn.Linear(embedding_dim, self.n_cars*5))
 
+    def set_decode_type(self, decode_type):
+        self.decode_type = decode_type
+
     def forward(self, data_input):
         state = AnticipatoryState(data_input, self.stochastic_input_dict, self.sim_input_dict)
         all_actions = []
         all_logits = []
         while not state.all_finished():
+            x_temp = state.data_input.x.clone()
             batch_size = state.data_input.num_graphs
-            x = self.embedding(state.data_input.x)
+            x = self.embedding(x_temp)
             x = self.encoder(x, state.data_input.edge_index)
             # run model decoder and find next action for each car.
             logit_per_car = self.decoder(x, state.data_input.edge_index)
             logit_ff = self.proj_choose_out(logit_per_car.view(batch_size, -1))
-            logit_ff = logit_ff.view(batch_size, self.n_cars, -1)  # change dimensions to [n_batchs, n_cars, 5]
+            logit_ff = logit_ff.clone().view(batch_size, self.n_cars, -1)  # change dimensions to [n_batchs, n_cars, 5]
             logit_ff = F.log_softmax(logit_ff, dim=2)  # soft max on action choice dimension
             # get action for each car
+            # actions and logits_selected are of size [batch_size, n_cars]
             actions, logits_selected = self.get_actions(logit_ff)
             # update state to new locations -
             state.update_state(actions)
@@ -52,7 +67,8 @@ class AnticipatoryModel(torch.nn.Module):
         return all_actions, ll, cost, state
 
     def calc_log_likelihood(self, all_logits):
-        ll = all_logits.sum(1)
+        batch_size = all_logits.shape[0]
+        ll = all_logits.view(batch_size, -1).sum(1)
         return ll
 
     def get_actions(self, logit_ff):

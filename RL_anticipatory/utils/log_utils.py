@@ -11,7 +11,7 @@ def log_values_step(cost, grad_norms, epoch, batch_id, step,
     print('grad_norm: {}, clipped: {}'.format(grad_norms[0], grad_norms_clipped[0]))
 
     # Log values to tensorboard
-    if not opts.no_tensorboard:
+    if not opts['no_tensorboard']:
         tb_logger.add_scalar('loss/step/avg_cost_per_step', avg_cost, step)
 
         tb_logger.add_scalar('loss/step/actor_loss_per_step', avg_loss, step)
@@ -20,7 +20,7 @@ def log_values_step(cost, grad_norms, epoch, batch_id, step,
         tb_logger.add_scalar('optimizer/grad_norm', grad_norms[0], step)
         tb_logger.add_scalar('optimizer/grad_norm_clipped', grad_norms_clipped[0], step)
 
-        if opts.baseline == 'critic':
+        if opts['baseline'] == 'critic':
             tb_logger.add_scalar('critic/critic_loss', bl_loss.item(), step)
             tb_logger.add_scalar('critic/critic_grad_norm', grad_norms[1], step)
             tb_logger.add_scalar('critic/critic_grad_norm_clipped', grad_norms_clipped[1], step)
@@ -36,7 +36,7 @@ def log_values_epoch(cost, epoch, log_likelihood, reinforce_loss, tb_logger, opt
 
 
     # Log values to tensorboard
-    if not opts.no_tensorboard:
+    if not opts['no_tensorboard']:
         tb_logger.add_scalar('loss/epoch/avg_cost_per_epoch', avg_cost, epoch)
 
         tb_logger.add_scalar('loss/epoch/actor_loss_per_epoch', avg_loss, epoch)

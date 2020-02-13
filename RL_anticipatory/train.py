@@ -2,7 +2,7 @@ import time
 import os
 import torch
 import math
-import tqdm
+from tqdm import tqdm
 from torch_geometric.data import DataLoader
 from RL_anticipatory.utils import set_decode_type, get_inner_model, move_to
 from RL_anticipatory.utils.log_utils import log_values_step, log_values_epoch
@@ -61,7 +61,7 @@ def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, pr
     step = epoch * (opts['epoch_size'] // opts['batch_size'])
     start_time = time.time()
 
-    if not opts.no_tensorboard:
+    if not opts['no_tensorboard']:
         tb_logger.add_scalar('optimizer/learnrate_pg0', optimizer.param_groups[0]['lr'], step)
 
     # Generate new training data for each epoch
@@ -74,7 +74,7 @@ def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, pr
     avg_cost_epoch = 0
     avg_ll_epoch = 0
     avg_loss_epoch = 0
-    for batch_id, batch in enumerate(tqdm(training_dataloader, disable=opts.no_progress_bar)):
+    for batch_id, batch in enumerate(tqdm(training_dataloader, disable=opts['no_progress_bar'])):
         avg_cost, loss_batch, avg_ll = train_batch(
             model,
             optimizer,
@@ -153,13 +153,13 @@ def train_batch(
 
     # Perform backward pass and optimization step
     optimizer.zero_grad()
-    loss.backward()
+    loss.backward(retain_graph=True)
     # Clip gradient norms and get (clipped) gradient norms for logging
-    grad_norms = clip_grad_norms(optimizer.param_groups, opts.max_grad_norm)
+    grad_norms = clip_grad_norms(optimizer.param_groups, opts['max_grad_norm'])
     optimizer.step()
 
     # Logging
-    if step % int(opts.log_step) == 0:
+    if step % int(opts['log_step']) == 0:
         log_values_step(cost, grad_norms, epoch, batch_id, step,
                    log_likelihood, reinforce_loss, bl_loss, tb_logger, opts)
 

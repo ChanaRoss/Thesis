@@ -91,7 +91,7 @@ class AnticipatoryState:
                         distance_matrix[car_index, :] = 9999  # makes sure you dont use the same car for other events
                         self.close_event(i_b, i_e, graph_row)
                     else:
-                        self.events_cost[i_b] += self.data_input['open_cost'][i_b]
+                        self.events_cost[i_b] = self.events_cost[i_b] + self.data_input['open_cost'][i_b]
                         opened_events_pos.append(self.events_loc_dict[i_b][i_e, ...])
                         opened_events_start_time.append(self.events_time_dict[i_b][i_e, 0])
                         opened_events_end_time.append(self.events_time_dict[i_b][i_e, 1])
@@ -99,17 +99,18 @@ class AnticipatoryState:
                 should_open = (self.events_time_dict[i_b][i_e, 0] == self.time)
                 # add 1 to graph if event is opened now for the 1st time -
                 if should_open:
-                    self.data_input.x[graph_row, 3] += 1
+                    self.data_input.x[graph_row, 3] = self.data_input.x[graph_row, 3] + 1
             # calculate anticipatory cost for batch i_b after moving cars (known events and future events)
             s_time = time.time()
-            self.anticipatory_cost[i_b] += self.calc_anticipatory_cost(i_b, opened_events_pos,
+            new_anticipatory_cost = self.calc_anticipatory_cost(i_b, opened_events_pos,
                                                                        opened_events_start_time, opened_events_end_time)
+            self.anticipatory_cost[i_b] = self.anticipatory_cost[i_b] + new_anticipatory_cost
             e_time  = time.time()
             a_time += e_time-s_time
-        print("t: "+str(self.time)+", time to run anticipatory :"+str(a_time))
+        # print("t: "+str(self.time)+", time to run anticipatory :"+str(a_time))
         # update current car location to new locations
         self.car_cur_loc = car_cur_loc
-        self.time += 1  # update simulation time
+        self.time = self.time + 1  # update simulation time
         return
 
     def update_car_state(self, i_b, i_c, car_cur_loc, actions):
@@ -122,35 +123,38 @@ class AnticipatoryState:
             self.cars_route[i_b, i_c, self.time, ...] = new_loc_temp.clone()
             # subtract 1 from graph where the car came from in feature tensor
             loc_row = (cur_loc_temp[0] * self.dim + cur_loc_temp[1]).int()
-            self.data_input.x[loc_row + i_b * self.dim * self.dim, 2] -= 1
+            graph_row = loc_row + i_b * self.dim * self.dim
+            self.data_input.x[graph_row, 2] = self.data_input.x[graph_row, 2] - 1
             assert (self.data_input.x[loc_row + i_b * self.dim * self.dim, 2] >= 0),\
                 "tried to subtract 1 from car feature even though there was no car there"
             # add this cars movement cost to total movement cost
-            self.movement_cost[i_b] += self.data_input['movement_cost'][i_b] * torch.sum(delta_movement)
+            self.movement_cost[i_b] = self.movement_cost[i_b] + \
+                                      self.data_input['movement_cost'][i_b] * torch.sum(delta_movement)
             car_cur_loc[i_b, i_c, ...] = new_loc_temp
             # add 1 to graph where the new car location is in feature tensor
             loc_row = (new_loc_temp[0] * self.dim + new_loc_temp[1]).int()
-            self.data_input.x[loc_row + i_b * self.dim * self.dim, 2] += 1
+            graph_row = loc_row + i_b * self.dim * self.dim
+            self.data_input.x[graph_row, 2] = self.data_input.x[graph_row, 2] + 1
         else:
             self.cars_route[i_b, i_c, self.time, ...] = cur_loc_temp.clone()
         return car_cur_loc
 
     def cancel_event(self, i_b, i_e, graph_row):
         self.events_status['canceled'][i_b, i_e] = True
-        self.events_cost[i_b] -= self.data_input['cancel_cost'][i_b]
-        self.data_input.x[graph_row, 3] -= 1
+        self.events_cost[i_b] = self.events_cost[i_b] - self.data_input['cancel_cost'][i_b]
+        self.data_input.x[graph_row, 3] = self.data_input.x[graph_row, 3] - 1
         assert (self.data_input.x[graph_row, 3] >= 0), \
             "trying to cancel event from row with no events!!"
 
     def close_event(self, i_b, i_e, graph_row):
         self.events_status['answered'][i_b, i_e] = True
         # subtract reward for closing event from total cost
-        self.events_cost[i_b] -= self.data_input['close_reward'][i_b]
+        self.events_cost[i_b] = self.events_cost[i_b] - self.data_input['close_reward'][i_b]
         # close event in graph - subtract one from relevant node
-        self.data_input.x[graph_row, 3] -= 1
+        self.data_input.x[graph_row, 3] = self.data_input.x[graph_row, 3] - 1
         assert (self.data_input.x[graph_row, 3] >= 0), \
             "trying to close event from row with no events!!"
-        self.events_answer_time[i_b, i_e] = self.time
+        self.events_answer_time[i_b, i_e] = self.time.clone()
 
     def get_action_from_index(self, i):
         car_movement = self.actions_to_move_tensor[i, ...]
@@ -200,7 +204,7 @@ class AnticipatoryState:
                                            self.data_input['cancel_cost'][i_b].detach().numpy(),
                                            self.data_input['open_cost'][i_b].detach().numpy())
                 etime = time.process_time()
-                runTime = etime - stime
+                # runTime = etime - stime
                 # if shouldPrint:
                 # print("finished MIO for run:"+str(j+1)+"/"+str(len(stochasticEventsDict)))
                 # print("run time of MIO is:"+str(runTime))

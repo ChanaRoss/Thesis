@@ -4,13 +4,14 @@ from torch import nn
 import torch.nn.functional as F
 from torch.utils.checkpoint import checkpoint
 from typing import NamedTuple
-from utils.tensor_functions import compute_in_batches
 
-from nets.graph_encoder import GraphAttentionEncoder
-from nets.graph_decoder_single import GraphAttentionDecoder
+from RL.utils.tensor_functions import compute_in_batches
+
+from RL.nets.graph_encoder import GraphAttentionEncoder
+from RL.nets.graph_decoder_single import GraphAttentionDecoder
 from torch.nn import DataParallel
-from utils.beam_search import CachedLookup
-from utils.functions import sample_many
+from RL.utils.beam_search import CachedLookup
+from RL.utils.functions import sample_many
 
 
 def set_decode_type(model, decode_type):
