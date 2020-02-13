@@ -3,7 +3,7 @@ from torch_geometric.nn import GATConv
 from torch_geometric.nn.data_parallel import DataParallel
 import torch.nn as nn
 import torch.nn.functional as F
-from RL_anticipatory.problems.state_anticipatory import AnticipatoryState
+from problems.state_anticipatory import AnticipatoryState
 
 
 def set_decode_type(model, decode_type):

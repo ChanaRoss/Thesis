@@ -3,7 +3,7 @@ import torch.nn.functional as F
 from torch_geometric.data import Dataset
 from scipy.stats import ttest_rel
 import copy
-from RL_anticipatory.train import rollout, get_inner_model
+from train import rollout, get_inner_model
 
 
 class Baseline(object):
@@ -176,8 +176,13 @@ class RolloutBaseline(Baseline):
         # https://discuss.pytorch.org/t/dataloader-gives-double-instead-of-float/717/3
         return BaselineDataset(dataset, rollout(self.model, dataset, self.opts).view(-1, 1))
 
+    # def unwrap_batch(self, batch):
+    #     return batch['data'], batch['baseline'].view(-1)  # Flatten result to undo wrapping as 2D
+
     def unwrap_batch(self, batch):
-        return batch['data'], batch['baseline'].view(-1)  # Flatten result to undo wrapping as 2D
+        graph = batch
+        baseline = batch.baseline
+        return graph, baseline
 
     def eval(self, x, c):
         # Use volatile mode for efficient inference (single batch so we do not use rollout function)
@@ -226,18 +231,34 @@ class RolloutBaseline(Baseline):
 
 class BaselineDataset(Dataset):
 
-    def __init__(self, dataset=None, baseline=None):
-        super(BaselineDataset, self).__init__()
+    def __init__(self, dataset=None, baseline=None, root=""):
+        super(BaselineDataset, self).__init__(root)
 
         self.dataset = dataset
         self.baseline = baseline
         assert (len(self.dataset) == len(self.baseline))
 
-    def __getitem__(self, item):
-        return {
-            'data': self.dataset[item],
-            'baseline': self.baseline[item]
-        }
+    def get(self, item):
+        data = self.dataset[item]
+        baseline = self.baseline[item]
+        data.baseline = baseline
+        return data
+        # return {
+        #     'data': self.dataset[item],
+        #     'baseline': self.baseline[item]
+        # }
 
     def __len__(self):
         return len(self.dataset)
+
+    def raw_file_names(self):
+        return "should not use raw file names"
+
+    def processed_file_names(self):
+        return "should not use processed file names"
+
+    def _download(self):
+        pass
+
+    def _process(self):
+        pass

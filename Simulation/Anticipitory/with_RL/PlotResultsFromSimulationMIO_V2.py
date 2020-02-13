@@ -1,30 +1,27 @@
-import numpy as np
-import pickle
-from matplotlib import pyplot as plt
-from copy import deepcopy
-import pandas as pd
-import seaborn as sns
-from ipywidgets import interact
 import imageio
 # import my file in order to load state class from pickle
-from simAnticipatoryWithMIO_poisson_RL import *
-sys.path.insert(0, '/Users/chanaross/dev/Thesis/UtilsCode/')
-from createGif import create_gif
-sys.path.insert(0, '/Users/chanaross/dev/Thesis/MixedIntegerOptimization/')
-from offlineOptimizationProblem_TimeWindow import runMaxFlowOpt, plotResults
-
-import os
+from Simulation.Anticipitory.with_RL.simAnticipatoryWithMIO_poisson_RL import *
+from UtilsCode.createGif import create_gif
+from MixedIntegerOptimization.offlineOptimizationProblem_TimeWindow import runMaxFlowOpt, plotResults
 
 sns.set()
 #  load logs
 pickleNames = []
 
 # test results on new code
+# pickleNames.append('SimAnticipatoryMio_RandomChoice_5lpred_5delOpen_48startTime_20gridX_20gridY_31numEvents_20nStochastic_4numCars_Bm_poisson_TimeWindow')
+# pickleNames.append('SimGreedy_5lpred_5delOpen_48startTime_20gridX_20gridY_31numEvents_20nStochastic_4numCars_Bm_poisson_TimeWindow')
+# pickleNames.append('SimOptimization_MaxFlow_5lpred_5delOpen_48startTime_20gridX_20gridY_31numEvents_20nStochastic_4numCars_Bm_poisson_TimeWindow')
+# pickleNames.append('SimOptimization_TimeWindow_5lpred_5delOpen_48startTime_20gridX_20gridY_31numEvents_20nStochastic_4numCars_Bm_poisson_TimeWindow')
 
-pickleNames.append('SimAnticipatoryMio_RandomChoice_5lpred_5delOpen_48startTime_20gridX_20gridY_31numEvents_20nStochastic_4numCars_Bm_poisson_TimeWindow')
-pickleNames.append('SimGreedy_5lpred_5delOpen_48startTime_20gridX_20gridY_31numEvents_20nStochastic_4numCars_Bm_poisson_TimeWindow')
-pickleNames.append('SimOptimization_MaxFlow_5lpred_5delOpen_48startTime_20gridX_20gridY_31numEvents_20nStochastic_4numCars_Bm_poisson_TimeWindow')
-pickleNames.append('SimOptimization_TimeWindow_5lpred_5delOpen_48startTime_20gridX_20gridY_31numEvents_20nStochastic_4numCars_Bm_poisson_TimeWindow')
+
+# comparison to RL -
+pickleNames.append('SimAnticipatoryMio_RandomChoice_5lpred_5delOpen_48startTime_20gridX_20gridY_9numEvents_20nStochastic_2numCars_Bm_poisson_TimeWindow')
+pickleNames.append('SimGreedy_5lpred_5delOpen_48startTime_20gridX_20gridY_9numEvents_20nStochastic_2numCars_Bm_poisson_TimeWindow')
+pickleNames.append('SimOptimization_MaxFlow_5lpred_5delOpen_48startTime_20gridX_20gridY_9numEvents_20nStochastic_2numCars_Bm_poisson_TimeWindow')
+pickleNames.append('SimOptimization_TimeWindow_5lpred_5delOpen_48startTime_20gridX_20gridY_9numEvents_20nStochastic_2numCars_Bm_poisson_TimeWindow')
+
+
 
 def filterEvents(eventDict, currentTime,lg):
     filterdEventDict = {}

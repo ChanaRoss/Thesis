@@ -1,3 +1,10 @@
+# my files
+from MixedIntegerOptimization.offlineOptimizationProblemMaxFlow import runMaxFlowOpt, plotResults
+from MixedIntegerOptimization.offlineOptimizationProblem_TimeWindow import runMaxFlowOpt as runMaxFlowOptTimeWindow
+from MixedIntegerOptimization.offlineOptimizationProblem_TimeWindow import plotResults as plotResultsTimeWindow
+from UtilsCode.createGif import create_gif
+from Simulation.Anticipitory.with_RL.create_distributions import *
+from Simulation.Anticipitory.calculateOptimalActions import runActionOpt, getActions
 # for stats on running time
 import time,sys,pickle
 from enum import Enum
@@ -6,29 +13,12 @@ import os
 # for mathematical calculations and statistical distributions
 from scipy.optimize import linear_sum_assignment
 from scipy.spatial.distance import cdist
-from scipy.special import comb
-import math
 import itertools
-import numpy as np
 # for graphics
 import seaborn as sns
 from matplotlib import pyplot as plt
-# pytorch imports
-import torch
 sns.set()
-# my files
-sys.path.insert(0, '/Users/chanaross/dev/Thesis/MixedIntegerOptimization/')
-from offlineOptimizationProblemMaxFlow import runMaxFlowOpt, plotResults
-from offlineOptimizationProblem_TimeWindow import runMaxFlowOpt as runMaxFlowOptTimeWindow
-from offlineOptimizationProblem_TimeWindow import plotResults as plotResultsTimeWindow
-sys.path.insert(0, '/Users/chanaross/dev/Thesis/UtilsCode/')
-from createGif import create_gif
-# sys.path.insert(0, '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/with_machine_learning/')
-# from createUberDistribution_ML import getPreviousEventMatRealData, createProbabilityMatrix_ML, createEventsFrom_ML, \
-#     createProbabilityMatrix_seq, createEventsFrom_seq
-from create_distributions import *
-sys.path.insert(0, '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/')
-from calculateOptimalActions import runActionOpt, getActions
+
 
 # from simAnticipatoryWithMIO_V1 import Status
 
@@ -1004,19 +994,19 @@ def main():
     # params
     epsilon                     = 0.001  # distance between locations to be considered same location
     simStartTime                = 48   # time from which to start looking at the data
-    lengthSim                   = 48     # 12 hours, each time step is 30 min. of real time
+    lengthSim                   = 15     # 12 hours, each time step is 30 min. of real time
     numStochasticRuns           = 20
     lengthPrediction            = 5    # how many time steps should it use for prediction
     deltaTimeForCommit          = 10   # not useful for now
-    closeReward                 = 80   # reward for closing an event
-    cancelPenalty               = 140  # penalty for event being canceled
+    closeReward                 = 5  # 80   # reward for closing an event
+    cancelPenalty               = 10  # 140  # penalty for event being canceled
     openedCommitedPenalty       = 1    # penalty for event being opened and commited (not relevant)
-    openedNotCommitedPenalty    = 5    # penalty for event being opened
+    openedNotCommitedPenalty    = 1  # 5    # penalty for event being opened
 
     # gridSize            = [probabilityMatrix.shape[0], probabilityMatrix.shape[1]]
     gridSize            = [20, 20]
     deltaOpenTime       = 5
-    numCars             = 4
+    numCars             = 2
     carPosX             = np.random.randint(0, gridSize[0], numCars)
     carPosY             = np.random.randint(0, gridSize[1], numCars)
     carPos              = np.column_stack((carPosX, carPosY)).reshape(numCars, 2)

@@ -9,24 +9,24 @@ import json
 import os
 import time
 # my code -
-from RL_anticipatory.reinforce_baselines import NoBaseline, ExponentialBaseline, RolloutBaseline, WarmupBaseline
 from RL_anticipatory.problems.problem_anticipatory import AnticipatoryProblem
 from RL_anticipatory.nets.RL_Model import AnticipatoryModel
 from RL_anticipatory.utils import torch_load_cpu
 from RL_anticipatory.train import train_epoch, validate, get_inner_model
+from RL_anticipatory.reinforce_baselines import NoBaseline, ExponentialBaseline, RolloutBaseline, WarmupBaseline
 
 
 def run():
     torch.manual_seed(1)
     # network parameters -
     n_features = 5
-    eval_batch_size = 100
+    eval_batch_size = 50
     n_epochs = 50
     # problem parameters -
-    graph_size = 10
+    graph_size = 20
     epoch_size = 2800
     batch_size = 28
-    val_size = 100
+    val_size = 50
     end_time = 15
     events_time_window = 5
     n_cars = 2
@@ -63,13 +63,13 @@ def run():
         'lr_scheduler': 'reduce',
         'baseline': 'rollout',
         'bl_alpha': 0.05,
-        'no_progress_bar': True,
+        'no_progress_bar': False,
         'no_tensorboard': False,
         'no_cuda': True,
         'eval_only': False,
         'bl_warmup_epochs': None,
         'checkpoint_epochs': 1,
-        'log_step': 1,
+        'log_step': 5,
         'eval_batch_size': eval_batch_size,
         'run_name': 'anticipatory_rl',
         'problem': 'anticipatory_rl',
