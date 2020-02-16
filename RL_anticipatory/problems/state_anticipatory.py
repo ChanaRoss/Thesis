@@ -105,7 +105,7 @@ class AnticipatoryState:
             new_anticipatory_cost = self.calc_anticipatory_cost(i_b, opened_events_pos,
                                                                        opened_events_start_time, opened_events_end_time)
             self.anticipatory_cost[i_b] = self.anticipatory_cost[i_b] + new_anticipatory_cost
-            e_time  = time.time()
+            e_time = time.time()
             a_time += e_time-s_time
         # print("t: "+str(self.time)+", time to run anticipatory :"+str(a_time))
         # update current car location to new locations

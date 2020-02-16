@@ -8,6 +8,7 @@ import numpy as np
 import json
 import os
 import time
+import pickle
 # my code -
 from RL_anticipatory.problems.problem_anticipatory import AnticipatoryProblem
 from RL_anticipatory.nets.RL_Model import AnticipatoryModel
@@ -23,7 +24,7 @@ def run():
     eval_batch_size = 50
     n_epochs = 50
     # problem parameters -
-    graph_size = 20
+    graph_size = 15
     epoch_size = 2800
     batch_size = 28
     val_size = 50
@@ -42,6 +43,7 @@ def run():
     open_cost = 1  # should be positive since all costs are added to total cost
     opts = {
         'n_cars': n_cars,
+        'n_features': n_features,
         'events_time_window': events_time_window,
         'end_time': end_time,
         'graph_size': graph_size,
@@ -110,6 +112,14 @@ def run():
     # Save arguments so exact configuration can always be found
     with open(os.path.join(opts['save_dir'], "args.json"), 'w') as f:
         json.dump(opts, f, indent=True)
+
+    # save stochastic and sim dict so that i can reproduce the runs
+    with open(os.path.join(opts['save_dir'], "stochastic_input.pkl"), 'wb') as f:
+        pickle.dump(stochastic_input_dict, f)
+
+    with open(os.path.join(opts['save_dir'], "sim_input.json"), 'w') as f:
+        json.dump(sim_input_dict, f, indent=True)
+
     # Set the device
     opts['use_cuda'] = torch.cuda.is_available() and not opts['no_cuda']
     opts['device'] = torch.device("cuda:0" if opts['use_cuda'] else "cpu")

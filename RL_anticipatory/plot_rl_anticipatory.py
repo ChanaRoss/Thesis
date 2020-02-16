@@ -1,17 +1,12 @@
-import sys
 import numpy as np
 import torch
 import time
-
 from torch.utils.data import DataLoader
-from utils import load_model
-from problems import MTSP, TSP
-
-
 from matplotlib import pyplot as plt
 # my files
-sys.path.insert(0, '/Users/chanaross/dev/Thesis/MixedIntegerOptimization/')
-from offlineOptimizationProblem_unlimited_time_multiple_depots import run_mtsp_opt, analysis_and_plot_results
+from MixedIntegerOptimization.offlineOptimizationProblem_unlimited_time_multiple_depots import run_mtsp_opt, analysis_and_plot_results
+from RL_anticipatory.utils import load_model
+from RL_anticipatory.problems import problem_anticipatory
 
 
 def discrete_cmap(N, base_cmap=None):
@@ -37,7 +32,7 @@ def plot_vehicle_routes(data, route, ax1, markersize=5):
     for i_c in range(n_cars):
         route_ = route[i_c, :]
         d = loc.gather(0, route_.unsqueeze(-1).expand(tour_length, 2).type(torch.long))
-        marker=depot_marker
+        marker = depot_marker
         ax1.scatter(loc[i_c, 0], loc[i_c, 1], color=cmap(i_c), marker=marker)
         ax1.text(loc[i_c, 0], loc[i_c, 1], 'car +'+str(i_c))
         ax1.plot([loc[i_c, 0], d[0, 0]], [loc[i_c, 1], d[0, 1]], color=cmap(i_c))
@@ -88,9 +83,7 @@ def main():
     model_loc = []
 
     # ********************************** grid : 10 ********************************** #
-    # model_loc.append('mtsp10_anticipatory_20200114T114437/epoch-299.pt')
-    model_loc.append('mtsp10_single_decoder_20200122T142429/epoch-599.pt')
-    model_loc.append('mtsp10_anticipatory_allow_repeated_20200122T181701/epoch-176.pt')
+    model_loc.append('anticipatory_rl_10/anticipatory_rl_20200213T203129/epoch-0.pt')
 
     seed = 1234
     # torch.manual_seed(1224)
@@ -102,6 +95,7 @@ def main():
     fig2, ax2 = plt.subplots(1, 1)
     cmap2 = discrete_cmap(len(model_loc) + 1)
     cost_models = np.zeros([len(model_loc), n_samples])
+
     for i_m in range(len(model_loc)):
         model, _ = load_model(problem_loc + model_loc[i_m])
         if i_m == 0:  # create dataset based on first model , then use the same nodes for all models to be checked
