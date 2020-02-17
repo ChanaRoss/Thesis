@@ -47,7 +47,8 @@ def rollout(model, dataset, opts):
 
     def eval_model_bat(bat):
         with torch.no_grad():
-            _, _, cost, _ = model(move_to(bat, opts['device']))
+            _, _, _, _, cost_chosen, _ = model(move_to(bat, opts['device']))
+            cost = cost_chosen.sum(1)
         return cost.data.cpu()
 
     return torch.cat([
@@ -143,13 +144,15 @@ def train_batch(
     bl_val = move_to(bl_val, opts['device']) if bl_val is not None else None
 
     # Evaluate model, get costs and log probabilities
-    all_actions, log_likelihood, cost, state = model(x)
-
+    costs_all_options, logits_all_options, actions_chosen, logits_chosen, cost_chosen, state = model(x)
+    cost = cost_chosen.sum(1)  # sum cost on time axis to get total cost chosen for each batch
+    log_likelihood = logits_chosen.sum(1)  # sum logits chosen to get total logit for each batch
     # Evaluate baseline, get baseline loss if any (only for critic)
     bl_val, bl_loss = baseline.eval(x, cost) if bl_val is None else (bl_val, 0)
 
     # Calculate loss
-    reinforce_loss = ((cost - bl_val) * log_likelihood).mean()
+    reinforce_loss_ = model.calc_reinforce_loss(costs_all_options, logits_all_options)
+    reinforce_loss = reinforce_loss_.mean()
     loss = reinforce_loss + bl_loss
 
     # Perform backward pass and optimization step
@@ -162,7 +165,7 @@ def train_batch(
     # Logging
     if step % int(opts['log_step']) == 0:
         log_values_step(cost, grad_norms, epoch, batch_id, step,
-                   log_likelihood, reinforce_loss, bl_loss, tb_logger, opts)
+                        log_likelihood, reinforce_loss, bl_loss, tb_logger, opts)
 
     avg_cost = cost.mean().item()
     avg_log_likelihood = log_likelihood.mean().item()

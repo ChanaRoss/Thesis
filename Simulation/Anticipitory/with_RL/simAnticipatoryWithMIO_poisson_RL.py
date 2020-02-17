@@ -1004,7 +1004,7 @@ def main():
     openedNotCommitedPenalty    = 1  # 5    # penalty for event being opened
 
     # gridSize            = [probabilityMatrix.shape[0], probabilityMatrix.shape[1]]
-    gridSize            = [20, 20]
+    gridSize            = [15, 15]
     deltaOpenTime       = 5
     numCars             = 2
     carPosX             = np.random.randint(0, gridSize[0], numCars)
@@ -1093,6 +1093,9 @@ def main():
                          'closedEvents'     : dataAnticipatory['closedEvents'],
                          'canceledEvents'   : dataAnticipatory['canceledEvents'],
                          'allEvents'        : dataAnticipatory['allEvents'],
+                         'event_loc'        : eventPos,
+                         'event_times'      : eventTimes,
+                         'car_loc'          : carPos,
                          'cost'             : pAnticipatory[-1].gval}, out)
         time2 = []
         if not os.path.isdir(fileLoc + anticipatoryFileName):

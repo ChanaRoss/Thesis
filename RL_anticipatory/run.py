@@ -19,15 +19,16 @@ from RL_anticipatory.reinforce_baselines import NoBaseline, ExponentialBaseline,
 
 def run():
     torch.manual_seed(1)
+    np.random.seed(1)
     # network parameters -
     n_features = 5
-    eval_batch_size = 50
-    n_epochs = 50
+    eval_batch_size = 20
+    n_epochs = 200
     # problem parameters -
     graph_size = 15
-    epoch_size = 2800
+    epoch_size = 280
     batch_size = 28
-    val_size = 50
+    val_size = 20
     end_time = 15
     events_time_window = 5
     n_cars = 2
@@ -58,7 +59,7 @@ def run():
         'n_epochs': n_epochs,
         'lr_model': 1e-4,
         'lr_critic': 1e-4,
-        'lr_decay': 0.9,
+        'lr_decay': 0.95,
         'exp_beta': 0.9,
         'max_grad_norm': 1,
         'decode_type': 'sampling',
@@ -71,7 +72,7 @@ def run():
         'eval_only': False,
         'bl_warmup_epochs': None,
         'checkpoint_epochs': 1,
-        'log_step': 5,
+        'log_step': 10,
         'eval_batch_size': eval_batch_size,
         'run_name': 'anticipatory_rl',
         'problem': 'anticipatory_rl',
@@ -180,7 +181,7 @@ def run():
     # Initialize learning rate scheduler, decay by lr_decay once per epoch!
     if opts['lr_scheduler'] == 'Reduce':
         lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=opts['lr_decay'],
-                                                            patience=4, verbose=True, min_lr=5e-5)
+                                                            patience=2, verbose=True, min_lr=5e-7)
     else:
         lr_scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: opts['lr_decay'] ** epoch)
 

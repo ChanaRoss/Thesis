@@ -18,11 +18,8 @@ from matplotlib import pyplot as plt
 import torch
 sns.set()
 # my files
-sys.path.insert(0, '/Users/chanaross/dev/Thesis/MachineLearning/finalNetwork/')
-from LSTM_inputFullGrid_multiClassSmooth import Model
-
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/MixedIntegerOptimization/')
-from offlineOptimizationProblem_unlimited_time_multiple_depots import run_mtsp_opt, analysis_and_plot_results
+from MixedIntegerOptimization.offlineOptimizationProblem_unlimited_time_multiple_depots import run_mtsp_opt, analysis_and_plot_results
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/UtilsCode/')
 from createGif import create_gif
 sys.path.insert(0, '/Users/chanaross/dev/Thesis/Simulation/Anticipitory/with_machine_learning/')

@@ -40,7 +40,7 @@ def moveCar(carPos,targetPos):
 
 
 
-def calcReward(eventPos,carPos,closeReward,cancelPenalty,openedPenalty):
+def calcReward(eventPos, carPos, closeReward,cancelPenalty,openedPenalty):
     """
     this function calculates the reward that will be achieved assuming event is picked up
     :param eventPos: position of events
@@ -53,8 +53,8 @@ def calcReward(eventPos,carPos,closeReward,cancelPenalty,openedPenalty):
     """
     nCars   = carPos.shape[0]
     nEvents = eventPos.shape[0]
-    distEventsToEvents = cdist(eventPos,eventPos,metric = 'cityblock')
-    distCarsToEvents   = cdist(carPos,eventPos,metric='cityblock')
+    distEventsToEvents = cdist(eventPos, eventPos, metric='cityblock')
+    distCarsToEvents   = cdist(carPos, eventPos, metric='cityblock')
 
     rewardCarsToEvents   = -distCarsToEvents + np.ones(shape=(nCars, nEvents))*closeReward
     rewardEventsToEvents = -distEventsToEvents + np.ones(shape=(nEvents, nEvents))*closeReward

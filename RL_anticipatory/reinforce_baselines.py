@@ -187,7 +187,8 @@ class RolloutBaseline(Baseline):
     def eval(self, x, c):
         # Use volatile mode for efficient inference (single batch so we do not use rollout function)
         with torch.no_grad():
-            _, _, v, _ = self.model(x)
+            _, _, _, _, cost_chosen, _ = self.model(x)
+            v = cost_chosen.clone().sum(1)
         # There is no loss
         return v, 0
 

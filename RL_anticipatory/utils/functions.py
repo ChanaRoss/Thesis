@@ -101,4 +101,4 @@ def load_model(path, epoch=None):
 
     model.eval()  # Put in eval mode
 
-    return model, args
+    return model, args, sim_input_dict, stochastic_input_dict

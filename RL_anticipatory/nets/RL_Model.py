@@ -30,7 +30,7 @@ class AnticipatoryModel(torch.nn.Module):
             # therefore need to divide num_nodes in batch by num_graphs (batch_size)
             nn.Linear(int(num_nodes*num_nodes*self.n_cars), embedding_dim),
             nn.ReLU(),
-            nn.Linear(embedding_dim, self.n_cars*5))
+            nn.Linear(embedding_dim, 5**self.n_cars))
 
     def set_decode_type(self, decode_type):
         self.decode_type = decode_type
@@ -39,40 +39,51 @@ class AnticipatoryModel(torch.nn.Module):
         state = AnticipatoryState(data_input, self.stochastic_input_dict, self.sim_input_dict)
         all_actions = []
         all_logits = []
+        batch_size = state.data_input.num_graphs
+        logits_all_options_list = []
         while not state.all_finished():
             x_temp = state.data_input.x.clone()
-            batch_size = state.data_input.num_graphs
             x = self.embedding(x_temp)
             x = self.encoder(x, state.data_input.edge_index)
             # run model decoder and find next action for each car.
             logit_per_car = self.decoder(x, state.data_input.edge_index)
             logit_ff = self.proj_choose_out(logit_per_car.view(batch_size, -1))
-            logit_ff = logit_ff.clone().view(batch_size, self.n_cars, -1)  # change dimensions to [n_batchs, n_cars, 5]
-            logit_ff = F.log_softmax(logit_ff, dim=2)  # soft max on action choice dimension
+            logit_ff = logit_ff.clone().view(batch_size, -1)  # change dimensions to [n_batchs, n_options]
+            logit_ff = F.log_softmax(logit_ff, dim=1)  # soft max on action choice dimension
             # get action for each car
-            # actions and logits_selected are of size [batch_size, n_cars]
+            # actions and logits_selected are of size [batch_size]
             actions, logits_selected = self.get_actions(logit_ff)
             # update state to new locations -
             state.update_state(actions)
             # add chosen actions and logit to list for output and final calculation
-            all_actions.append(actions)
-            all_logits.append(logits_selected)
-        cost = state.get_cost()
-        all_logits = torch.stack(all_logits, 1)
-        all_actions = torch.stack(all_actions, 1)
-        ll = self.calc_log_likelihood(all_logits)
-        # all_actions output is : [n_time_steps, n_batches, n_cars, 5]
-        # all_logits output is : [n_time_steps, n_batches, n_cars, 5]
-        # cost output is: [n_batches, 1]
-        return all_actions, ll, cost, state
-
-    def calc_log_likelihood(self, all_logits):
-        batch_size = all_logits.shape[0]
-        ll = all_logits.view(batch_size, -1).sum(1)
-        return ll
+            all_actions.append(actions.clone())
+            all_logits.append(logits_selected.clone())
+            logits_all_options_list.append(logit_ff.clone())
+        costs_all_options = state.get_optional_costs()  # tensor size is: [batch_size, time, options_size]
+        logits_all_options = torch.stack(logits_all_options_list, 1) # tensor is [batch_size, time, options_size]
+        cost_chosen = state.get_cost()   # tensor size is: [batch_size, time]
+        logits_chosen = torch.stack(all_logits, 1)
+        actions_chosen = torch.stack(all_actions, 1)
+        # actions_chosen output is : [n_time_steps, n_batches]
+        # logits_chosen output is : [n_time_steps, n_batches]
+        # cost_chosen output is: [n_batches, n_time_steps]
+        # costs_all_options output is: [n_batches, n_time_steps, n_options]
+        # logits_all_options output is: [n_batches, n_time_steps, n_options]
+        return costs_all_options, logits_all_options, actions_chosen, logits_chosen, cost_chosen, state
 
     def get_actions(self, logit_ff):
         probs = logit_ff.exp()
-        selected_actions = torch.stack([probs[:, i, :].multinomial(1).squeeze(1) for i in range(self.n_cars)]).permute(1, 0)
-        logit_selected = logit_ff.gather(2, selected_actions.unsqueeze(-1).type(torch.long)).squeeze(-1)
+        # this is the index of selected actions from all 5^n_cars actions possible
+        selected_actions = probs.multinomial(1).squeeze(1)   # [batch_size]
+        logit_selected = logit_ff.gather(1, selected_actions.unsqueeze(-1).type(torch.long)).squeeze(-1)  # [batch_size]
         return selected_actions, logit_selected
+
+    def calc_reinforce_loss(self, costs_all_options, logits_all_options):
+        reinforce_loss = torch.zeros(costs_all_options.shape[0], device=costs_all_options.device)
+        for i_b in range(costs_all_options.shape[0]):
+            costs_ = costs_all_options[i_b, ...]
+            logits_ = logits_all_options[i_b, ...]
+            reinforce_loss_ = (costs_*logits_).sum()  # reinforce loss is the [time sum (action sum(logit*cost))]
+            reinforce_loss[i_b] = reinforce_loss[i_b] + reinforce_loss_
+        return reinforce_loss  # tensor of size [batch_size]
+
