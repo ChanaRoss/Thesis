@@ -9,8 +9,7 @@ from gurobipy import *
 # for graphics
 import seaborn as sns
 from matplotlib import pyplot as plt
-sys.path.insert(0, '/Users/chanaross/dev/Thesis/UtilsCode/')
-from createGif import create_gif
+from UtilsCode.createGif import create_gif
 import time
 
 sns.set()
