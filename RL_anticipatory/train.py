@@ -32,7 +32,8 @@ def clip_grad_norms(param_groups, max_norm=math.inf):
 def validate(model, dataset, opts):
     # Validate
     print('Validating...')
-    cost = rollout(model, dataset, opts)
+    cost = rollout(model, dataset, opts)  # output is torch of size [batch_size, time_steps]
+    cost = cost.sum(1)   # sum all times for each batch
     avg_cost = cost.mean()
     print('Validation overall avg_cost: {} +- {}'.format(
         avg_cost, torch.std(cost) / math.sqrt(len(cost))))
@@ -46,9 +47,14 @@ def rollout(model, dataset, opts):
     model.eval()
 
     def eval_model_bat(bat):
+        """
+        calculates the model for a given batch and returns  the chosen cost at each time step
+        :param bat: batch graph
+        :return: torch tensor of size [batch_size, time_size]
+        """
         with torch.no_grad():
-            _, _, _, _, cost_chosen, _ = model(move_to(bat, opts['device']))
-            cost = cost_chosen.sum(1)
+            cost_all_options, _, _, _, cost_chosen, _ = model(move_to(bat, opts['device']))
+            cost = cost_chosen
         return cost.data.cpu()
 
     return torch.cat([
@@ -151,7 +157,7 @@ def train_batch(
     bl_val, bl_loss = baseline.eval(x, cost) if bl_val is None else (bl_val, 0)
 
     # Calculate loss
-    reinforce_loss_ = model.calc_reinforce_loss(costs_all_options, logits_all_options)
+    reinforce_loss_ = model.calc_reinforce_loss(costs_all_options - bl_val, logits_all_options)
     reinforce_loss = reinforce_loss_.mean()
     loss = reinforce_loss + bl_loss
 

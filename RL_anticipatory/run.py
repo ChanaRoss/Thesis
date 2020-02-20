@@ -34,10 +34,15 @@ def run():
     n_cars = 2
     # anticipatory parameters -
     stochastic_mat = np.zeros([10, 10, 10, 10])  # should be probability mat [x, y, t, p(n events)]
+    possible_actions = torch.tensor([  # [0, 0],
+                                       [0, 1],
+                                       [1, 0],
+                                       [0, -1],
+                                       [-1, 0]])
     n_stochastic_runs = 1
     n_prediction_steps = 5
     # distribution parameters -
-    dist_lambda = 2/3
+    dist_lambda = 0.2  # 2/3
     cancel_cost = 10  # should be positive since all costs are added to total cost
     close_reward = 5  # should be positive since all rewards are subtracted from total cost
     movement_cost = 1  # should be positive since all costs are added to total cost
@@ -63,7 +68,7 @@ def run():
         'exp_beta': 0.9,
         'max_grad_norm': 1,
         'decode_type': 'sampling',
-        'lr_scheduler': 'reduce',
+        'lr_scheduler': 'Reduce',
         'baseline': 'rollout',
         'bl_alpha': 0.05,
         'no_progress_bar': False,
@@ -87,7 +92,8 @@ def run():
                       'events_open_time': events_time_window,
                       'n_prediction_steps': n_prediction_steps,
                       'dist_lambda': dist_lambda,
-                      'n_cars': n_cars}
+                      'n_cars': n_cars,
+                      'print_debug': False}
 
     opts['run_name'] = "{}_{}".format(opts['run_name'], time.strftime("%Y%m%dT%H%M%S"))
     opts['save_dir'] = os.path.join(
@@ -120,6 +126,8 @@ def run():
 
     with open(os.path.join(opts['save_dir'], "sim_input.json"), 'w') as f:
         json.dump(sim_input_dict, f, indent=True)
+
+    sim_input_dict['possible_actions'] = possible_actions
 
     # Set the device
     opts['use_cuda'] = torch.cuda.is_available() and not opts['no_cuda']

@@ -18,10 +18,17 @@ pickle_names = []
 
 
 # comparison to RL -
-pickle_names.append('SimAnticipatoryMio_RandomChoice_5lpred_5delOpen_48startTime_15gridX_15gridY_9numEvents_20nStochastic_2numCars_Bm_poisson_TimeWindow')
-pickle_names.append('SimGreedy_5lpred_5delOpen_48startTime_15gridX_15gridY_9numEvents_20nStochastic_2numCars_Bm_poisson_TimeWindow')
-pickle_names.append('SimOptimization_MaxFlow_5lpred_5delOpen_48startTime_15gridX_15gridY_9numEvents_20nStochastic_2numCars_Bm_poisson_TimeWindow')
-pickle_names.append('SimOptimization_TimeWindow_5lpred_5delOpen_48startTime_15gridX_15gridY_9numEvents_20nStochastic_2numCars_Bm_poisson_TimeWindow')
+# pickle_names.append('SimAnticipatoryMio_RandomChoice_5lpred_5delOpen_48startTime_15gridX_15gridY_9numEvents_20nStochastic_2numCars_Bm_poisson_TimeWindow')
+# pickle_names.append('SimGreedy_5lpred_5delOpen_48startTime_15gridX_15gridY_9numEvents_20nStochastic_2numCars_Bm_poisson_TimeWindow')
+# pickle_names.append('SimOptimization_MaxFlow_5lpred_5delOpen_48startTime_15gridX_15gridY_9numEvents_20nStochastic_2numCars_Bm_poisson_TimeWindow')
+# pickle_names.append('SimOptimization_TimeWindow_5lpred_5delOpen_48startTime_15gridX_15gridY_9numEvents_20nStochastic_2numCars_Bm_poisson_TimeWindow')
+
+
+# comparison to RL -
+pickle_names.append('SimAnticipatoryMio_RandomChoice_5lpred_5delOpen_48startTime_15gridX_15gridY_4numEvents_20nStochastic_2numCars_Bm_poisson_TimeWindow')
+pickle_names.append('SimGreedy_5lpred_5delOpen_48startTime_15gridX_15gridY_4numEvents_20nStochastic_2numCars_Bm_poisson_TimeWindow')
+pickle_names.append('SimOptimization_MaxFlow_5lpred_5delOpen_48startTime_15gridX_15gridY_4numEvents_20nStochastic_2numCars_Bm_poisson_TimeWindow')
+pickle_names.append('SimOptimization_TimeWindow_5lpred_5delOpen_48startTime_15gridX_15gridY_4numEvents_20nStochastic_2numCars_Bm_poisson_TimeWindow')
 
 network_names = []
 network_names.append('anticipatory_rl_15/anticipatory_rl_20200216T191624/epoch-7.pt')
@@ -291,7 +298,7 @@ def optimized_simulation(initialState, numFigure):
 def main():
     image_list = []
     # model parameters -
-    flag_calc_network = True
+    flag_calc_network = False
     if flag_calc_network:
         seed = 123
         torch.manual_seed(seed)

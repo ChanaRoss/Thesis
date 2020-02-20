@@ -166,7 +166,8 @@ class RolloutBaseline(Baseline):
         else:
             self.dataset = dataset
         print("Evaluating baseline model on evaluation dataset")
-        self.bl_vals = rollout(self.model, self.dataset, self.opts).cpu().numpy()
+        bl_vals = rollout(self.model, self.dataset, self.opts).cpu().numpy()
+        self.bl_vals = bl_vals.sum(1)  # sum on time axis to get all cost for each batch
         self.mean = self.bl_vals.mean()
         self.epoch = epoch
 
@@ -174,7 +175,7 @@ class RolloutBaseline(Baseline):
         print("Evaluating baseline on dataset...")
         # Need to convert baseline to 2D to prevent converting to double, see
         # https://discuss.pytorch.org/t/dataloader-gives-double-instead-of-float/717/3
-        return BaselineDataset(dataset, rollout(self.model, dataset, self.opts).view(-1, 1))
+        return BaselineDataset(dataset, rollout(self.model, dataset, self.opts))
 
     # def unwrap_batch(self, batch):
     #     return batch['data'], batch['baseline'].view(-1)  # Flatten result to undo wrapping as 2D
@@ -187,8 +188,8 @@ class RolloutBaseline(Baseline):
     def eval(self, x, c):
         # Use volatile mode for efficient inference (single batch so we do not use rollout function)
         with torch.no_grad():
-            _, _, _, _, cost_chosen, _ = self.model(x)
-            v = cost_chosen.clone().sum(1)
+            cost_all_options, _, _, _, cost_chosen, _ = self.model(x)
+            v = cost_chosen.clone()
         # There is no loss
         return v, 0
 
@@ -200,7 +201,7 @@ class RolloutBaseline(Baseline):
         """
         print("Evaluating candidate model on evaluation dataset")
         candidate_vals = rollout(model, self.dataset, self.opts).cpu().numpy()
-
+        candidate_vals = candidate_vals.sum(1)  # sum time steps to get total cost for each batch
         candidate_mean = candidate_vals.mean()
         print("Epoch {} candidate mean {}, baseline epoch {} mean {}, difference {}".format(
             epoch, candidate_mean, self.epoch, self.mean, candidate_mean - self.mean))
@@ -241,7 +242,7 @@ class BaselineDataset(Dataset):
 
     def get(self, item):
         data = self.dataset[item]
-        baseline = self.baseline[item]
+        baseline = self.baseline[item, ...]
         data.baseline = baseline
         return data
         # return {

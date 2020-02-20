@@ -2,6 +2,7 @@ import time
 import itertools as iter
 from copy import deepcopy
 # import my own code:
+from RL_anticipatory.utils import move_to
 from Simulation.Anticipitory.with_RL.create_distributions import *
 from MixedIntegerOptimization.offlineOptimizationProblem_TimeWindow import runMaxFlowOpt as runMaxFlowOptTimeWindow
 from MixedIntegerOptimization.offlineOptimizationProblemMaxFlow import runMaxFlowOpt as runMaxFlowOpt
@@ -9,6 +10,7 @@ from MixedIntegerOptimization.offlineOptimizationProblemMaxFlow import runMaxFlo
 
 class AnticipatoryState:
     def __init__(self, data_input, stochastic_input_dict, sim_input_dict):
+        self.print_debug = sim_input_dict['print_debug']
         self.data_input = data_input
         self.stochastic_mat = stochastic_input_dict['future_mat']  # of shape [x, y, t, p(n events)]
         self.n_stochastic_runs = stochastic_input_dict['n_stochastic_runs']
@@ -22,10 +24,11 @@ class AnticipatoryState:
         self.time = 0  # simulation starts at time 0
         self.dim = sim_input_dict['graph_dim']
         self.car_cur_loc = torch.zeros((self.batch_size, self.n_cars, 2), device=data_input['car_loc'].device)
-        self.actions_to_move_tensor = self.get_actions_tensor()
+        self.actions_to_move_tensor = move_to(sim_input_dict['possible_actions'], data_input['car_loc'].device)
         self.actions_indexes_all_options, self.actions_to_move_tensor_all_options = self.get_all_actions_tensor()
         self.events_loc_dict = {}
         self.events_time_dict = {}
+        self.location_to_events_dict = {}
         self.movement_cost = torch.zeros((self.batch_size, self.sim_length), device=data_input['car_loc'].device)
         self.events_cost = torch.zeros_like(self.movement_cost, device=data_input['car_loc'].device)
         n_movement_options = self.actions_to_move_tensor_all_options.shape[0]  # all movements possible
@@ -38,11 +41,11 @@ class AnticipatoryState:
             self.car_cur_loc[i_b, ...] = graph.car_loc
             self.events_loc_dict[i_b] = graph.events_loc
             self.events_time_dict[i_b] = graph.events_time
+            self.location_to_events_dict[i_b] = self.create_location_events_dict(graph.events_loc, graph.events_time)
             if graph.events_loc.shape[0] > n_events:
                 n_events = graph.events_loc.shape[0]
         self.n_events = n_events
         self.cars_route = torch.zeros(self.data_input.num_graphs, self.n_cars, self.sim_length, 2)
-
         self.events_answer_time = torch.ones((self.batch_size, self.n_events), device=data_input['car_loc'].device)*999
         self.n_events_closed = torch.zeros((self.batch_size, self.sim_length),  device=data_input['car_loc'].device)
         self.events_status = {'answered': torch.zeros((self.batch_size, self.n_events, 1),
@@ -54,16 +57,28 @@ class AnticipatoryState:
         all_actions = torch.stack([torch.stack(c) for c in
                                    iter.product(self.actions_to_move_tensor, repeat=self.n_cars)])
         all_actions_indexes = torch.stack([torch.stack(c) for c in
-                                           iter.product(torch.tensor([0, 1, 2, 3, 4]), repeat=self.n_cars)])
+                                           iter.product(torch.tensor(range(self.actions_to_move_tensor.shape[0])),
+                                                        repeat=self.n_cars)])
         return all_actions_indexes, all_actions
 
-    def get_actions_tensor(self):
-        actions_tensor = torch.tensor([[0, 0],
-                                       [0, 1],
-                                       [1, 0],
-                                       [0, -1],
-                                       [-1, 0]], device=self.car_cur_loc.device)
-        return actions_tensor
+    def create_location_events_dict(self, events_loc, events_time):
+        """
+        this function creates a dictionary from grid location to events and their time windows.
+        it is used to update the time feature in the graph
+        :param events_loc: the locations of all events [n_events, 2] (x, y)
+        :param events_time: the times of all events [n_events, 2] (open and close time)
+        :return: dict where keys are locations and values are (event i_d, [event start time, event end time])
+        """
+        dict_out = {}
+        for i_e in range(events_loc.shape[0]):
+            event_loc = events_loc[i_e].numpy()
+            event_time = events_time[i_e]
+            event_loc_tuple = (event_loc[0], event_loc[1])
+            if event_loc_tuple in dict_out:
+                dict_out[event_loc_tuple].append((i_e, event_time[0], event_time[1]))
+            else:
+                dict_out[event_loc_tuple] = [(i_e, event_time[0], event_time[1])]
+        return dict_out
 
     def update_state(self, actions):
         """
@@ -72,7 +87,8 @@ class AnticipatoryState:
         :return:
         """
         car_cur_loc = self.car_cur_loc.clone()
-        print("updating state, t:" + str(self.time))
+        if self.print_debug:
+            print("updating state, t:" + str(self.time))
         s_time = time.time()
         for i_b in range(self.batch_size):
             s_time_b = time.time()
@@ -91,9 +107,12 @@ class AnticipatoryState:
                 loc_row = events_loc_[i_e, 0] * self.dim + events_loc_[i_e, 1]
                 graph_row = (loc_row + i_b * self.dim * self.dim).type(torch.int)
                 # if event close time is equal to current time - event should be canceled
-                should_cancel = (self.events_time_dict[i_b][i_e, 1] == self.time)
+                should_cancel = (self.events_time_dict[i_b][i_e, 1] == self.time) and\
+                                (not self.events_status['answered'][i_b, i_e])
                 if should_cancel:
                     self.cancel_event(i_b, i_e, graph_row)
+                    if self.print_debug:
+                        print("t:" + str(self.time) + ", canceled event id:" + str(i_e) + ", in batch" + str(i_b))
                 # check if event is opened - (not canceled, not answered and time is within time window)
                 is_event_opened = (not self.events_status['canceled'][i_b, i_e]) and \
                                   (not self.events_status['answered'][i_b, i_e]) and \
@@ -106,6 +125,8 @@ class AnticipatoryState:
                         car_index = is_answered[0]  # this is the car chosen to answer this specific event
                         distance_matrix[car_index, :] = 9999  # makes sure you dont use the same car for other events
                         self.close_event(i_b, i_e, graph_row)
+                        if self.print_debug:
+                            print("t:" + str(self.time) + ", closed event id:" + str(i_e) + ", in batch" + str(i_b))
                     else:
                         open_cost = self.data_input['open_cost'][i_b]
                         self.events_cost[i_b, self.time] = self.events_cost[i_b, self.time] + open_cost
@@ -118,6 +139,11 @@ class AnticipatoryState:
                 # add 1 to graph if event is opened now for the 1st time -
                 if should_open:
                     self.data_input.x[graph_row, 3] = self.data_input.x[graph_row, 3] + 1
+                    event_delta_time = self.events_time_dict[i_b][i_e, 1] - self.events_time_dict[i_b][i_e, 0]
+                    if self.data_input.x[graph_row, 4] <= event_delta_time:
+                        self.data_input.x[graph_row, 4] = event_delta_time
+                    if self.print_debug:
+                        print("t:"+str(self.time)+", opened event id:" + str(i_e)+", in batch" + str(i_b))
             # calculate anticipatory cost for batch i_b after moving cars (known events and future events)
             cars_loc = car_cur_loc[i_b, ...].clone().detach().numpy()
             # create stochastic events (use the same events for all anticipatory calculations)
@@ -147,7 +173,8 @@ class AnticipatoryState:
         self.car_cur_loc = car_cur_loc
         self.time = self.time + 1  # update simulation time
         e_time = time.time()
-        print("time to update state is:"+str(e_time-s_time))
+        if self.print_debug:
+            print("time to update state is:"+str(e_time-s_time))
         return
 
     def update_car_state(self, i_b, i_c, car_cur_loc, actions):
@@ -179,9 +206,28 @@ class AnticipatoryState:
     def cancel_event(self, i_b, i_e, graph_row):
         self.events_status['canceled'][i_b, i_e] = True
         self.events_cost[i_b, self.time] = self.events_cost[i_b, self.time] + self.data_input['cancel_cost'][i_b]
+        self.update_time_feature(i_b, i_e, graph_row)  # update time feature to be without this event
         self.data_input.x[graph_row, 3] = self.data_input.x[graph_row, 3] - 1
         assert (self.data_input.x[graph_row, 3] >= 0), \
             "trying to cancel event from row with no events!! event num:"+str(i_e)+", in batch:"+str(i_b)
+
+    def update_time_feature(self, i_b, i_e, graph_row):
+        """
+        this function updates the time feature for the node of event
+        :param i_b: batch id
+        :param i_e: event id that needs to be changed
+        :param graph_row: graph row of event that should be changed
+        :return:
+        """
+        # get all events at this location in order to update time feature
+        event_loc = self.events_loc_dict[i_b][i_e, ...].numpy()
+        events_in_node_list = self.location_to_events_dict[i_b][(event_loc[0], event_loc[1])]
+        max_open_time = 0
+        for e in events_in_node_list:
+            # event is not the one we are changing and is opened and time is larger than ending time
+            if e[0] != i_e and (e[1] >= self.time) and (e[2] > max_open_time):
+                max_open_time = e[2]  # update max time to new end time
+        self.data_input.x[graph_row, 4] = max_open_time
 
     def close_event(self, i_b, i_e, graph_row):
         self.events_status['answered'][i_b, i_e] = True
@@ -191,6 +237,7 @@ class AnticipatoryState:
         self.data_input.x[graph_row, 3] = self.data_input.x[graph_row, 3] - 1
         assert (self.data_input.x[graph_row, 3] >= 0), \
             "trying to close event from row with no events!!"
+        self.update_time_feature(i_b, i_e, graph_row)  # update time feature to be without this event
         self.events_answer_time[i_b, i_e] = self.time
         if self.time > 0:
             if self.n_events_closed[i_b, self.time] == 0:  # no events closed at this time
@@ -310,18 +357,20 @@ class AnticipatoryState:
                                                      self.data_input['cancel_cost'][i_b].detach().numpy(),
                                                      self.data_input['open_cost'][i_b].detach().numpy(), 0)
                 else:
-                    m, obj = runMaxFlowOpt(0, cars_pos, current_events_pos,
-                                           current_event_start_time + self.events_open_time,
-                                           self.data_input['close_reward'][i_b].detach().numpy(),
-                                           self.data_input['cancel_cost'][i_b].detach().numpy(),
-                                           self.data_input['open_cost'][i_b].detach().numpy())
+                    # m, obj = runMaxFlowOpt(0, cars_pos, current_events_pos,
+                    #                        current_event_start_time + self.events_open_time,
+                    #                        self.data_input['close_reward'][i_b].detach().numpy(),
+                    #                        self.data_input['cancel_cost'][i_b].detach().numpy(),
+                    #                        self.data_input['open_cost'][i_b].detach().numpy())
+                    obj = 0
                 etime = time.process_time()
                 # runTime = etime - stime
                 # if shouldPrint:
                 # print("finished MIO for run:"+str(j+1)+"/"+str(len(stochasticEventsDict)))
                 # print("run time of MIO is:"+str(runTime))
                 # print("cost of MIO is:"+str(-obj.getValue()))
-                stochastic_cost[j] = -obj.getValue()
+                stochastic_cost[j] = 0
+                # stochastic_cost[j] = -obj.getValue()
             else:
                 stochastic_cost[j] = 0
         # calculate expected cost of all stochastic runs for this specific batch

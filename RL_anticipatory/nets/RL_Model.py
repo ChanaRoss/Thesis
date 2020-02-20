@@ -30,7 +30,7 @@ class AnticipatoryModel(torch.nn.Module):
             # therefore need to divide num_nodes in batch by num_graphs (batch_size)
             nn.Linear(int(num_nodes*num_nodes*self.n_cars), embedding_dim),
             nn.ReLU(),
-            nn.Linear(embedding_dim, 5**self.n_cars))
+            nn.Linear(embedding_dim, (sim_input_dict['possible_actions'].shape[0])**self.n_cars))
 
     def set_decode_type(self, decode_type):
         self.decode_type = decode_type

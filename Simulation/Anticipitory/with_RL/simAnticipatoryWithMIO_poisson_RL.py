@@ -978,7 +978,7 @@ def main():
     # data dist have values that are the probability of having k events at x, y, t
     # eventsMatrix = np.load(dataPath + fileNameReal, allow_pickle=True)  # matrix size is : [xsize , ysize, timeseq]
     # probabilityMatrix = np.load(dataPath + fileNameDist, allow_pickle=True)   #  matrix size is : [xsize , ysize, timeseq, probability for k events]
-    lam = 2/3
+    lam = 0.2  # 2/3
     eventsMatrix = np.zeros([10, 10, 20])
     probabilityMatrix = np.zeros([10, 10, 20, 20])
 
