@@ -31,7 +31,8 @@ pickle_names.append('SimOptimization_MaxFlow_5lpred_5delOpen_48startTime_15gridX
 pickle_names.append('SimOptimization_TimeWindow_5lpred_5delOpen_48startTime_15gridX_15gridY_4numEvents_20nStochastic_2numCars_Bm_poisson_TimeWindow')
 
 network_names = []
-network_names.append('anticipatory_rl_15/anticipatory_rl_20200216T191624/epoch-7.pt')
+network_names.append('anticipatory_rl_15/anticipatory_rl_20200221T084826/epoch-13.pt')
+network_names.append('anticipatory_rl_15/anticipatory_rl_20200221T145415/epoch-199.pt')
 
 def filter_events(eventDict, currentTime, lg):
     filterd_event_dict = {}
@@ -298,9 +299,9 @@ def optimized_simulation(initialState, numFigure):
 def main():
     image_list = []
     # model parameters -
-    flag_calc_network = False
+    flag_calc_network = True
     if flag_calc_network:
-        seed = 123
+        seed = 12
         torch.manual_seed(seed)
         network_loc = '/Users/chanaross/dev/Thesis/RL_anticipatory/outputs/'
     # general parameters -
@@ -365,29 +366,33 @@ def main():
             print('total cost is :'+str(cost))
             plot_basic_statistics_of_events(grid_size, lg, pickle_name, sim_time, fig, ax)
     if flag_calc_network:
-        for network_name in network_names:
+        states = []
+        for i_m, network_name in enumerate(network_names):
             model, args, sim_input, stochastic_input = load_model(network_loc + network_name)
-            data_input = {'car_loc': car_starting_loc,
-                          'events_time': events_times,
-                          'events_loc': events_pos,
-                          'cancel_cost': args['cancel_cost'],
-                          'close_reward': args['close_reward'],
-                          'movement_cost': args['movement_cost'],
-                          'open_cost': args['open_cost'],
-                          'n_cars': args['n_cars'],
-                          'end_time': sim_input['sim_length'],
-                          'lam': args['lam'],
-                          'events_time_window': sim_input['events_open_time'],
-                          'graph_size': args['graph_size']}
-            data = AnticipatoryTestDataset(root="", data_input=data_input)
-            dataloader = DataLoader(data, batch_size=1)
-            batch_data = next(iter(dataloader))
+            if i_m == 0:
+                data_input = {'car_loc': car_starting_loc,
+                              'events_time': events_times,
+                              'events_loc': events_pos,
+                              'cancel_cost': args['cancel_cost'],
+                              'close_reward': args['close_reward'],
+                              'movement_cost': args['movement_cost'],
+                              'open_cost': args['open_cost'],
+                              'n_cars': args['n_cars'],
+                              'end_time': sim_input['sim_length'],
+                              'lam': args['lam'],
+                              'events_time_window': sim_input['events_open_time'],
+                              'graph_size': args['graph_size']}
+                data = AnticipatoryTestDataset(root="", data_input=data_input)
+                dataloader = DataLoader(data, batch_size=1)
+                batch_data = next(iter(dataloader))
             model.eval()
             model.set_decode_type('sampling')
             with torch.no_grad():
-                all_actions, log_likelihood, cost, state = model(batch_data)
-            print(cost)
+                costs_all_options, logits_all_options, actions_chosen, logits_chosen, cost_chosen, state = model(batch_data)
+            states.append(state)
+        print(cost)
     plt.show()
+
 
 if __name__ == main():
     main()

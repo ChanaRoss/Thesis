@@ -17,7 +17,8 @@ class AnticipatoryProblem:
 
     def make_dataset(self, num_samples):
         dataset = AnticipatoryDataset("", self.n_cars, self.events_time_window, self.end_time, self.graph_size,
-                 self.cancel_cost, self.close_reward, self.movement_cost, self.open_cost, self.lam, n_samples=num_samples)
+                                      self.cancel_cost, self.close_reward, self.movement_cost, self.open_cost,
+                                      self.lam,  n_samples=num_samples)
         return dataset
 
 

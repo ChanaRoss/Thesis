@@ -91,8 +91,16 @@ def load_model(path, epoch=None):
 
     stochastic_input_dict = load_stochastic(os.path.join(path, 'stochastic_input.pkl'))
     sim_input_dict = load_args(os.path.join(path, 'sim_input.json'))
-
-    model = AnticipatoryModel(args['n_features'], args['graph_size'], 128, 0, stochastic_input_dict, sim_input_dict)
+    sim_input_dict['possible_actions'] = torch.tensor([#[0, 0],
+                                       [0, 1],
+                                       [1, 0],
+                                       [0, -1],
+                                       [-1, 0]])
+    if 'encoder_dim' not in args.keys():
+        args['encoder_dim'] = 128
+        args['embedding_dim'] = 128
+    model = AnticipatoryModel(args['n_features'], args['graph_size'], args['embedding_dim'], args['encoder_dim'], 0,
+                              stochastic_input_dict, sim_input_dict)
     # Overwrite model parameters by parameters to load
     load_data = torch_load_cpu(model_filename)
     model.load_state_dict({**model.state_dict(), **load_data.get('model', {})})

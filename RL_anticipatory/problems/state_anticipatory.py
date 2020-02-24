@@ -11,7 +11,8 @@ from MixedIntegerOptimization.offlineOptimizationProblemMaxFlow import runMaxFlo
 class AnticipatoryState:
     def __init__(self, data_input, stochastic_input_dict, sim_input_dict):
         self.print_debug = sim_input_dict['print_debug']
-        self.data_input = data_input
+        self.data_input = data_input.clone()
+        self.should_calc_all_options = sim_input_dict['should_calc_all_options']
         self.stochastic_mat = stochastic_input_dict['future_mat']  # of shape [x, y, t, p(n events)]
         self.n_stochastic_runs = stochastic_input_dict['n_stochastic_runs']
         self.batch_size = data_input.num_graphs
@@ -29,12 +30,18 @@ class AnticipatoryState:
         self.events_loc_dict = {}
         self.events_time_dict = {}
         self.location_to_events_dict = {}
+        n_movement_options = self.actions_to_move_tensor_all_options.shape[0]  # all movements possible
+
         self.movement_cost = torch.zeros((self.batch_size, self.sim_length), device=data_input['car_loc'].device)
         self.events_cost = torch.zeros_like(self.movement_cost, device=data_input['car_loc'].device)
-        n_movement_options = self.actions_to_move_tensor_all_options.shape[0]  # all movements possible
+        self.anticipatory_cost = torch.zeros_like(self.movement_cost, device=data_input['car_loc'].device)
+
         self.anticipatory_cost_options = torch.zeros((self.batch_size, self.sim_length, n_movement_options),
                                                      device=self.events_cost.device)
-        self.anticipatory_cost = torch.zeros_like(self.movement_cost, device=data_input['car_loc'].device)
+        self.movement_cost_options = torch.zeros_like(self.anticipatory_cost_options, device=data_input['car_loc'].device)
+        self.events_cost_options = torch.zeros_like(self.anticipatory_cost_options, device=data_input['car_loc'].device)
+
+
         n_events = 0
         for i_b in range(self.batch_size):
             graph = data_list[i_b]
@@ -45,7 +52,10 @@ class AnticipatoryState:
             if graph.events_loc.shape[0] > n_events:
                 n_events = graph.events_loc.shape[0]
         self.n_events = n_events
-        self.cars_route = torch.zeros(self.data_input.num_graphs, self.n_cars, self.sim_length, 2)
+        self.cars_route = torch.zeros(self.data_input.num_graphs, self.n_cars, self.sim_length+1, 2)
+        self.cars_route[:, :, 0, :] = self.car_cur_loc.clone()
+        self.actions_chosen = torch.zeros((self.batch_size, self.n_cars, self.sim_length, 2),
+                                          device=data_input['car_loc'].device)
         self.events_answer_time = torch.ones((self.batch_size, self.n_events), device=data_input['car_loc'].device)*999
         self.n_events_closed = torch.zeros((self.batch_size, self.sim_length),  device=data_input['car_loc'].device)
         self.events_status = {'answered': torch.zeros((self.batch_size, self.n_events, 1),
@@ -96,6 +106,9 @@ class AnticipatoryState:
             opened_events_pos = []
             opened_events_start_time = []
             opened_events_end_time = []
+            currently_closed_events_pos = []
+            currently_closed_events_start_time = []
+            currently_closed_events_end_time = []
             # move each car to the new location -
             for i_c in range(self.n_cars):
                 car_cur_loc = self.update_car_state(i_b, i_c, car_cur_loc, actions)
@@ -122,6 +135,11 @@ class AnticipatoryState:
                     # in this case the event is opened , so we need to see if a car reached it's location
                     is_answered = torch.where(distance_matrix[:, i_e] <= 0.1)[0]
                     if is_answered.size()[0] > 0:
+                        # needed for calulating optional choices -
+                        currently_closed_events_pos.append(self.events_loc_dict[i_b][i_e, ...].detach().numpy())
+                        currently_closed_events_start_time.append(self.events_time_dict[i_b][i_e, 0].detach().numpy())
+                        currently_closed_events_end_time.append(self.events_time_dict[i_b][i_e, 1].detach().numpy())
+                        # calculate if event is closed -
                         car_index = is_answered[0]  # this is the car chosen to answer this specific event
                         distance_matrix[car_index, :] = 9999  # makes sure you dont use the same car for other events
                         self.close_event(i_b, i_e, graph_row)
@@ -155,18 +173,50 @@ class AnticipatoryState:
                                                                 opened_events_start_time, opened_events_end_time,
                                                                 stochastic_event_dict)
             self.anticipatory_cost[i_b, self.time] = new_anticipatory_cost
-            # calc all other costs optional -
-            actions_chosen = self.actions_to_move_tensor_all_options[actions[i_b]]
-            for i_a, optional_actions in enumerate(self.actions_to_move_tensor_all_options):
-                if torch.all(torch.eq(actions_chosen, self.actions_to_move_tensor_all_options[i_a])):
-                    self.anticipatory_cost_options[i_b, self.time, i_a] = self.anticipatory_cost[i_b, self.time]
-                else:
-                    # add optional action to car cur location before current action chosen
-                    car_loc_options = self.car_cur_loc[i_b, ...].clone() + optional_actions
-                    ant_new = self.calc_anticipatory_cost(i_b, car_loc_options, opened_events_pos,
-                                                          opened_events_start_time, opened_events_end_time,
-                                                          stochastic_event_dict)
-                    self.anticipatory_cost_options[i_b, self.time, i_a] = ant_new
+            # calc all other costs optional if needed for loss function -
+            if self.should_calc_all_options:
+                actions_chosen = self.actions_to_move_tensor_all_options[actions[i_b]]
+                # add events that were currently closed to list of opened events in order to calculate the action
+                # if we were to choose other events
+                opened_events_pos = opened_events_pos + currently_closed_events_pos
+                opened_events_start_time = opened_events_start_time + currently_closed_events_start_time
+                opened_events_end_time = opened_events_end_time + currently_closed_events_end_time
+                for i_a, optional_actions in enumerate(self.actions_to_move_tensor_all_options):
+                    if torch.all(torch.eq(actions_chosen, self.actions_to_move_tensor_all_options[i_a])):
+                        self.anticipatory_cost_options[i_b, self.time, i_a] = self.anticipatory_cost[i_b, self.time]
+                        self.events_cost_options[i_b, self.time, i_a] = self.events_cost[i_b, self.time]
+                        self.movement_cost_options[i_b, self.time, i_a] = self.movement_cost[i_b, self.time]
+                    else:
+                        # add optional action to car cur location before current action chosen
+                        car_loc_options = self.car_cur_loc[i_b, ...].clone() + optional_actions
+                        # calc anticipatory cost assuming action is chosen -
+                        ant_new = self.calc_anticipatory_cost(i_b, car_loc_options, opened_events_pos,
+                                                              opened_events_start_time, opened_events_end_time,
+                                                              stochastic_event_dict)
+                        self.anticipatory_cost_options[i_b, self.time, i_a] = ant_new
+                        # calculate the cost of moving the cars in chosen action -
+                        self.movement_cost_options[i_b, self.time, i_a] = torch.abs(optional_actions.sum())
+                        if len(opened_events_pos) > 0:
+                            events_opened_loc = torch.tensor(opened_events_pos)
+                            distance_matrix_options = torch.cdist(car_loc_options.type(torch.float),
+                                                                  events_opened_loc.type(torch.float), p=1)
+                            # calculate event cost for each event opened in current state -
+                            for i_e in range(len(opened_events_pos)):
+                                is_answered = torch.where(distance_matrix_options[:, i_e] <= 0.1)[0]
+                                if is_answered.size()[0] > 0:
+                                    # add closed event reward to cost
+                                    car_index = is_answered[0]  # this is the car chosen to answer this specific event
+                                    distance_matrix_options[car_index, :] = 9999
+                                    close_event_cost = - self.data_input['close_reward'][i_b]
+                                    self.events_cost_options[i_b, self.time, i_a] = self.events_cost_options[i_b, self.time, i_a] + close_event_cost
+                                else:
+                                    if opened_events_end_time[i_e] == self.time:
+                                        events_cancel_cost = self.data_input['cancel_cost'][i_b]
+                                        self.events_cost_options[i_b, self.time, i_a] = self.events_cost_options[i_b, self.time, i_a] + events_cancel_cost
+                                    else:
+                                        # add opened event to cost
+                                        event_opened_cost = self.data_input['open_cost'][i_b]
+                                        self.events_cost_options[i_b, self.time, i_a] = self.events_cost_options[i_b, self.time, i_a] + event_opened_cost
             e_time_b = time.time()
             # print("run time for batch:"+str(i_b)+", is:"+str(e_time_b -s_time_b))
         # update current car location to new locations
@@ -183,29 +233,43 @@ class AnticipatoryState:
         new_loc_temp = cur_loc_temp.clone() + delta_movement
         can_move_car = (0 <= new_loc_temp[0] <= self.dim - 1) and \
                        (0 <= new_loc_temp[1] <= self.dim - 1)
-        if can_move_car:  # TODO update to masking instead of choosing same location
-            self.cars_route[i_b, i_c, self.time, ...] = new_loc_temp.clone()
-            # subtract 1 from graph where the car came from in feature tensor
-            loc_row = (cur_loc_temp[0] * self.dim + cur_loc_temp[1]).int()
-            graph_row = loc_row + i_b * self.dim * self.dim
-            self.data_input.x[graph_row, 2] = self.data_input.x[graph_row, 2] - 1
-            assert (self.data_input.x[loc_row + i_b * self.dim * self.dim, 2] >= 0),\
-                "tried to subtract 1 from car feature even though there was no car there"
-            # add this cars movement cost to total movement cost
-            new_cost = self.data_input['movement_cost'][i_b] * torch.sum(delta_movement)
-            self.movement_cost[i_b, self.time] = self.movement_cost[i_b, self.time] + new_cost
-            car_cur_loc[i_b, i_c, ...] = new_loc_temp
-            # add 1 to graph where the new car location is in feature tensor
-            loc_row = (new_loc_temp[0] * self.dim + new_loc_temp[1]).int()
-            graph_row = loc_row + i_b * self.dim * self.dim
-            self.data_input.x[graph_row, 2] = self.data_input.x[graph_row, 2] + 1
-        else:
-            self.cars_route[i_b, i_c, self.time, ...] = cur_loc_temp.clone()
+        if not can_move_car:
+            avialable_actions = self.get_available_moves(cur_loc_temp, i_c)
+            random_delta_movement = avialable_actions[torch.randint(0, avialable_actions.shape[0], (1, 1))].view(-1)
+            delta_movement = random_delta_movement
+            new_loc_temp = cur_loc_temp.clone() + random_delta_movement
+        self.cars_route[i_b, i_c, self.time+1, ...] = new_loc_temp.clone()
+        self.actions_chosen[i_b, i_c, self.time, :] = delta_movement.clone()
+        # subtract 1 from graph where the car came from in feature tensor
+        loc_row = (cur_loc_temp[0] * self.dim + cur_loc_temp[1]).int()
+        graph_row = loc_row + i_b * self.dim * self.dim
+        self.data_input.x[graph_row, 2] = self.data_input.x[graph_row, 2] - 1
+        assert (self.data_input.x[loc_row + i_b * self.dim * self.dim, 2] >= 0),\
+            "tried to subtract 1 from car feature even though there was no car there, t:"+str(self.time)+\
+            ", car id:"+str(i_c)+", batch id:"+str(i_b)
+        # add this cars movement cost to total movement cost
+        new_cost = self.data_input['movement_cost'][i_b] * torch.abs(torch.sum(delta_movement))
+        self.movement_cost[i_b, self.time] = self.movement_cost[i_b, self.time] + new_cost
+        car_cur_loc[i_b, i_c, ...] = new_loc_temp
+        # add 1 to graph where the new car location is in feature tensor
+        loc_row = (new_loc_temp[0] * self.dim + new_loc_temp[1]).int()
+        graph_row = loc_row + i_b * self.dim * self.dim
+        self.data_input.x[graph_row, 2] = self.data_input.x[graph_row, 2] + 1
         return car_cur_loc
+
+    def get_available_moves(self, cur_loc_temp, i_c):
+        available_moves = []
+        for action in self.actions_to_move_tensor_all_options:
+            new_loc = cur_loc_temp + action[i_c]
+            if (0 <= new_loc[0] <= self.dim - 1) and (0 <= new_loc[1] <= self.dim - 1):
+                available_moves.append(action[i_c])
+        return torch.stack(available_moves)
 
     def cancel_event(self, i_b, i_e, graph_row):
         self.events_status['canceled'][i_b, i_e] = True
-        self.events_cost[i_b, self.time] = self.events_cost[i_b, self.time] + self.data_input['cancel_cost'][i_b]
+        cancel_cost = self.data_input['cancel_cost'][i_b]
+        self.events_cost[i_b, self.time] = self.events_cost[i_b, self.time] + cancel_cost
+        self.events_cost_options[i_b, self.time, :] = self.events_cost_options[i_b, self.time, :] + cancel_cost
         self.update_time_feature(i_b, i_e, graph_row)  # update time feature to be without this event
         self.data_input.x[graph_row, 3] = self.data_input.x[graph_row, 3] - 1
         assert (self.data_input.x[graph_row, 3] >= 0), \
@@ -266,13 +330,7 @@ class AnticipatoryState:
         it returns the cost for all times
         :return: tensor of size [batch_size, sim_length, possible_actions_size]
         """
-        events_cost = self.events_cost.clone()  # batch_size, sim_time_length
-        n_actions = self.actions_indexes_all_options.shape[0]
-        exp_events_cost = events_cost[:, :, None].expand((self.batch_size, self.sim_length, n_actions))
-        movement_cost = self.actions_to_move_tensor_all_options.sum((1, 2)).clone()
-        exp_movement_cost = movement_cost[None, None, :].expand((self.batch_size, self.sim_length, n_actions))
-        exp_anticipatory_cost = self.anticipatory_cost_options.clone()
-        optional_costs = exp_movement_cost + exp_events_cost + exp_anticipatory_cost
+        optional_costs = self.movement_cost_options + self.events_cost_options + self.anticipatory_cost_options
         return optional_costs
 
     def calc_anticipatory_cost_options(self, i_b, current_events_pos_list, current_event_start_time_list, current_events_end_time_list):
@@ -357,20 +415,20 @@ class AnticipatoryState:
                                                      self.data_input['cancel_cost'][i_b].detach().numpy(),
                                                      self.data_input['open_cost'][i_b].detach().numpy(), 0)
                 else:
-                    # m, obj = runMaxFlowOpt(0, cars_pos, current_events_pos,
-                    #                        current_event_start_time + self.events_open_time,
-                    #                        self.data_input['close_reward'][i_b].detach().numpy(),
-                    #                        self.data_input['cancel_cost'][i_b].detach().numpy(),
-                    #                        self.data_input['open_cost'][i_b].detach().numpy())
-                    obj = 0
+                    m, obj = runMaxFlowOpt(0, cars_pos, current_events_pos,
+                                           current_event_start_time + self.events_open_time,
+                                           self.data_input['close_reward'][i_b].detach().numpy(),
+                                           self.data_input['cancel_cost'][i_b].detach().numpy(),
+                                           self.data_input['open_cost'][i_b].detach().numpy())
+                    # obj = 0
                 etime = time.process_time()
                 # runTime = etime - stime
                 # if shouldPrint:
                 # print("finished MIO for run:"+str(j+1)+"/"+str(len(stochasticEventsDict)))
                 # print("run time of MIO is:"+str(runTime))
                 # print("cost of MIO is:"+str(-obj.getValue()))
-                stochastic_cost[j] = 0
-                # stochastic_cost[j] = -obj.getValue()
+                # stochastic_cost[j] = 0
+                stochastic_cost[j] = -obj.getValue()
             else:
                 stochastic_cost[j] = 0
         # calculate expected cost of all stochastic runs for this specific batch

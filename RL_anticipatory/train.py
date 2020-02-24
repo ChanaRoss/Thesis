@@ -154,12 +154,26 @@ def train_batch(
     cost = cost_chosen.sum(1)  # sum cost on time axis to get total cost chosen for each batch
     log_likelihood = logits_chosen.sum(1)  # sum logits chosen to get total logit for each batch
     # Evaluate baseline, get baseline loss if any (only for critic)
-    bl_val, bl_loss = baseline.eval(x, cost) if bl_val is None else (bl_val, 0)
+    bl_val, bl_loss = baseline.eval(x, cost_chosen) if bl_val is None else (bl_val, 0)
 
-    # Calculate loss
-    reinforce_loss_ = model.calc_reinforce_loss(costs_all_options - bl_val, logits_all_options)
-    reinforce_loss = reinforce_loss_.mean()
-    loss = reinforce_loss + bl_loss
+    if opts['should_calc_all_options']:
+        # Calculate loss
+        if opts['with_baseline']:
+            if bl_val.size() < cost_chosen.size():
+                bl_val = bl_val[None, :, None].expand_as(costs_all_options)
+            else:
+                bl_val = bl_val[:, :, None].expand_as(costs_all_options)
+        else:
+            bl_val = 0
+        reinforce_loss_ = model.calc_reinforce_loss(costs_all_options - bl_val, logits_all_options)
+        reinforce_loss = reinforce_loss_.mean()
+    else:
+        if bl_val.size() < cost_chosen.size():
+            bl_val = bl_val.sum(0)
+        else:
+            bl_val = bl_val.sum(1)
+        reinforce_loss = ((cost - bl_val)*log_likelihood).mean()
+    loss = (reinforce_loss + bl_loss)
 
     # Perform backward pass and optimization step
     optimizer.zero_grad()

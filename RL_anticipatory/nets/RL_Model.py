@@ -13,7 +13,7 @@ def set_decode_type(model, decode_type):
 
 
 class AnticipatoryModel(torch.nn.Module):
-    def __init__(self, num_features, num_nodes, embedding_dim, dp, stochastic_input_dict, sim_input_dict):
+    def __init__(self, num_features, num_nodes, embedding_dim, encoder_dim, dp, stochastic_input_dict, sim_input_dict):
         super(AnticipatoryModel, self).__init__()
         self.dropout = dp
         self.decode_type = None
@@ -23,8 +23,8 @@ class AnticipatoryModel(torch.nn.Module):
         self.embedding = nn.Sequential(nn.Linear(num_features, embedding_dim),
                                        nn.ReLU(),
                                        nn.Linear(embedding_dim, embedding_dim))
-        self.encoder = GATConv(embedding_dim, 16, heads=8, dropout=self.dropout, bias=True)
-        self.decoder = GATConv(embedding_dim, self.n_cars, heads=1, dropout=self.dropout, bias=True)
+        self.encoder = GATConv(embedding_dim, int(encoder_dim/8), heads=8, dropout=self.dropout, bias=True)
+        self.decoder = GATConv(encoder_dim, self.n_cars, heads=1, dropout=self.dropout, bias=True)
         self.proj_choose_out = nn.Sequential(
             # input to linear layer is num_nodes in each graph in batch * n_cars
             # therefore need to divide num_nodes in batch by num_graphs (batch_size)

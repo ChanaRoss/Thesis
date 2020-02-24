@@ -96,9 +96,9 @@ class ExponentialBaseline(Baseline):
     def eval(self, x, c):
 
         if self.v is None:
-            v = c.mean()
+            v = c.mean(0)
         else:
-            v = self.beta * self.v + (1. - self.beta) * c.mean()
+            v = self.beta * self.v + (1. - self.beta) * c.mean(0)
 
         self.v = v.detach()  # Detach since we never want to backprop
         return self.v, 0  # No loss
@@ -182,7 +182,7 @@ class RolloutBaseline(Baseline):
 
     def unwrap_batch(self, batch):
         graph = batch
-        baseline = batch.baseline
+        baseline = batch.baseline.view(batch.num_graphs, -1)
         return graph, baseline
 
     def eval(self, x, c):

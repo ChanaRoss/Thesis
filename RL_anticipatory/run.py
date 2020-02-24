@@ -26,9 +26,9 @@ def run():
     n_epochs = 200
     # problem parameters -
     graph_size = 15
-    epoch_size = 280
-    batch_size = 28
-    val_size = 20
+    epoch_size = 800
+    batch_size = 20
+    val_size = 40
     end_time = 15
     events_time_window = 5
     n_cars = 2
@@ -62,11 +62,14 @@ def run():
         'epoch_size': epoch_size,
         'val_size': val_size,
         'n_epochs': n_epochs,
-        'lr_model': 1e-4,
+        'lr_model': 1e-6,
         'lr_critic': 1e-4,
+        'lr_patience': 5,   # number of epochs before lr is updated
         'lr_decay': 0.95,
         'exp_beta': 0.9,
-        'max_grad_norm': 1,
+        'max_grad_norm': 100,
+        'encoder_dim': 128,
+        'embedding_dim': 128,
         'decode_type': 'sampling',
         'lr_scheduler': 'Reduce',
         'baseline': 'rollout',
@@ -75,11 +78,12 @@ def run():
         'no_tensorboard': False,
         'no_cuda': True,
         'eval_only': False,
+        'with_baseline': False,
         'bl_warmup_epochs': None,
         'checkpoint_epochs': 1,
         'log_step': 10,
         'eval_batch_size': eval_batch_size,
-        'run_name': 'anticipatory_rl',
+        'run_name': 'anticipatory_rl_all_options',
         'problem': 'anticipatory_rl',
         'output_dir': 'outputs',
         'log_dir': 'logs',
@@ -93,9 +97,11 @@ def run():
                       'n_prediction_steps': n_prediction_steps,
                       'dist_lambda': dist_lambda,
                       'n_cars': n_cars,
+                      'should_calc_all_options': True,
                       'print_debug': False}
 
     opts['run_name'] = "{}_{}".format(opts['run_name'], time.strftime("%Y%m%dT%H%M%S"))
+    opts['should_calc_all_options'] = sim_input_dict['should_calc_all_options']
     opts['save_dir'] = os.path.join(
         opts['output_dir'],
         "{}_{}".format(opts['problem'], opts['graph_size']),
@@ -143,7 +149,7 @@ def run():
         print('  [*] Loading data from {}'.format(load_path))
         load_data = torch_load_cpu(load_path)
     torch.autograd.set_detect_anomaly(True)
-    model = AnticipatoryModel(n_features, graph_size, 128, 0, stochastic_input_dict, sim_input_dict)
+    model = AnticipatoryModel(n_features, graph_size, opts['embedding_dim'], opts['encoder_dim'], 0, stochastic_input_dict, sim_input_dict)
     model = model.to(opts['device'])
     if opts['use_cuda'] and torch.cuda.device_count() > 1:
         model = torch.nn.DataParallel(model)
@@ -161,7 +167,7 @@ def run():
         assert opts['baseline'] is None, "Unknown baseline: {}".format(opts['baseline'])
         baseline = NoBaseline()
     if opts['bl_warmup_epochs'] > 0:
-        baseline = WarmupBaseline(baseline, opts['bl_warmup_epochs'] , warmup_exp_beta=opts['exp_beta'])
+        baseline = WarmupBaseline(baseline, opts['bl_warmup_epochs'], warmup_exp_beta=opts['exp_beta'])
 
     # Load baseline from data, make sure script is called with same type of baseline
     if 'baseline' in load_data:
@@ -189,7 +195,7 @@ def run():
     # Initialize learning rate scheduler, decay by lr_decay once per epoch!
     if opts['lr_scheduler'] == 'Reduce':
         lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=opts['lr_decay'],
-                                                            patience=2, verbose=True, min_lr=5e-7)
+                                                            patience=opts['lr_patience'], verbose=True, min_lr=5e-9)
     else:
         lr_scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: opts['lr_decay'] ** epoch)
 
