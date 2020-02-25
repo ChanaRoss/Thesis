@@ -87,7 +87,7 @@ def main():
         with torch.no_grad():
             s_time = time.time()
             tour_length = sim_input_dict['sim_length']+1
-            n_repeats = 1
+            n_repeats = 10
             temp_car_routes = torch.zeros([n_repeats, n_samples, model.n_cars, tour_length, 2])
             temp_costs = torch.zeros([n_repeats, n_samples])
             for i in range(n_repeats):

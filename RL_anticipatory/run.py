@@ -23,10 +23,10 @@ def run():
     # network parameters -
     n_features = 5
     eval_batch_size = 20
-    n_epochs = 200
+    n_epochs = 300
     # problem parameters -
     graph_size = 15
-    epoch_size = 800
+    epoch_size = 4000
     batch_size = 20
     val_size = 40
     end_time = 15
@@ -43,10 +43,10 @@ def run():
     n_prediction_steps = 5
     # distribution parameters -
     dist_lambda = 0.2  # 2/3
-    cancel_cost = 10  # should be positive since all costs are added to total cost
-    close_reward = 5  # should be positive since all rewards are subtracted from total cost
+    cancel_cost = 100  # should be positive since all costs are added to total cost
+    close_reward = 20  # should be positive since all rewards are subtracted from total cost
     movement_cost = 1  # should be positive since all costs are added to total cost
-    open_cost = 1  # should be positive since all costs are added to total cost
+    open_cost = 2  # should be positive since all costs are added to total cost
     opts = {
         'n_cars': n_cars,
         'n_features': n_features,
@@ -62,11 +62,12 @@ def run():
         'epoch_size': epoch_size,
         'val_size': val_size,
         'n_epochs': n_epochs,
-        'lr_model': 1e-6,
+        'lr_model': 0.01,
         'lr_critic': 1e-4,
-        'lr_patience': 5,   # number of epochs before lr is updated
+        'lr_patience': 2,   # number of epochs before lr is updated
         'lr_decay': 0.95,
         'exp_beta': 0.9,
+        'dp': 0.5,
         'max_grad_norm': 100,
         'encoder_dim': 128,
         'embedding_dim': 128,
@@ -78,12 +79,12 @@ def run():
         'no_tensorboard': False,
         'no_cuda': True,
         'eval_only': False,
-        'with_baseline': False,
+        'with_baseline': True,
         'bl_warmup_epochs': None,
         'checkpoint_epochs': 1,
-        'log_step': 10,
+        'log_step': 4,
         'eval_batch_size': eval_batch_size,
-        'run_name': 'anticipatory_rl_all_options',
+        'run_name': 'anticipatory_rl_dp',
         'problem': 'anticipatory_rl',
         'output_dir': 'outputs',
         'log_dir': 'logs',
@@ -97,7 +98,7 @@ def run():
                       'n_prediction_steps': n_prediction_steps,
                       'dist_lambda': dist_lambda,
                       'n_cars': n_cars,
-                      'should_calc_all_options': True,
+                      'should_calc_all_options': False,
                       'print_debug': False}
 
     opts['run_name'] = "{}_{}".format(opts['run_name'], time.strftime("%Y%m%dT%H%M%S"))
@@ -149,7 +150,8 @@ def run():
         print('  [*] Loading data from {}'.format(load_path))
         load_data = torch_load_cpu(load_path)
     torch.autograd.set_detect_anomaly(True)
-    model = AnticipatoryModel(n_features, graph_size, opts['embedding_dim'], opts['encoder_dim'], 0, stochastic_input_dict, sim_input_dict)
+    model = AnticipatoryModel(n_features, graph_size, opts['embedding_dim'], opts['encoder_dim'], opts['dp'],
+                              stochastic_input_dict, sim_input_dict)
     model = model.to(opts['device'])
     if opts['use_cuda'] and torch.cuda.device_count() > 1:
         model = torch.nn.DataParallel(model)

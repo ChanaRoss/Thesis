@@ -110,9 +110,11 @@ def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, pr
                avg_ll_epoch, avg_loss_epoch, tb_logger, opts, model)
     if (opts['checkpoint_epochs'] != 0 and epoch % opts['checkpoint_epochs'] == 0) or epoch == opts['n_epochs'] - 1:
         print('Saving model and state...')
+        grad_dict = {k: v.grad for k, v in zip(model.state_dict(), model.parameters())}
         torch.save(
             {
                 'model': get_inner_model(model).state_dict(),
+                'grad_dict': grad_dict,
                 'optimizer': optimizer.state_dict(),
                 'rng_state': torch.get_rng_state(),
                 'cuda_rng_state': torch.cuda.get_rng_state_all(),
@@ -168,11 +170,9 @@ def train_batch(
         reinforce_loss_ = model.calc_reinforce_loss(costs_all_options - bl_val, logits_all_options)
         reinforce_loss = reinforce_loss_.mean()
     else:
-        if bl_val.size() < cost_chosen.size():
-            bl_val = bl_val.sum(0)
-        else:
-            bl_val = bl_val.sum(1)
-        reinforce_loss = ((cost - bl_val)*log_likelihood).mean()
+        if not opts['with_baseline']:
+            bl_val = 0
+        reinforce_loss = torch.sum((cost_chosen - bl_val)*logits_chosen, 1).mean()
     loss = (reinforce_loss + bl_loss)
 
     # Perform backward pass and optimization step

@@ -37,9 +37,14 @@ def create_events_times(start_time, end_time, lam, eventTimeWindow):
 
 def create_events_position(gridSize, n_points):
     locX = gridSize[0] / 2
-    scaleX = gridSize[0] / 5
-    locY = gridSize[1] / 10
-    scaleY = gridSize[1] / 5
+    scaleX = gridSize[0] / 2
+    locY = gridSize[1] / 2
+    scaleY = gridSize[1] / 2
+
+    # locX = gridSize[0] / 2
+    # scaleX = gridSize[0] / 5
+    # locY = gridSize[1] / 10
+    # scaleY = gridSize[1] / 5
     eventPosX = truncnorm.rvs((0 - locX) / scaleX, (gridSize[0] - locX) / scaleX, loc=locX, scale=scaleX,
                               size=n_points).astype(np.int64)
     eventPosY = truncnorm.rvs((0 - locY) / scaleY, (gridSize[1] - locY) / scaleY, loc=locY, scale=scaleY,
