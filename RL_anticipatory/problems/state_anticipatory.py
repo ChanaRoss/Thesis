@@ -13,6 +13,7 @@ class AnticipatoryState:
         self.print_debug = sim_input_dict['print_debug']
         self.data_input = data_input.clone()
         self.should_calc_all_options = sim_input_dict['should_calc_all_options']
+        self.should_calc_anticipatory = stochastic_input_dict['should_calc_anticipatory']
         self.stochastic_mat = stochastic_input_dict['future_mat']  # of shape [x, y, t, p(n events)]
         self.n_stochastic_runs = stochastic_input_dict['n_stochastic_runs']
         self.batch_size = data_input.num_graphs
@@ -43,7 +44,11 @@ class AnticipatoryState:
 
 
         n_events = 0
+        self.cars_log = {}
         for i_b in range(self.batch_size):
+            self.cars_log[i_b] = {}
+            for i_c in range(self.n_cars):
+                self.cars_log[i_b][i_c] = []
             graph = data_list[i_b]
             self.car_cur_loc[i_b, ...] = graph.car_loc
             self.events_loc_dict[i_b] = graph.events_loc
@@ -115,6 +120,10 @@ class AnticipatoryState:
             events_loc_ = self.events_loc_dict[i_b]
             n_events_in_batch = events_loc_.shape[0]
             distance_matrix = torch.cdist(car_cur_loc[i_b, ...].type(torch.float), events_loc_.type(torch.float), p=1)
+            for i_c in range(self.n_cars):
+                if n_events_in_batch > 0:
+                    min_distance = torch.min(distance_matrix[i_c, ...])
+                    self.movement_cost[i_b, self.time] = self.movement_cost[i_b, self.time] + min_distance
             for i_e in range(n_events_in_batch):
                 # find row of relevant event in graph
                 loc_row = events_loc_[i_e, 0] * self.dim + events_loc_[i_e, 1]
@@ -142,6 +151,7 @@ class AnticipatoryState:
                         # calculate if event is closed -
                         car_index = is_answered[0]  # this is the car chosen to answer this specific event
                         distance_matrix[car_index, :] = 9999  # makes sure you dont use the same car for other events
+                        self.cars_log[i_b][car_index.item()].append(i_e)
                         self.close_event(i_b, i_e, graph_row)
                         if self.print_debug:
                             print("t:" + str(self.time) + ", closed event id:" + str(i_e) + ", in batch" + str(i_b))
@@ -169,9 +179,12 @@ class AnticipatoryState:
                                                            self.stochastic_mat, self.events_open_time, self.time,
                                                            'Bm_poisson', np.array([self.dim, self.dim]),
                                                            self.dist_lambda)
-            new_anticipatory_cost = self.calc_anticipatory_cost(i_b, cars_loc, opened_events_pos,
-                                                                opened_events_start_time, opened_events_end_time,
-                                                                stochastic_event_dict)
+            if self.should_calc_anticipatory:
+                new_anticipatory_cost = self.calc_anticipatory_cost(i_b, cars_loc, opened_events_pos,
+                                                                    opened_events_start_time, opened_events_end_time,
+                                                                    stochastic_event_dict)
+            else:
+                new_anticipatory_cost = 0
             self.anticipatory_cost[i_b, self.time] = new_anticipatory_cost
             # calc all other costs optional if needed for loss function -
             if self.should_calc_all_options:
@@ -220,7 +233,7 @@ class AnticipatoryState:
             e_time_b = time.time()
             # print("run time for batch:"+str(i_b)+", is:"+str(e_time_b -s_time_b))
         # update current car location to new locations
-        self.car_cur_loc = car_cur_loc
+        self.car_cur_loc = car_cur_loc.clone()
         self.time = self.time + 1  # update simulation time
         e_time = time.time()
         if self.print_debug:
@@ -321,6 +334,10 @@ class AnticipatoryState:
         it assumes a specific action is chosen
         :return: torch tensor of size [batch_size, time]
         """
+        answered_events = self.events_status['answered'].sum(1)
+        for i_b in range(self.batch_size):
+            self.events_cost[i_b, -1] = self.data_input['cancel_cost'][i_b] * \
+                                        (self.events_time_dict[i_b].shape[0] - answered_events[i_b])
         cost = self.movement_cost + self.events_cost + self.anticipatory_cost
         return cost
 

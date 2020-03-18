@@ -110,7 +110,7 @@ def train_epoch(model, optimizer, baseline, lr_scheduler, epoch, val_dataset, pr
                avg_ll_epoch, avg_loss_epoch, tb_logger, opts, model)
     if (opts['checkpoint_epochs'] != 0 and epoch % opts['checkpoint_epochs'] == 0) or epoch == opts['n_epochs'] - 1:
         print('Saving model and state...')
-        grad_dict = {k: v.grad for k, v in zip(model.state_dict(), model.parameters())}
+        grad_dict = {k: v.grad for k, v in model.named_parameters()}
         torch.save(
             {
                 'model': get_inner_model(model).state_dict(),

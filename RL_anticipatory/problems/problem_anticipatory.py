@@ -6,7 +6,8 @@ from Simulation.Anticipitory.with_RL.create_distributions import *
 class AnticipatoryProblem:
     def __init__(self, opts):
         self.n_cars = opts['n_cars']
-        self.events_time_window  = opts['events_time_window']
+        self.n_events = opts['n_events']
+        self.events_time_window = opts['events_time_window']
         self.end_time = opts['end_time']
         self.graph_size = opts['graph_size']
         self.cancel_cost = opts['cancel_cost']
@@ -16,19 +17,20 @@ class AnticipatoryProblem:
         self.lam = opts['lam']
 
     def make_dataset(self, num_samples):
-        dataset = AnticipatoryDataset("", self.n_cars, self.events_time_window, self.end_time, self.graph_size,
+        dataset = AnticipatoryDataset("", self.n_cars, self.n_events, self.events_time_window, self.end_time, self.graph_size,
                                       self.cancel_cost, self.close_reward, self.movement_cost, self.open_cost,
                                       self.lam,  n_samples=num_samples)
         return dataset
 
 
 class AnticipatoryDataset(Dataset):
-    def __init__(self, root, n_cars, events_time_window, end_time, graph_size,
+    def __init__(self, root, n_cars, n_events, events_time_window, end_time, graph_size,
                  cancel_cost, close_reward, movement_cost, open_cost, lam, n_samples=100,
                  transform=None, pre_transform=None):
         super(AnticipatoryDataset, self).__init__(root, transform, pre_transform)
         self.n_samples = n_samples
         self.n_cars = n_cars
+        self.n_events = n_events
         self.end_time = end_time
         self.lam = lam
         self.events_time_window = events_time_window
@@ -146,8 +148,8 @@ class AnticipatoryDataset(Dataset):
         this function creates events location (random location)
         :return: torch tensor of size [n_events, 2]
         """
-        events_loc = create_events_position(np.array([self.graph_size, self.graph_size]), n_events)
         # events_loc = torch.randint(0, self.graph_size, (self.n_events, 2)).type(torch.FloatTensor)
+        events_loc = create_events_position(np.array([self.graph_size, self.graph_size]), n_events)
         return torch.tensor(events_loc).type(self.dtype)
 
     def get_events_times(self):
@@ -157,9 +159,14 @@ class AnticipatoryDataset(Dataset):
         """
         # events_time = torch.randint(0, self.end_time, (self.n_events, 2)).type(torch.FloatTensor)
         # events_time[:, 1] = events_time[:, 0] + self.events_time_window
-        events_time = create_events_times(0, self.end_time, self.lam, self.events_time_window)
-
-        return torch.tensor(events_time).type(self.dtype)
+        if self.events_time_window > 10:
+            events_time_tensor = torch.zeros((self.n_events, 2)).type(self.dtype)
+            events_time_tensor[:, 1] = self.end_time + 1
+        else:
+            events_time = create_events_times(0, self.end_time, self.lam,
+                                              self.events_time_window)
+            events_time_tensor = torch.tensor(events_time).type(self.dtype)
+        return events_time_tensor
 
     def raw_file_names(self):
         return "should not use raw file names"
@@ -308,3 +315,4 @@ class AnticipatoryTestDataset(Dataset):
     def get(self, idx):
         data = self.data[idx]
         return data
+

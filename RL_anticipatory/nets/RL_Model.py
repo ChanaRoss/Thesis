@@ -1,9 +1,11 @@
 import torch
 from torch_geometric.nn import GATConv
+from torch_geometric.nn.norm import BatchNorm
 from torch_geometric.nn.data_parallel import DataParallel
 import torch.nn as nn
 import torch.nn.functional as F
 from RL_anticipatory.problems.state_anticipatory import AnticipatoryState
+import math
 
 
 def set_decode_type(model, decode_type):
@@ -20,10 +22,29 @@ class AnticipatoryModel(torch.nn.Module):
         self.sim_input_dict = sim_input_dict
         self.stochastic_input_dict = stochastic_input_dict
         self.n_cars = sim_input_dict['n_cars']
+
         self.embedding = nn.Sequential(nn.Linear(num_features, embedding_dim),
                                        nn.ReLU(),
                                        nn.Linear(embedding_dim, embedding_dim))
-        self.encoder = GATConv(embedding_dim, int(encoder_dim/8), heads=8, dropout=self.dropout, bias=True)
+
+        self.encoder1 = GATConv(embedding_dim, encoder_dim, heads=8, dropout=self.dropout, bias=True, concat=False)
+        self.batch_norm1 = BatchNorm(encoder_dim)
+        self.ff_encoder1 = nn.Sequential(nn.Linear(encoder_dim, embedding_dim * 5),
+                                         nn.ReLU(),
+                                         nn.Linear(embedding_dim * 5, encoder_dim))
+
+        self.encoder2 = GATConv(encoder_dim, encoder_dim, heads=8, dropout=self.dropout, bias=True, concat=False)
+        self.batch_norm2 = BatchNorm(encoder_dim)
+        self.ff_encoder2 = nn.Sequential(nn.Linear(encoder_dim, embedding_dim * 5),
+                                         nn.ReLU(),
+                                         nn.Linear(embedding_dim * 5, encoder_dim))
+
+        self.encoder3 = GATConv(encoder_dim, encoder_dim, heads=8, dropout=self.dropout, bias=True, concat=False)
+        self.batch_norm3 = BatchNorm(encoder_dim)
+        self.ff_encoder3 = nn.Sequential(nn.Linear(encoder_dim, embedding_dim*5),
+                                       nn.ReLU(),
+                                       nn.Linear(embedding_dim*5, encoder_dim))
+
         self.decoder = GATConv(encoder_dim, self.n_cars, heads=1, dropout=self.dropout, bias=True)
         self.proj_choose_out = nn.Sequential(
             # input to linear layer is num_nodes in each graph in batch * n_cars
@@ -31,6 +52,13 @@ class AnticipatoryModel(torch.nn.Module):
             nn.Linear(int(num_nodes*num_nodes*self.n_cars), embedding_dim),
             nn.ReLU(),
             nn.Linear(embedding_dim, (sim_input_dict['possible_actions'].shape[0])**self.n_cars))
+
+        self.init_parameters()
+
+    def init_parameters(self):
+        for param in self.parameters():
+            stdv = 1. / math.sqrt(param.size(-1))
+            param.data.uniform_(-stdv, stdv)
 
     def set_decode_type(self, decode_type):
         self.decode_type = decode_type
@@ -44,9 +72,11 @@ class AnticipatoryModel(torch.nn.Module):
         while not state.all_finished():
             x_temp = state.data_input.x.clone()
             x = self.embedding(x_temp)
-            x = self.encoder(x, state.data_input.edge_index)
+            x_encoder_1 = self.batch_norm1(self.ff_encoder1(self.encoder1(x, state.data_input.edge_index)+x) + x)
+            x_encoder_2 = self.batch_norm2(self.ff_encoder2(self.encoder2(x_encoder_1, state.data_input.edge_index) + x_encoder_1) + x_encoder_1)
+            x_encoder_out = self.batch_norm3(self.ff_encoder3(self.encoder3(x_encoder_2, state.data_input.edge_index) + x_encoder_2) + x_encoder_2)
             # run model decoder and find next action for each car.
-            logit_per_car = self.decoder(x, state.data_input.edge_index)
+            logit_per_car = self.decoder(x_encoder_out, state.data_input.edge_index)
             logit_ff = self.proj_choose_out(logit_per_car.view(batch_size, -1))
             logit_ff = logit_ff.clone().view(batch_size, -1)  # change dimensions to [n_batchs, n_options]
             logit_ff = F.log_softmax(logit_ff, dim=1)  # soft max on action choice dimension

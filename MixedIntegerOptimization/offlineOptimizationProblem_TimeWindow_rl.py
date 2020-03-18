@@ -7,12 +7,9 @@ from scipy.spatial.distance import cdist
 import numpy as np
 from gurobipy import *
 # for graphics
-import seaborn as sns
 from matplotlib import pyplot as plt
 from UtilsCode.createGif import create_gif
 import time
-
-# sns.set()
 
 
 def moveCar(carPos, targetPos):
@@ -25,7 +22,7 @@ def moveCar(carPos, targetPos):
     return updatedCarPos
 
 
-def calcReward(eventPos, carPos, closeReward, cancelPenalty, openedPenalty):
+def calcReward(eventPos, carPos, closeReward, cancelPenalty, openedPenalty, movementPenalty):
     """
     this function calculates the reward that will be achieved assuming event is picked up
     :param eventPos: position of events
@@ -41,21 +38,22 @@ def calcReward(eventPos, carPos, closeReward, cancelPenalty, openedPenalty):
     distEventsToEvents = cdist(eventPos, eventPos, metric='cityblock')
     distCarsToEvents   = cdist(carPos, eventPos, metric='cityblock')
 
-    rewardCarsToEvents   = -distCarsToEvents   + np.ones(shape=(nCars, nEvents))*closeReward
-    rewardEventsToEvents = -distEventsToEvents + np.ones(shape=(nEvents, nEvents))*closeReward
+    rewardCarsToEvents   = -movementPenalty*distCarsToEvents   + np.ones(shape=(nCars, nEvents))*closeReward
+    rewardEventsToEvents = -movementPenalty*distEventsToEvents + np.ones(shape=(nEvents, nEvents))*closeReward
     timeEventsToEvents   =  distEventsToEvents
     timeCarsToEvents     =  distCarsToEvents
     return rewardCarsToEvents, rewardEventsToEvents, timeCarsToEvents, timeEventsToEvents
 
 
-def runMaxFlowOpt(tStart, carPos, eventPos , eventOpenTime, eventCloseTime,
-                  closeReward, cancelPenalty, openedPenalty, outputFlag = 1):
+def runMaxFlowOpt(simTime, tStart, carPos, eventPos , eventOpenTime, eventCloseTime,
+                  closeReward, cancelPenalty, openedPenalty, movementPenalty, outputFlag = 1):
     nEvents = eventPos.shape[0]
     nCars   = carPos.shape[0]
     rewardCarsToEvents, rewardEventsToEvents, timeCarsToEvents, timeEventsToEvents = calcReward(eventPos, carPos,
                                                                                                 closeReward,
                                                                                                 cancelPenalty,
-                                                                                                openedPenalty)
+                                                                                                openedPenalty,
+                                                                                                movementPenalty)
     # Create optimization model
     m = Model('OfflineOpt')
     # Create variables
@@ -92,8 +90,10 @@ def runMaxFlowOpt(tStart, carPos, eventPos , eventOpenTime, eventCloseTime,
             m.addConstr(t[j]-t[i] >= (eventOpenTime[j]-eventCloseTime[i]) +
                                      (timeEventsToEvents[i, j] -
                                      (eventOpenTime[j]-eventCloseTime[i]))*x[i, j])
+            m.addConstr(x[i, j] >= 0)
         for j in range(nCars):
             m.addConstr(t[i] >= eventOpenTime[i]+(tStart+timeCarsToEvents[j, i]-eventOpenTime[i])*y[j, i])
+            m.addConstr(y[j, i] >= 0)
 
     # event can not be picked up after it is picked up (X_{c,c} = 0 by definition)
     for i in range(nEvents):
@@ -105,13 +105,14 @@ def runMaxFlowOpt(tStart, carPos, eventPos , eventOpenTime, eventCloseTime,
     pEventsOpened = 0  # penatly for time that events waited
     for i in range(nEvents):
         for j in range(nEvents):
-            rEvents += rewardEventsToEvents[i, j]*x[i, j]
-            pEventsOpened -= openedPenalty*(t[j]-eventOpenTime[j])*x[i, j]
+            rEvents = rEvents + (rewardEventsToEvents[i, j]*x[i, j])
+            pEventsOpened = pEventsOpened - openedPenalty*(t[j]-eventOpenTime[j])*x[i, j]
 
         for j in range(nCars):
-            rCars += rewardCarsToEvents[j, i]*y[j, i]
-            pEventsOpened -= openedPenalty*(t[i] - eventOpenTime[i])*y[j, i]
+            rCars = rCars + (rewardCarsToEvents[j, i]*y[j, i])
+            pEventsOpened = pEventsOpened - openedPenalty*(t[i] - eventOpenTime[i])*y[j, i]
         pEvents -= cancelPenalty*(1-p[i])
+        pEventsOpened -= openedPenalty*(simTime - eventOpenTime[i])*(1-p[i])
 
     obj = rEvents + rCars + pEvents + pEventsOpened
     m.setObjective(obj, GRB.MAXIMIZE)
@@ -322,16 +323,17 @@ def main():
     # carPos              = np.array([0, 0]).reshape(nCars,2)
     # eventPos            = np.array([[5, 0], [5, 5]]).reshape((nEvents,2))
     # eventTime           = np.array([5, 8])
-    closeReward = 50
-    cancelPenalty = 10
-    openedPenalty = 1
+    closeReward = 100
+    cancelPenalty = 100
+    openedPenalty = 50
+    movementPenalty = 0
     sim_seed      = 1
     np.random.seed(sim_seed)
     gridSize            = [10, 10]
     nCars               = 2
     tStart              = 0
     deltaOpenTime       = 12
-    lengthSim           = 30
+    lengthSim           = 150
     lam                 = 1.7  # 2/3
     nEvents             = 4
 
@@ -348,9 +350,9 @@ def main():
     # eventStartTime = eventTimes[:, 0]
     # eventEndTime = eventTimes[:, 1]
     s_time = time.time()
-    m, obj = runMaxFlowOpt(tStart, carPos, eventPos,
+    m, obj = runMaxFlowOpt(lengthSim, tStart, carPos, eventPos,
                            eventStartTime, eventEndTime,
-                           closeReward, cancelPenalty, openedPenalty)
+                           closeReward, cancelPenalty, openedPenalty, movementPenalty)
     e_time = time.time()
     print("sim run time : "+str(e_time - s_time))
     for v in m.getVars():

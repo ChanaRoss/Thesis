@@ -23,15 +23,16 @@ def run():
     # network parameters -
     n_features = 5
     eval_batch_size = 20
-    n_epochs = 300
+    n_epochs = 4000
     # problem parameters -
-    graph_size = 15
-    epoch_size = 4000
-    batch_size = 20
-    val_size = 40
+    graph_size = 7
+    epoch_size = 300
+    batch_size = 30
+    val_size = 20
     end_time = 15
-    events_time_window = 5
+    events_time_window = 4
     n_cars = 2
+    n_events = 4
     # anticipatory parameters -
     stochastic_mat = np.zeros([10, 10, 10, 10])  # should be probability mat [x, y, t, p(n events)]
     possible_actions = torch.tensor([  # [0, 0],
@@ -42,13 +43,14 @@ def run():
     n_stochastic_runs = 1
     n_prediction_steps = 5
     # distribution parameters -
-    dist_lambda = 0.2  # 2/3
+    dist_lambda = 0.3  # 2/3
     cancel_cost = 100  # should be positive since all costs are added to total cost
-    close_reward = 20  # should be positive since all rewards are subtracted from total cost
-    movement_cost = 1  # should be positive since all costs are added to total cost
-    open_cost = 2  # should be positive since all costs are added to total cost
+    close_reward = 100  # should be positive since all rewards are subtracted from total cost
+    movement_cost = 0  # should be positive since all costs are added to total cost
+    open_cost = 50  # should be positive since all costs are added to total cost
     opts = {
         'n_cars': n_cars,
+        'n_events': n_events,
         'n_features': n_features,
         'events_time_window': events_time_window,
         'end_time': end_time,
@@ -62,13 +64,13 @@ def run():
         'epoch_size': epoch_size,
         'val_size': val_size,
         'n_epochs': n_epochs,
-        'lr_model': 0.01,
+        'lr_model': 1e-4,
         'lr_critic': 1e-4,
-        'lr_patience': 2,   # number of epochs before lr is updated
+        'lr_patience': 5,   # number of epochs before lr is updated
         'lr_decay': 0.95,
         'exp_beta': 0.9,
-        'dp': 0.5,
-        'max_grad_norm': 100,
+        'dp': 0,
+        'max_grad_norm': 1,
         'encoder_dim': 128,
         'embedding_dim': 128,
         'decode_type': 'sampling',
@@ -84,13 +86,15 @@ def run():
         'checkpoint_epochs': 1,
         'log_step': 4,
         'eval_batch_size': eval_batch_size,
-        'run_name': 'anticipatory_rl_dp',
+        'run_name': 'anti_with_time_window',
         'problem': 'anticipatory_rl',
         'output_dir': 'outputs',
         'log_dir': 'logs',
         'load_path': None,
-        'resume': None}
+        'resume': '/Users/chanaross/dev/Thesis/RL_anticipatory/outputs/anticipatory_rl_7/mtsp_10_20200310T200705/epoch-2715.pt'}
+    # '/Users/chanaross/dev/Thesis/RL_anticipatory/outputs/anticipatory_rl_7/mtsp_10_20200310T200705/epoch-2715.pt'}
     stochastic_input_dict = {'future_mat': stochastic_mat,
+                             'should_calc_anticipatory': True,
                              'n_stochastic_runs': n_stochastic_runs}
     sim_input_dict = {'graph_dim': graph_size,
                       'sim_length': end_time,
@@ -197,7 +201,7 @@ def run():
     # Initialize learning rate scheduler, decay by lr_decay once per epoch!
     if opts['lr_scheduler'] == 'Reduce':
         lr_scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=opts['lr_decay'],
-                                                            patience=opts['lr_patience'], verbose=True, min_lr=5e-9)
+                                                            patience=opts['lr_patience'], verbose=True, min_lr=5e-7)
     else:
         lr_scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: opts['lr_decay'] ** epoch)
 

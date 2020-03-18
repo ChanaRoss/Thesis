@@ -63,7 +63,7 @@ def draw_path(car_paths, events_loc, is_picked_up):
 
 def main():
     data_loc = '/Users/chanaross/dev/Thesis/MixedIntegerOptimization/'
-    data_name = 'optimizationResults_small'
+    data_name = 'optimizationResults_unlimited'
 
     data = pickle.load(open(data_loc + data_name + '.p', 'rb'))
     adj_mat = data['sol']['cEventsToEvents']
