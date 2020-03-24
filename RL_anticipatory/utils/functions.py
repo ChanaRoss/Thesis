@@ -5,6 +5,18 @@ import json
 import pickle
 
 
+def batched_cdist_l2(x1, x2):
+    x1_norm = x1.pow(2).sum(dim=-1, keepdim=True)
+    x2_norm = x2.pow(2).sum(dim=-1, keepdim=True)
+    res = torch.baddbmm(
+        x2_norm.transpose(-2, -1),
+        x1,
+        x2.transpose(-2, -1),
+        alpha=-2
+    ).add_(x1_norm).clamp_min_(1e-30).sqrt_()
+    return res
+
+
 def get_inner_model(model):
     return model.module if isinstance(model, DataParallel) else model
 
@@ -70,8 +82,11 @@ def load_stochastic(path):
     return data
 
 
-def load_model(path, epoch=None):
-    from RL_anticipatory.nets.RL_Model import AnticipatoryModel
+def load_model(path, model_type, epoch=None):
+    if model_type == 'anticipatory':
+        from RL_anticipatory.nets.RL_Model import AnticipatoryModel as Model
+    elif model_type == 'mtsp':
+        from RL_anticipatory.nets.RL_Model_MTSP import MTSPModel as Model
 
     if os.path.isfile(path):
         model_filename = path
@@ -99,7 +114,7 @@ def load_model(path, epoch=None):
     if 'encoder_dim' not in args.keys():
         args['encoder_dim'] = 128
         args['embedding_dim'] = 128
-    model = AnticipatoryModel(args['n_features'], args['graph_size'], args['embedding_dim'], args['encoder_dim'], 0,
+    model = Model(args['n_features'], args['graph_size'], args['embedding_dim'], args['encoder_dim'], 0,
                               stochastic_input_dict, sim_input_dict)
     # Overwrite model parameters by parameters to load
     load_data = torch_load_cpu(model_filename)

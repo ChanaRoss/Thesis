@@ -101,10 +101,10 @@ class AnticipatoryState:
         :param actions: torch tensor of size [batch_size, n_cars] where each value represents the action chosen
         :return:
         """
+        car_cur_loc = self.car_cur_loc.clone()
         if self.print_debug:
             print("updating state, t:" + str(self.time))
         s_time = time.time()
-        car_cur_loc = self.update_all_cars_state(actions)
         for i_b in range(self.batch_size):
             s_time_b = time.time()
             # create opened events information for anticipatory calculation
@@ -114,6 +114,9 @@ class AnticipatoryState:
             currently_closed_events_pos = []
             currently_closed_events_start_time = []
             currently_closed_events_end_time = []
+            # move each car to the new location -
+            for i_c in range(self.n_cars):
+                car_cur_loc = self.update_car_state(i_b, i_c, car_cur_loc, actions)
             events_loc_ = self.events_loc_dict[i_b]
             n_events_in_batch = events_loc_.shape[0]
             distance_matrix = torch.cdist(car_cur_loc[i_b, ...].type(torch.float), events_loc_.type(torch.float), p=1)
@@ -121,63 +124,66 @@ class AnticipatoryState:
             if n_events_in_batch > 0:
                 min_distance = torch.sum(cars_min_dist)
                 self.movement_cost[i_b, self.time] = self.movement_cost[i_b, self.time] + min_distance
-            # find row of relevant event in graph
-            loc_row = events_loc_[:, 0] * self.dim + events_loc_[:, 1]
-            graph_row = (loc_row + i_b * self.dim * self.dim).type(torch.int)
-            # find which events need to be canceled and cancel these events -
-            not_answered = torch.logical_not(self.events_status['answered'][i_b, :n_events_in_batch].view(-1))
-            time_finished = (self.events_time_dict[i_b][:, 1] == torch.tensor([self.time]).expand(n_events_in_batch))
-            should_cancel = time_finished*not_answered
-            cancel_indexes = torch.where(should_cancel)[0]
-            for i_e_can in cancel_indexes:
-                self.cancel_event(i_b, i_e_can, graph_row[i_e_can])
-                if self.print_debug:
-                    print("t:" + str(self.time) + ", canceled event id:" + str(i_e_can) + ", in batch" + str(i_b))
-            not_canceled = torch.logical_not(self.events_status['canceled'][i_b,  :n_events_in_batch].view(-1))
-            time_opened = (self.events_time_dict[i_b][:, 0] <= self.time) * (self.time <= self.events_time_dict[i_b][:, 1])
-            # check if event is opened - (not canceled, not answered and time is within time window)
-            is_event_opened = not_answered * not_canceled * time_opened
-            opened_indexes = torch.where(is_event_opened)[0]
-            for i_e_open in opened_indexes:
-                # in this case the event is opened , so we need to see if a car reached it's location
-                is_answered = torch.where(distance_matrix[:, i_e_open] <= 0.1)[0]
-                if is_answered.size()[0] > 0:
-                    # needed for calulating optional choices -
-                    currently_closed_events_pos.append(self.events_loc_dict[i_b][i_e_open, ...].detach().numpy())
-                    currently_closed_events_start_time.append(self.events_time_dict[i_b][i_e_open, 0].detach().numpy())
-                    currently_closed_events_end_time.append(self.events_time_dict[i_b][i_e_open, 1].detach().numpy())
-                    # calculate if event is closed -
-                    car_index = is_answered[0]  # this is the car chosen to answer this specific event
-                    distance_matrix[car_index, :] = 9999  # makes sure you dont use the same car for other events
-                    self.cars_log[i_b][car_index.item()].append(i_e_open)
-                    self.close_event(i_b, i_e_open, graph_row[i_e_open])
+            # for i_c in range(self.n_cars):
+            #     if n_events_in_batch > 0:
+            #         min_distance = torch.min(distance_matrix[i_c, ...])
+            #         self.movement_cost[i_b, self.time] = self.movement_cost[i_b, self.time] + min_distance
+            for i_e in range(n_events_in_batch):
+                # find row of relevant event in graph
+                loc_row = events_loc_[i_e, 0] * self.dim + events_loc_[i_e, 1]
+                graph_row = (loc_row + i_b * self.dim * self.dim).type(torch.int)
+                # if event close time is equal to current time - event should be canceled
+                should_cancel = (self.events_time_dict[i_b][:, 1] == self.time) and\
+                                (not self.events_status['answered'][i_b, i_e])
+                if should_cancel:
+                    self.cancel_event(i_b, i_e, graph_row)
                     if self.print_debug:
-                        print("t:" + str(self.time) + ", closed event id:" + str(i_e_open) + ", in batch" + str(i_b))
-                else:
-                    open_cost = self.data_input['open_cost'][i_b]
-                    self.events_cost[i_b, self.time] = self.events_cost[i_b, self.time] + open_cost
-                    opened_events_pos.append(self.events_loc_dict[i_b][i_e_open, ...].detach().numpy())
-                    opened_events_start_time.append(self.events_time_dict[i_b][i_e_open, 0].detach().numpy())
-                    opened_events_end_time.append(self.events_time_dict[i_b][i_e_open, 1].detach().numpy())
-
-            should_open = (self.events_time_dict[i_b][:, 0] == self.time + 1)
-            should_open_indexes = torch.where(should_open)[0]
-            for i_e_should_open in should_open_indexes:
-                self.data_input.x[graph_row[i_e_should_open], 3] = self.data_input.x[graph_row[i_e_should_open], 3] + 1
-                event_delta_time = self.events_time_dict[i_b][i_e_should_open, 1] - \
-                                   self.events_time_dict[i_b][i_e_should_open, 0]
-                if self.data_input.x[graph_row[i_e_should_open], 4] <= event_delta_time:
-                    self.data_input.x[graph_row[i_e_should_open], 4] = event_delta_time
-                if self.print_debug:
-                    print("t:" + str(self.time) + ", opened event id:" + str(i_e_should_open) + ", in batch" + str(i_b))
+                        print("t:" + str(self.time) + ", canceled event id:" + str(i_e) + ", in batch" + str(i_b))
+                # check if event is opened - (not canceled, not answered and time is within time window)
+                is_event_opened = (not self.events_status['canceled'][i_b, i_e]) and \
+                                  (not self.events_status['answered'][i_b, i_e]) and \
+                                  (self.events_time_dict[i_b][i_e, 0] <= self.time) and \
+                                  (self.time <= self.events_time_dict[i_b][i_e, 1])
+                if is_event_opened:
+                    # in this case the event is opened , so we need to see if a car reached it's location
+                    is_answered = torch.where(distance_matrix[:, i_e] <= 0.1)[0]
+                    if is_answered.size()[0] > 0:
+                        # needed for calulating optional choices -
+                        currently_closed_events_pos.append(self.events_loc_dict[i_b][i_e, ...].detach().numpy())
+                        currently_closed_events_start_time.append(self.events_time_dict[i_b][i_e, 0].detach().numpy())
+                        currently_closed_events_end_time.append(self.events_time_dict[i_b][i_e, 1].detach().numpy())
+                        # calculate if event is closed -
+                        car_index = is_answered[0]  # this is the car chosen to answer this specific event
+                        distance_matrix[car_index, :] = 9999  # makes sure you dont use the same car for other events
+                        self.cars_log[i_b][car_index.item()].append(i_e)
+                        self.close_event(i_b, i_e, graph_row)
+                        if self.print_debug:
+                            print("t:" + str(self.time) + ", closed event id:" + str(i_e) + ", in batch" + str(i_b))
+                    else:
+                        open_cost = self.data_input['open_cost'][i_b]
+                        self.events_cost[i_b, self.time] = self.events_cost[i_b, self.time] + open_cost
+                        opened_events_pos.append(self.events_loc_dict[i_b][i_e, ...].detach().numpy())
+                        opened_events_start_time.append(self.events_time_dict[i_b][i_e, 0].detach().numpy())
+                        opened_events_end_time.append(self.events_time_dict[i_b][i_e, 1].detach().numpy())
+                # if event open time is equal to current time , open event
+                # starting time is the following time step
+                should_open = (self.events_time_dict[i_b][i_e, 0] == self.time+1)
+                # add 1 to graph if event is opened now for the 1st time -
+                if should_open:
+                    self.data_input.x[graph_row, 3] = self.data_input.x[graph_row, 3] + 1
+                    event_delta_time = self.events_time_dict[i_b][i_e, 1] - self.events_time_dict[i_b][i_e, 0]
+                    if self.data_input.x[graph_row, 4] <= event_delta_time:
+                        self.data_input.x[graph_row, 4] = event_delta_time
+                    if self.print_debug:
+                        print("t:"+str(self.time)+", opened event id:" + str(i_e)+", in batch" + str(i_b))
             # calculate anticipatory cost for batch i_b after moving cars (known events and future events)
+            cars_loc = car_cur_loc[i_b, ...].clone().detach().numpy()
+            # create stochastic events (use the same events for all anticipatory calculations)
+            stochastic_event_dict = createStochasticEvents(0, self.n_stochastic_runs, 0, self.sim_length,
+                                                           self.stochastic_mat, self.events_open_time, self.time,
+                                                           'Bm_poisson', np.array([self.dim, self.dim]),
+                                                           self.dist_lambda)
             if self.should_calc_anticipatory:
-                cars_loc = car_cur_loc[i_b, ...].clone().detach().numpy()
-                # create stochastic events (use the same events for all anticipatory calculations)
-                stochastic_event_dict = createStochasticEvents(0, self.n_stochastic_runs, 0, self.sim_length,
-                                                               self.stochastic_mat, self.events_open_time, self.time,
-                                                               'Bm_poisson', np.array([self.dim, self.dim]),
-                                                               self.dist_lambda)
                 new_anticipatory_cost = self.calc_anticipatory_cost(i_b, cars_loc, opened_events_pos,
                                                                     opened_events_start_time, opened_events_end_time,
                                                                     stochastic_event_dict)
@@ -230,6 +236,7 @@ class AnticipatoryState:
                                         self.events_cost_options[i_b, self.time, i_a] = self.events_cost_options[i_b, self.time, i_a] + event_opened_cost
             e_time_b = time.time()
             # print("run time for batch:"+str(i_b)+", is:"+str(e_time_b -s_time_b))
+        # update current car location to new locations
         self.car_cur_loc = car_cur_loc.clone()
         self.time = self.time + 1  # update simulation time
         e_time = time.time()
@@ -237,33 +244,31 @@ class AnticipatoryState:
             print("time to update state is:"+str(e_time-s_time))
         return
 
-    def update_all_cars_state(self, actions):
+    def update_all_cars_state(self, car_cur_loc, actions):
         n_actions = self.actions_to_move_tensor_all_options.shape[0]
         expanded_actions_to_move = self.actions_to_move_tensor_all_options[None, ...].\
             expand(self.batch_size, n_actions, self.n_cars, 2)
         expanded_actions_chosen = actions[:, None, None, None].\
             expand(self.batch_size, 1, self.n_cars, 2)
-        delta_movement = expanded_actions_to_move.gather(1, expanded_actions_chosen).squeeze()
-        new_loc = self.car_cur_loc.clone() + delta_movement
-        dim_lim = torch.tensor([self.dim-1], device=actions.device)[None, :].expand([self.batch_size, self.n_cars])
+        delta_movement = expanded_actions_to_move.gather(1, expanded_actions_chosen)
+        new_loc = car_cur_loc.clone() + delta_movement
+        dim_lim = torch.tensor([self.dim], device=actions.device)[None, :].expand([self.batch_size, self.n_cars])
         zero_lim = torch.zeros_like(dim_lim, device=actions.device)
-        can_move_x = ((zero_lim <= new_loc[:, :, 0]) * (new_loc[:, :, 0] <= dim_lim))
+        can_move_x = ((zero_lim<=new_loc[:, :, 0])*(new_loc[:, :, 0]<=dim_lim))
         can_move_y = ((zero_lim <= new_loc[:, :, 1]) * (new_loc[:, :, 1] <= dim_lim))
         can_move_cars = can_move_x*can_move_y
         invalid_indexes = torch.where(can_move_cars == False)
-        for i_i in range(len(invalid_indexes[0])):
-            i_batch_inv = invalid_indexes[0][i_i]
-            i_car_inv = invalid_indexes[1][i_i]
-            available_actions = self.get_available_moves(self.car_cur_loc[i_batch_inv, i_car_inv], i_car_inv)
-            random_delta_movement = available_actions[torch.randint(0, available_actions.shape[0], (1, 1))].view(-1)
+        for i_batch_inv, i_car_inv in invalid_indexes:
+            avialable_actions = self.get_available_moves(new_loc[i_batch_inv, i_car_inv], i_car_inv)
+            random_delta_movement = avialable_actions[torch.randint(0, avialable_actions.shape[0], (1, 1))].view(-1)
             delta_movement[i_batch_inv, i_car_inv, :] = random_delta_movement.clone()
-            new_loc[i_batch_inv, i_car_inv] = self.car_cur_loc[i_batch_inv, i_car_inv, :].clone() + random_delta_movement
+            new_loc[i_batch_inv, i_car_inv] = car_cur_loc[i_batch_inv, i_car_inv, :].clone() + random_delta_movement
         self.cars_route[:, :, self.time + 1, ...] = new_loc.clone()
         self.actions_chosen[:, :, self.time, :] = delta_movement.clone()
         batch_ids = torch.tensor(range(self.batch_size))
         # subtract 1 from graph every where a car has left
         for i_car in range(self.n_cars):
-            loc_row = (self.car_cur_loc[:, i_car, 0]*self.dim + self.car_cur_loc[:, i_car, 1]).int()
+            loc_row = (car_cur_loc[:, i_car, 0]*self.dim + car_cur_loc[:, i_car, 1]).int()
             graph_rows = loc_row + self.dim*self.dim*batch_ids
             self.data_input.x[graph_rows, 2] = self.data_input.x[graph_rows, 2] - 1
         new_cost = self.data_input['movement_cost'] * torch.abs(torch.sum(delta_movement, axis=[1, 2]))
@@ -308,10 +313,10 @@ class AnticipatoryState:
 
     def get_available_moves(self, cur_loc_temp, i_c):
         available_moves = []
-        for action in self.actions_to_move_tensor:
-            new_loc = cur_loc_temp + action
+        for action in self.actions_to_move_tensor_all_options:
+            new_loc = cur_loc_temp + action[i_c]
             if (0 <= new_loc[0] <= self.dim - 1) and (0 <= new_loc[1] <= self.dim - 1):
-                available_moves.append(action)
+                available_moves.append(action[i_c])
         return torch.stack(available_moves)
 
     def cancel_event(self, i_b, i_e, graph_row):

@@ -11,7 +11,7 @@ import time
 import pickle
 # my code -
 from RL_anticipatory.problems.problem_anticipatory import AnticipatoryProblem
-from RL_anticipatory.nets.RL_Model import AnticipatoryModel
+from RL_anticipatory.nets.RL_Model_MTSP import MTSPModel
 from RL_anticipatory.utils import torch_load_cpu
 from RL_anticipatory.train import train_epoch, validate, get_inner_model
 from RL_anticipatory.reinforce_baselines import NoBaseline, ExponentialBaseline, RolloutBaseline, WarmupBaseline
@@ -30,7 +30,7 @@ def run():
     batch_size = 30
     val_size = 20
     end_time = 15
-    events_time_window = 4
+    events_time_window = 999
     n_cars = 2
     n_events = 4
     # anticipatory parameters -
@@ -86,15 +86,14 @@ def run():
         'checkpoint_epochs': 1,
         'log_step': 4,
         'eval_batch_size': eval_batch_size,
-        'run_name': 'anti_with_time_window',
+        'run_name': 'mtsp_7',
         'problem': 'anticipatory_rl',
         'output_dir': 'outputs',
         'log_dir': 'logs',
         'load_path': None,
-        'resume': '/Users/chanaross/dev/Thesis/RL_anticipatory/outputs/anticipatory_rl_7/anti_with_time_window_20200318T133507/epoch-2755.pt'}
+        'resume': None}
     # '/Users/chanaross/dev/Thesis/RL_anticipatory/outputs/anticipatory_rl_7/mtsp_10_20200310T200705/epoch-2715.pt'}
     stochastic_input_dict = {'future_mat': stochastic_mat,
-                             'should_calc_anticipatory': False,
                              'n_stochastic_runs': n_stochastic_runs}
     sim_input_dict = {'graph_dim': graph_size,
                       'sim_length': end_time,
@@ -103,7 +102,7 @@ def run():
                       'dist_lambda': dist_lambda,
                       'n_cars': n_cars,
                       'should_calc_all_options': False,
-                      'print_debug': True}
+                      'print_debug': False}
 
     opts['run_name'] = "{}_{}".format(opts['run_name'], time.strftime("%Y%m%dT%H%M%S"))
     opts['should_calc_all_options'] = sim_input_dict['should_calc_all_options']
@@ -154,8 +153,8 @@ def run():
         print('  [*] Loading data from {}'.format(load_path))
         load_data = torch_load_cpu(load_path)
     torch.autograd.set_detect_anomaly(True)
-    model = AnticipatoryModel(n_features, graph_size, opts['embedding_dim'], opts['encoder_dim'], opts['dp'],
-                              stochastic_input_dict, sim_input_dict)
+    model = MTSPModel(n_features, graph_size, opts['embedding_dim'], opts['encoder_dim'], opts['dp'],
+                      stochastic_input_dict, sim_input_dict)
     model = model.to(opts['device'])
     if opts['use_cuda'] and torch.cuda.device_count() > 1:
         model = torch.nn.DataParallel(model)

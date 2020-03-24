@@ -368,7 +368,7 @@ def main():
     if flag_calc_network:
         states = []
         for i_m, network_name in enumerate(network_names):
-            model, args, sim_input, stochastic_input = load_model(network_loc + network_name)
+            model, args, sim_input, stochastic_input = load_model(network_loc + network_name, 'anticipatory')
             if i_m == 0:
                 data_input = {'car_loc': car_starting_loc,
                               'events_time': events_times,

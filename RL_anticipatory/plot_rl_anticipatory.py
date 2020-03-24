@@ -68,7 +68,7 @@ def main():
     state_dict_models = []
     states_out = []
     for i_m in range(len(model_loc)):
-        model, args, sim_input_dict, stochastic_input_dict = load_model(problem_loc + model_loc[i_m])
+        model, args, sim_input_dict, stochastic_input_dict = load_model(problem_loc + model_loc[i_m], 'anticipatory')
         if i_m == 0:  # create dataset based on first model , then use the same nodes for all models to be checked
             dataset = problem_anticipatory.AnticipatoryDataset("", args['n_cars'], args['events_time_window'],
                                                                sim_input_dict['sim_length'], args['graph_size'],
