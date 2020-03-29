@@ -1,0 +1,10 @@
+{
+ "graph_dim": 7,
+ "sim_length": 15,
+ "events_open_time": 999,
+ "n_prediction_steps": 5,
+ "dist_lambda": 0.3,
+ "n_cars": 2,
+ "should_calc_all_options": false,
+ "print_debug": false
+}
