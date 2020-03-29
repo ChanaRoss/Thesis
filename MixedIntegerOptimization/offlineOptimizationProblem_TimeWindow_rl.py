@@ -159,7 +159,7 @@ def createEventsDistribution(gridSize, startTime, endTime, lam, eventTimeWindow)
 
 
 def plotResults(m, carsPos, eventsPos, eventsOpenTime, eventsCloseTime, plotFigures, fileLoc, fileName, gs):
-    plot_gif = False
+    plot_gif = True
     if plot_gif:
         if not os.path.isdir(fileLoc + fileName):
             os.mkdir(fileLoc + fileName)
@@ -257,7 +257,7 @@ def plotResults(m, carsPos, eventsPos, eventsOpenTime, eventsCloseTime, plotFigu
         numCanceledVec[t] = numEventsCanceled
         if plot_gif:
             currentCarsPos = np.array([c[t] for c in carFullPath])
-            plotForGif(currentCarsPos, eventsPos, param['pickUpTime'], eventsOpenTime, eventsCloseTime, param['isPickedUp'], fileName, t, gs)
+            plotForGif(currentCarsPos, eventsPos, param['pickUpTime'], eventsOpenTime, eventsCloseTime, param['isPickedUp'], fileLoc + fileName+'/'+fileName, t, gs)
     timeVec = np.array(range(int(maxTime)))
     dataOut = {'closedEvents'       : numClosedVec,
                'canceledEvents'     : numCanceledVec,
@@ -310,8 +310,8 @@ def plotForGif(carPos, eventPos, eventPickUpTime, eventOpenTime, eventCloseTime,
             ax.scatter(eventPos[i, 0], eventPos[i, 1], c='r', alpha=0.2)
         else:
             ax.scatter(eventPos[i, 0], eventPos[i, 1], c='y', alpha=0.2)
-    ax.set_xlim([-1, gs[0] + 1])
-    ax.set_ylim([-1, gs[1] + 1])
+    ax.set_xlim([-1, gs + 1])
+    ax.set_ylim([-1, gs + 1])
     ax.grid(True)
     plt.legend()
     plt.savefig(fileName + '_' + str(t)+'.png')

@@ -15,17 +15,18 @@ class AnticipatoryProblem:
         self.movement_cost = opts['movement_cost']
         self.open_cost = opts['open_cost']
         self.lam = opts['lam']
+        self.device = opts['device']
 
     def make_dataset(self, num_samples):
         dataset = AnticipatoryDataset("", self.n_cars, self.n_events, self.events_time_window, self.end_time, self.graph_size,
                                       self.cancel_cost, self.close_reward, self.movement_cost, self.open_cost,
-                                      self.lam,  n_samples=num_samples)
+                                      self.lam, self.device, n_samples=num_samples)
         return dataset
 
 
 class AnticipatoryDataset(Dataset):
     def __init__(self, root, n_cars, n_events, events_time_window, end_time, graph_size,
-                 cancel_cost, close_reward, movement_cost, open_cost, lam, n_samples=100,
+                 cancel_cost, close_reward, movement_cost, open_cost, lam, device, n_samples=100,
                  transform=None, pre_transform=None):
         super(AnticipatoryDataset, self).__init__(root, transform, pre_transform)
         self.n_samples = n_samples
@@ -36,7 +37,11 @@ class AnticipatoryDataset(Dataset):
         self.events_time_window = events_time_window
         self.graph_size = int(graph_size)
         self.data = []
-        self.dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
+        self.device = device
+        if self.device.type == 'cpu':
+            self.dtype = torch.FloatTensor
+        else:
+            self.dtype = torch.cuda.FloatTensor
         for i in range(self.n_samples):
             events_times = self.get_events_times()
             all_data = {'car_loc': self.get_car_loc(),
@@ -55,10 +60,10 @@ class AnticipatoryDataset(Dataset):
         graph.car_loc = all_data['car_loc']
         graph.events_loc = all_data['events_loc']
         graph.events_time = all_data['events_time']
-        graph.cancel_cost = all_data['cancel_cost']
-        graph.movement_cost = all_data['movement_cost']
-        graph.close_reward = all_data['close_reward']
-        graph.open_cost = all_data['open_cost']
+        graph.cancel_cost = torch.tensor([all_data['cancel_cost']], device=self.device)
+        graph.movement_cost = torch.tensor([all_data['movement_cost']], device=self.device)
+        graph.close_reward = torch.tensor([all_data['close_reward']], device=self.device)
+        graph.open_cost = torch.tensor([all_data['open_cost']], device=self.device)
         return graph
 
     def create_vertices(self, all_data):

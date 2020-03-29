@@ -33,6 +33,14 @@ def move_to(var, device):
     return var.to(device)
 
 
+def to_numpy(var):
+    if var.device == 'cpu':
+        out = var.numpy()
+    else:
+        out = var.cpu().numpy()
+    return out
+
+
 def torch_load_cpu(load_path):
     return torch.load(load_path, map_location=lambda storage, loc: storage)  # Load on CPU
 
@@ -106,7 +114,7 @@ def load_model(path, model_type, epoch=None):
 
     stochastic_input_dict = load_stochastic(os.path.join(path, 'stochastic_input.pkl'))
     sim_input_dict = load_args(os.path.join(path, 'sim_input.json'))
-    sim_input_dict['possible_actions'] = torch.tensor([#[0, 0],
+    sim_input_dict['possible_actions'] = torch.tensor([[0, 0],
                                        [0, 1],
                                        [1, 0],
                                        [0, -1],

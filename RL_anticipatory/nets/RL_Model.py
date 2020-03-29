@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from RL_anticipatory.problems.state_anticipatory import AnticipatoryState
 import math
-
+import time
 
 def set_decode_type(model, decode_type):
     if isinstance(model, DataParallel):
@@ -69,7 +69,11 @@ class AnticipatoryModel(torch.nn.Module):
         all_logits = []
         batch_size = state.data_input.num_graphs
         logits_all_options_list = []
+        if self.sim_input_dict['print_debug']:
+            t_all_start = time.time()
         while not state.all_finished():
+            if self.sim_input_dict['print_debug']:
+                t_start = time.time()
             x_temp = state.data_input.x.clone()
             x = self.embedding(x_temp)
             x_encoder_1 = self.batch_norm1(self.ff_encoder1(self.encoder1(x, state.data_input.edge_index)+x) + x)
@@ -89,11 +93,17 @@ class AnticipatoryModel(torch.nn.Module):
             all_actions.append(actions.clone())
             all_logits.append(logits_selected.clone())
             logits_all_options_list.append(logit_ff.clone())
+            if self.sim_input_dict['print_debug']:
+                t_end = time.time()
+                print("run time for 1 time in model is: "+str(t_end - t_start))
         costs_all_options = state.get_optional_costs()  # tensor size is: [batch_size, time, options_size]
         logits_all_options = torch.stack(logits_all_options_list, 1) # tensor is [batch_size, time, options_size]
         cost_chosen = state.get_cost()   # tensor size is: [batch_size, time]
         logits_chosen = torch.stack(all_logits, 1)
         actions_chosen = torch.stack(all_actions, 1)
+        if self.sim_input_dict['print_debug']:
+            t_all_end = time.time()
+            print("time for whole network is:"+str(t_all_end - t_all_start))
         # actions_chosen output is : [n_time_steps, n_batches]
         # logits_chosen output is : [n_time_steps, n_batches]
         # cost_chosen output is: [n_batches, n_time_steps]

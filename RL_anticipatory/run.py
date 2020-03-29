@@ -79,7 +79,7 @@ def run():
         'bl_alpha': 0.05,
         'no_progress_bar': False,
         'no_tensorboard': False,
-        'no_cuda': True,
+        'no_cuda': False,
         'eval_only': False,
         'with_baseline': True,
         'bl_warmup_epochs': None,
@@ -91,7 +91,7 @@ def run():
         'output_dir': 'outputs',
         'log_dir': 'logs',
         'load_path': None,
-        'resume': '/Users/chanaross/dev/Thesis/RL_anticipatory/outputs/anticipatory_rl_7/anti_with_time_window_20200318T133507/epoch-2755.pt'}
+        'resume': 'outputs/anticipatory_rl_7/mtsp_10_20200310T200705/epoch-2715.pt'}
     # '/Users/chanaross/dev/Thesis/RL_anticipatory/outputs/anticipatory_rl_7/mtsp_10_20200310T200705/epoch-2715.pt'}
     stochastic_input_dict = {'future_mat': stochastic_mat,
                              'should_calc_anticipatory': False,
@@ -103,10 +103,11 @@ def run():
                       'dist_lambda': dist_lambda,
                       'n_cars': n_cars,
                       'should_calc_all_options': False,
-                      'print_debug': True}
+                      'print_debug': False}
 
     opts['run_name'] = "{}_{}".format(opts['run_name'], time.strftime("%Y%m%dT%H%M%S"))
     opts['should_calc_all_options'] = sim_input_dict['should_calc_all_options']
+    opts['should_calc_anticipatory'] = stochastic_input_dict['should_calc_anticipatory']
     opts['save_dir'] = os.path.join(
         opts['output_dir'],
         "{}_{}".format(opts['problem'], opts['graph_size']),

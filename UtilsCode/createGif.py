@@ -8,7 +8,7 @@ import datetime
 e = sys.exit
 
 
-def create_gif(fileLoc,filenames,duration,outName):
+def create_gif(fileLoc, filenames, duration, outName):
     images = []
     for filename in filenames:
         images.append(imageio.imread(fileLoc + filename))
