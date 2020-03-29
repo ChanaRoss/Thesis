@@ -10,6 +10,7 @@ from MixedIntegerOptimization.offlineOptimizationProblemMaxFlow import runMaxFlo
 
 class AnticipatoryState:
     def __init__(self, data_input, stochastic_input_dict, sim_input_dict):
+        self.is_training = sim_input_dict['is_training']
         self.print_debug = sim_input_dict['print_debug']
         self.data_input = data_input.clone()
         self.should_calc_all_options = sim_input_dict['should_calc_all_options']
@@ -132,7 +133,7 @@ class AnticipatoryState:
                 distance_matrix = torch.cdist(car_cur_loc[i_b, ...].type(torch.float), events_loc_.type(torch.float), p=1)
                 e_d = time.time()
                 dist_time += e_d-s_d
-                if n_events_in_batch > 0:
+                if n_events_in_batch > 0 and self.is_training:
                     cars_min_dist, _ = torch.min(distance_matrix, axis=1)
                     min_distance = torch.sum(cars_min_dist)
                     self.movement_cost[i_b, self.time] = self.movement_cost[i_b, self.time] + min_distance

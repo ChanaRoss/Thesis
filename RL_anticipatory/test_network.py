@@ -112,6 +112,7 @@ def main():
         args['device'] = torch.device("cuda:0" if args['use_cuda'] else "cpu")
         gs = args['graph_size']
         model.sim_input_dict['sim_length'] = sim_length
+        model.sim_input_dict['is_training'] = False
         model.stochastic_input_dict['should_calc_anticipatory'] = False
         # model.sim_input_dict['print_debug'] = True
         # cars_route = torch.zeros([n_samples, args['n_cars'], sim_input_dict['sim_length'], 2])

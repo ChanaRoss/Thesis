@@ -103,7 +103,8 @@ def run():
                       'dist_lambda': dist_lambda,
                       'n_cars': n_cars,
                       'should_calc_all_options': False,
-                      'print_debug': False}
+                      'print_debug': False,
+                      'is_training': True}
 
     opts['run_name'] = "{}_{}".format(opts['run_name'], time.strftime("%Y%m%dT%H%M%S"))
     opts['should_calc_all_options'] = sim_input_dict['should_calc_all_options']
