@@ -15,9 +15,9 @@ def set_decode_type(model, decode_type):
     model.set_decode_type(decode_type)
 
 
-class AnticipatoryModel(torch.nn.Module):
+class AnticipatoryModelLSTM(torch.nn.Module):
     def __init__(self, num_features, num_nodes, embedding_dim, encoder_dim, dp, stochastic_input_dict, sim_input_dict):
-        super(AnticipatoryModel, self).__init__()
+        super(AnticipatoryModelLSTM, self).__init__()
         self.dropout = dp
         self.decode_type = None
         self.sim_input_dict = sim_input_dict
@@ -27,10 +27,6 @@ class AnticipatoryModel(torch.nn.Module):
         self.embedding = nn.Sequential(nn.Linear(num_features, embedding_dim),
                                        nn.ReLU(),
                                        nn.Linear(embedding_dim, embedding_dim))
-
-        lstm_input_size = embedding_dim * num_nodes * num_nodes
-        self.lstm_layer = nn.LSTM(lstm_input_size, lstm_input_size, 1)
-        self.with_lstm = sim_input_dict['use_lstm']
 
         self.encoder1 = GATConv(embedding_dim, encoder_dim, heads=8, dropout=self.dropout, bias=True, concat=False)
         self.batch_norm1 = BatchNorm(encoder_dim)
@@ -82,23 +78,10 @@ class AnticipatoryModel(torch.nn.Module):
             x_temp = state.data_input.x.clone()
             x = self.embedding(x_temp)
             shape_x = x.shape
-            if self.with_lstm:
-                self.lstm_layer.flatten_parameters()
-                temp_lstm_graph = torch.zeros_like(state.lstm_graph, device=state.lstm_graph.device)
-                temp_lstm_graph[:-1, ...] = state.lstm_graph[1:, ...].clone()  # move all lstm graph back one
-                temp_lstm_graph[-1, ...] = x.clone().view(-1, self.sim_input_dict['embedding_dim'])
-                x_emb = temp_lstm_graph.view(self.sim_input_dict['n_seq_lstm'], batch_size, -1)
-                x_lstm_out, _ = self.lstm_layer(x_emb)
-                x_lstm_out = x_lstm_out[-1, ...].view([batch_size*state.dim*state.dim, -1])  # out size is incorrect
-            else:
-
-                x_lstm_out = x
-            x_encoder_1 = self.batch_norm1(self.ff_encoder1(self.encoder1(x_lstm_out, state.data_input.edge_index) +
-                                                            x_lstm_out) + x_lstm_out)
-            x_encoder_2 = self.batch_norm2(self.ff_encoder2(self.encoder2(x_encoder_1, state.data_input.edge_index) +
-                                                            x_encoder_1) + x_encoder_1)
-            x_encoder_out = self.batch_norm3(self.ff_encoder3(self.encoder3(x_encoder_2, state.data_input.edge_index) +
-                                                              x_encoder_2) + x_encoder_2)
+            x_lstm_out, _ = self.lstm_layer(x.view(batch_size, -1))
+            x_encoder_1 = self.batch_norm1(self.ff_encoder1(self.encoder1(x_lstm_out.view(shape_x), state.data_input.edge_index)+x) + x)
+            x_encoder_2 = self.batch_norm2(self.ff_encoder2(self.encoder2(x_encoder_1, state.data_input.edge_index) + x_encoder_1) + x_encoder_1)
+            x_encoder_out = self.batch_norm3(self.ff_encoder3(self.encoder3(x_encoder_2, state.data_input.edge_index) + x_encoder_2) + x_encoder_2)
             # run model decoder and find next action for each car.
             logit_per_car = self.decoder(x_encoder_out, state.data_input.edge_index)
             logit_ff = self.proj_choose_out(logit_per_car.view(batch_size, -1))

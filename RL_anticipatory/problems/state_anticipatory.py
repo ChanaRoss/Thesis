@@ -24,6 +24,7 @@ class AnticipatoryState:
         self.events_open_time = sim_input_dict['events_open_time']
         data_list = data_input.to_data_list()
         self.n_cars = data_list[0].car_loc.shape[0]
+        self.n_features = data_input.x.shape[1]
         self.time = 0  # simulation starts at time 0
         self.dim = sim_input_dict['graph_dim']
         self.car_cur_loc = torch.zeros((self.batch_size, self.n_cars, 2), device=data_input['car_loc'].device)
@@ -42,8 +43,9 @@ class AnticipatoryState:
                                                      device=self.events_cost.device)
         self.movement_cost_options = torch.zeros_like(self.anticipatory_cost_options, device=data_input['car_loc'].device)
         self.events_cost_options = torch.zeros_like(self.anticipatory_cost_options, device=data_input['car_loc'].device)
-
-
+        # this graph is needed for creating lstm layer
+        self.lstm_graph = torch.zeros([sim_input_dict['n_seq_lstm'], self.dim*self.dim*self.batch_size, sim_input_dict['embedding_dim']],
+                                      device=data_input['car_loc'].device)
         n_events = 0
         self.cars_log = {}
         for i_b in range(self.batch_size):
@@ -105,6 +107,8 @@ class AnticipatoryState:
         if self.print_debug:
             print("updating state, t:" + str(self.time))
         s_time = time.time()
+        temp_lstm_graph = torch.zeros_like(self.lstm_graph, device=self.lstm_graph.device)
+        temp_lstm_graph[:-1, ...] = self.lstm_graph[1:, ...].clone()
         car_cur_loc, delta_movement = self.update_all_cars_state(actions)
         dist_time = 0
         all_events_closed = torch.zeros([self.batch_size], device=self.cars_route.device, dtype=torch.bool)

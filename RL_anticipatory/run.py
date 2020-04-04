@@ -11,8 +11,8 @@ import time
 import pickle
 # my code -
 from RL_anticipatory.problems.problem_anticipatory import AnticipatoryProblem
-from RL_anticipatory.nets.RL_Model import AnticipatoryModel
 from RL_anticipatory.utils import torch_load_cpu
+from RL_anticipatory.nets.RL_Model import AnticipatoryModel as Model
 from RL_anticipatory.train import train_epoch, validate, get_inner_model
 from RL_anticipatory.reinforce_baselines import NoBaseline, ExponentialBaseline, RolloutBaseline, WarmupBaseline
 
@@ -82,6 +82,7 @@ def run():
         'no_cuda': False,
         'eval_only': False,
         'with_baseline': True,
+        'use_lstm': True,
         'bl_warmup_epochs': None,
         'checkpoint_epochs': 1,
         'log_step': 4,
@@ -91,7 +92,7 @@ def run():
         'output_dir': 'outputs',
         'log_dir': 'logs',
         'load_path': None,
-        'resume': 'outputs/anticipatory_rl_7/mtsp_10_20200310T200705/epoch-2715.pt'}
+        'resume': None}
     # '/Users/chanaross/dev/Thesis/RL_anticipatory/outputs/anticipatory_rl_7/mtsp_10_20200310T200705/epoch-2715.pt'}
     stochastic_input_dict = {'future_mat': stochastic_mat,
                              'should_calc_anticipatory': False,
@@ -102,6 +103,9 @@ def run():
                       'n_prediction_steps': n_prediction_steps,
                       'dist_lambda': dist_lambda,
                       'n_cars': n_cars,
+                      'use_lstm': opts['use_lstm'],
+                      'embedding_dim': opts['embedding_dim'],
+                      'n_seq_lstm' : 3,
                       'should_calc_all_options': False,
                       'print_debug': False,
                       'is_training': True}
@@ -156,7 +160,8 @@ def run():
         print('  [*] Loading data from {}'.format(load_path))
         load_data = torch_load_cpu(load_path)
     torch.autograd.set_detect_anomaly(True)
-    model = AnticipatoryModel(n_features, graph_size, opts['embedding_dim'], opts['encoder_dim'], opts['dp'],
+
+    model = Model(n_features, graph_size, opts['embedding_dim'], opts['encoder_dim'], opts['dp'],
                               stochastic_input_dict, sim_input_dict)
     model = model.to(opts['device'])
     if opts['use_cuda'] and torch.cuda.device_count() > 1:
