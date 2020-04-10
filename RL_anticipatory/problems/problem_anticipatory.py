@@ -38,10 +38,11 @@ class AnticipatoryDataset(Dataset):
         self.graph_size = int(graph_size)
         self.data = []
         self.device = device
-        if self.device.type == 'cpu':
-            self.dtype = torch.FloatTensor
-        else:
-            self.dtype = torch.cuda.FloatTensor
+        self.dtype = torch.FloatTensor
+        # if self.device.type == 'cpu':
+        #     self.dtype = torch.FloatTensor
+        # else:
+        #     self.dtype = torch.cuda.FloatTensor
         for i in range(self.n_samples):
             events_times = self.get_events_times()
             all_data = {'car_loc': self.get_car_loc(),
@@ -60,10 +61,10 @@ class AnticipatoryDataset(Dataset):
         graph.car_loc = all_data['car_loc']
         graph.events_loc = all_data['events_loc']
         graph.events_time = all_data['events_time']
-        graph.cancel_cost = torch.tensor([all_data['cancel_cost']], device=self.device)
-        graph.movement_cost = torch.tensor([all_data['movement_cost']], device=self.device)
-        graph.close_reward = torch.tensor([all_data['close_reward']], device=self.device)
-        graph.open_cost = torch.tensor([all_data['open_cost']], device=self.device)
+        graph.cancel_cost = torch.tensor([all_data['cancel_cost']], device='cpu')
+        graph.movement_cost = torch.tensor([all_data['movement_cost']], device='cpu')
+        graph.close_reward = torch.tensor([all_data['close_reward']], device='cpu')
+        graph.open_cost = torch.tensor([all_data['open_cost']], device='cpu')
         return graph
 
     def create_vertices(self, all_data):
@@ -204,7 +205,7 @@ class AnticipatoryTestDataset(Dataset):
         self.events_time_window = data_input['events_time_window']
         self.graph_size = int(data_input['graph_size'])
         self.data = []
-        self.dtype = torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
+        self.dtype = torch.FloatTensor  # torch.cuda.FloatTensor if torch.cuda.is_available() else torch.FloatTensor
         for i in range(self.n_samples):
             all_data = {'car_loc': torch.tensor(data_input['car_loc']),
                         'events_time': torch.tensor(data_input['events_time']).type(self.dtype),

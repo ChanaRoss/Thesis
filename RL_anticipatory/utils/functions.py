@@ -3,7 +3,7 @@ import torch
 import os
 import json
 import pickle
-
+from torch_geometric.data.batch import Batch
 
 def batched_cdist_l2(x1, x2):
     x1_norm = x1.pow(2).sum(dim=-1, keepdim=True)
@@ -30,7 +30,15 @@ def set_decode_type(model, decode_type):
 def move_to(var, device):
     if isinstance(var, dict):
         return {k: move_to(v, device) for k, v in var.items()}
-    return var.to(device)
+    if isinstance(var, Batch):
+        var_r = var.clone()
+        for k in var.keys:
+            var_r[k] = move_to(var[k], device)
+        return var_r
+    if device.type == 'cpu':
+        return var.cpu()
+    else:
+        return var.cuda()
 
 
 def to_numpy(var):

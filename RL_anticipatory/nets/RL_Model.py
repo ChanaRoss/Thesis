@@ -5,6 +5,7 @@ from torch_geometric.nn.data_parallel import DataParallel
 import torch.nn as nn
 import torch.nn.functional as F
 from RL_anticipatory.problems.state_anticipatory import AnticipatoryState
+from RL_anticipatory.utils import move_to
 import math
 import time
 
@@ -16,10 +17,11 @@ def set_decode_type(model, decode_type):
 
 
 class AnticipatoryModel(torch.nn.Module):
-    def __init__(self, num_features, num_nodes, embedding_dim, encoder_dim, dp, stochastic_input_dict, sim_input_dict):
+    def __init__(self, num_features, num_nodes, embedding_dim, encoder_dim, dp, stochastic_input_dict, sim_input_dict, args):
         super(AnticipatoryModel, self).__init__()
         self.dropout = dp
         self.decode_type = None
+        self.args = args
         self.sim_input_dict = sim_input_dict
         self.stochastic_input_dict = stochastic_input_dict
         self.n_cars = sim_input_dict['n_cars']
@@ -79,28 +81,27 @@ class AnticipatoryModel(torch.nn.Module):
         while not state.all_finished():
             if self.sim_input_dict['print_debug']:
                 t_start = time.time()
-            x_temp = state.data_input.x.clone()
+            x_temp = move_to(state.data_input.x, self.args['device'])
+            edge_index_d = move_to(state.data_input.edge_index, self.args['device'])
             x = self.embedding(x_temp)
-            shape_x = x.shape
             if self.with_lstm:
                 self.lstm_layer.flatten_parameters()
                 temp_lstm_graph = torch.zeros_like(state.lstm_graph, device=state.lstm_graph.device)
                 temp_lstm_graph[:-1, ...] = state.lstm_graph[1:, ...].clone()  # move all lstm graph back one
                 temp_lstm_graph[-1, ...] = x.clone().view(-1, self.sim_input_dict['embedding_dim'])
-                x_emb = temp_lstm_graph.view(self.sim_input_dict['n_seq_lstm'], batch_size, -1)
+                x_emb = move_to(temp_lstm_graph.view(self.sim_input_dict['n_seq_lstm'], batch_size, -1), self.args['device'])
                 x_lstm_out, _ = self.lstm_layer(x_emb)
                 x_lstm_out = x_lstm_out[-1, ...].view([batch_size*state.dim*state.dim, -1])  # out size is incorrect
             else:
-
                 x_lstm_out = x
-            x_encoder_1 = self.batch_norm1(self.ff_encoder1(self.encoder1(x_lstm_out, state.data_input.edge_index) +
+            x_encoder_1 = self.batch_norm1(self.ff_encoder1(self.encoder1(x_lstm_out, edge_index_d) +
                                                             x_lstm_out) + x_lstm_out)
-            x_encoder_2 = self.batch_norm2(self.ff_encoder2(self.encoder2(x_encoder_1, state.data_input.edge_index) +
+            x_encoder_2 = self.batch_norm2(self.ff_encoder2(self.encoder2(x_encoder_1, edge_index_d) +
                                                             x_encoder_1) + x_encoder_1)
-            x_encoder_out = self.batch_norm3(self.ff_encoder3(self.encoder3(x_encoder_2, state.data_input.edge_index) +
+            x_encoder_out = self.batch_norm3(self.ff_encoder3(self.encoder3(x_encoder_2, edge_index_d) +
                                                               x_encoder_2) + x_encoder_2)
             # run model decoder and find next action for each car.
-            logit_per_car = self.decoder(x_encoder_out, state.data_input.edge_index)
+            logit_per_car = self.decoder(x_encoder_out, edge_index_d)
             logit_ff = self.proj_choose_out(logit_per_car.view(batch_size, -1))
             logit_ff = logit_ff.clone().view(batch_size, -1)  # change dimensions to [n_batchs, n_options]
             logit_ff = F.log_softmax(logit_ff, dim=1)  # soft max on action choice dimension
@@ -108,19 +109,20 @@ class AnticipatoryModel(torch.nn.Module):
             # actions and logits_selected are of size [batch_size]
             actions, logits_selected = self.get_actions(logit_ff)
             # update state to new locations -
+            actions = move_to(actions, torch.device('cpu'))
             state.update_state(actions)
             # add chosen actions and logit to list for output and final calculation
             all_actions.append(actions.clone())
-            all_logits.append(logits_selected.clone())
-            logits_all_options_list.append(logit_ff.clone())
+            all_logits.append(move_to(logits_selected, torch.device('cpu')))
+            logits_all_options_list.append(move_to(logit_ff, torch.device('cpu')))
             if self.sim_input_dict['print_debug']:
                 t_end = time.time()
                 print("run time for 1 time in model is: "+str(t_end - t_start))
         costs_all_options = state.get_optional_costs()  # tensor size is: [batch_size, time, options_size]
         logits_all_options = torch.stack(logits_all_options_list, 1) # tensor is [batch_size, time, options_size]
         cost_chosen = state.get_cost()   # tensor size is: [batch_size, time]
-        logits_chosen = torch.stack(all_logits, 1)
-        actions_chosen = torch.stack(all_actions, 1)
+        logits_chosen = move_to(torch.stack(all_logits, 1), torch.device('cpu'))
+        actions_chosen = move_to(torch.stack(all_actions, 1), torch.device('cpu'))
         if self.sim_input_dict['print_debug']:
             t_all_end = time.time()
             print("time for whole network is:"+str(t_all_end - t_all_start))
@@ -129,6 +131,7 @@ class AnticipatoryModel(torch.nn.Module):
         # cost_chosen output is: [n_batches, n_time_steps]
         # costs_all_options output is: [n_batches, n_time_steps, n_options]
         # logits_all_options output is: [n_batches, n_time_steps, n_options]
+
         return costs_all_options, logits_all_options, actions_chosen, logits_chosen, cost_chosen, state
 
     def get_actions(self, logit_ff):

@@ -162,10 +162,10 @@ def run():
     torch.autograd.set_detect_anomaly(True)
 
     model = Model(n_features, graph_size, opts['embedding_dim'], opts['encoder_dim'], opts['dp'],
-                              stochastic_input_dict, sim_input_dict)
+                              stochastic_input_dict, sim_input_dict, opts)
     model = model.to(opts['device'])
-    if opts['use_cuda'] and torch.cuda.device_count() > 1:
-        model = torch.nn.DataParallel(model)
+    # if opts['use_cuda'] and torch.cuda.device_count() > 1:
+    #     model = torch.nn.DataParallel(model)
 
     # Overwrite model parameters by parameters to load
     model_ = get_inner_model(model)

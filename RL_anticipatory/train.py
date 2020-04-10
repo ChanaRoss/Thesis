@@ -53,7 +53,8 @@ def rollout(model, dataset, opts):
         :return: torch tensor of size [batch_size, time_size]
         """
         with torch.no_grad():
-            cost_all_options, _, _, _, cost_chosen, _ = model(move_to(bat, opts['device']))
+            # bat_in = move_to(bat, opts['device'])
+            cost_all_options, _, _, _, cost_chosen, _ = model(bat)
             cost = cost_chosen
         return cost.data.cpu()
 
@@ -148,8 +149,8 @@ def train_batch(
         opts
 ):
     x, bl_val = baseline.unwrap_batch(batch)
-    x = move_to(x, opts['device'])
-    bl_val = move_to(bl_val, opts['device']) if bl_val is not None else None
+    # x = move_to(x, opts['device'])
+    # bl_val = move_to(bl_val, opts['device']) if bl_val is not None else None
 
     # Evaluate model, get costs and log probabilities
     costs_all_options, logits_all_options, actions_chosen, logits_chosen, cost_chosen, state = model(x)
@@ -173,7 +174,7 @@ def train_batch(
         if not opts['with_baseline']:
             bl_val = 0
         reinforce_loss = torch.sum((cost_chosen - bl_val)*logits_chosen, 1).mean()
-    loss = (reinforce_loss + bl_loss)
+    loss = move_to((reinforce_loss + bl_loss), opts['device'])
 
     # Perform backward pass and optimization step
     optimizer.zero_grad()

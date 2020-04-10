@@ -72,11 +72,13 @@ class AnticipatoryState:
                                                       device=data_input['car_loc'].device, dtype=torch.bool)}
 
     def get_all_actions_tensor(self):
-        all_actions = torch.stack([torch.stack(c) for c in
+        all_actions_temp = torch.stack([torch.stack(c) for c in
                                    iter.product(self.actions_to_move_tensor, repeat=self.n_cars)])
-        all_actions_indexes = torch.stack([torch.stack(c) for c in
+        all_actions = move_to(all_actions_temp, torch.device('cpu'))
+        all_actions_indexes_temp = torch.stack([torch.stack(c) for c in
                                            iter.product(torch.tensor(range(self.actions_to_move_tensor.shape[0])),
                                                         repeat=self.n_cars)])
+        all_actions_indexes = move_to(all_actions_indexes_temp, torch.device('cpu'))
         return all_actions_indexes, all_actions
 
     def create_location_events_dict(self, events_loc, events_time):
